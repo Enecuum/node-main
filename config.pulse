@@ -34,6 +34,7 @@
   "transfer_lock": 8192,
   "pos_min_stake": 250010000000000,
   "top_poses_count": 100,
+  "native_token_hash" : "0000000000000000000000000000000000000000000000000000000000000000",
   "snapshot_interval": 256,
   "snapshot_file": "snapshot_pulse.json",
   "TRUNK": "ENQGENESIS",

@@ -38,24 +38,25 @@
 	"transfer_lock":5,
 	"pos_min_stake": 250010000000000,
     "top_poses_count": 100,
-        "snapshot_interval": 3,
-        "snapshot_file":"snapshot.json",
-        "TRUNK": "BITGENESIS",
-        "ORIGIN": {
-            "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
-            "reward": 338348170e10
-        },
-        "fee_shares":  {
-            "gen_share": 3000,
-            "pow_share": 3000,
-            "ldr_share": 0,
-            "pos_share": 4000
-        },
-        "stake_limits":{
-            "min_stake":25e10,
-            "max_stake":1000e10,
-            "default_stake":0
-        },
+    "native_token_hash" : "0000000000000000000000000000000000000000000000000000000000000000",
+    "snapshot_interval": 3,
+    "snapshot_file":"snapshot.json",
+    "TRUNK": "BITGENESIS",
+    "ORIGIN": {
+        "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+        "reward": 338348170e10
+    },
+    "fee_shares":  {
+        "gen_share": 3000,
+        "pow_share": 3000,
+        "ldr_share": 0,
+        "pos_share": 4000
+    },
+    "stake_limits":{
+        "min_stake":25e10,
+        "max_stake":1000e10,
+        "default_stake":0
+    },
     "contract_pricelist": {
         "create_token" :    20000000000,
         "create_pos" :      0,

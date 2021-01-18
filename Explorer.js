@@ -836,19 +836,16 @@ class Explorer {
 			res.send(data);
 		});
 		this.app.get('/api-docs.json', (req, res) => {
-			//console.log(this.stake_limits);
 		  res.setHeader('Content-Type', 'application/json');
 		  res.send(swaggerSpec);
-
 		  console.log(swaggerSpec);
-
 		});
 		
-                let routes = [];
-                this.app._router.stack.forEach(function (r) {
-                if (r.route && r.route.path) {
-                    routes.push(r.route.path)
-                }
+		let routes = [];
+		this.app._router.stack.forEach(function (r) {
+		if (r.route && r.route.path) {
+			routes.push(r.route.path)
+		}
     });
 
     this.app.get('/api/v1/list', function (request, response) {

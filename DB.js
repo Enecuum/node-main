@@ -343,6 +343,25 @@ class DB {
 		return res[0];
 	}
 
+	async get_mining_tkn_owners(limit, ignore_owners, min_stake) {
+		let sql = mysql.format(`SELECT id FROM (
+								SELECT DISTINCT id, amount FROM tokens
+								LEFT JOIN ledger ON tokens.owner = ledger.id AND ledger.token = ?
+								WHERE minable = true
+								AND id NOT IN (?)
+								AND amount > ?
+								ORDER BY amount DESC LIMIT ?) as SUB_T`, [Utils.ENQ_TOKEN_NAME, ignore_owners, min_stake, limit]);
+		return this.request(sql);
+	}
+
+	async get_used_slots(kblock_hash) {
+		let sql = mysql.format(`SELECT owner AS id, count(*) AS count FROM mblocks
+									LEFT JOIN tokens ON tokens.hash = mblocks.token 
+									WHERE kblocks_hash = ?
+									GROUP BY owner;`, [kblock_hash]);
+		return this.request(sql);
+	}
+
 	async get_txs_awaiting(mblock_hashes){
 		return (await this.request(mysql.format('SELECT COUNT(*) as txs_awaiting FROM transactions LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash WHERE mblocks.hash in (?);', [mblock_hashes])))[0];
 	}
@@ -577,7 +596,7 @@ class DB {
 	}
 
 	async get_poa_reward(){
-		let reward = (await this.request(mysql.format('SELECT SUM(mblocks.reward) AS reward FROM mblocks LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE mblocks.included = 1 AND kblocks.time > UNIX_TIMESTAMP() - 24*60*60')))[0];
+		let reward = (await this.request(mysql.format('SELECT SUM(mblocks.reward) AS reward FROM mblocks LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE mblocks.included = 1 AND kblocks.time > UNIX_TIMESTAMP() - 24*60*60 AND mblocks.token = ?',[Utils.ENQ_TOKEN_NAME])))[0];
 		return reward;
 	}
 
@@ -1261,6 +1280,11 @@ class DB {
         let res = await this.request(mysql.format('SELECT hash as token_hash, total_supply, fee_type, fee_value, fee_min, reissuable, minable FROM tokens WHERE owner = ? ORDER BY hash DESC ', [owner]));
         return res;
     }
+
+	async get_minable_tokens_by_owner(owner){
+		let res = await this.request(mysql.format('SELECT hash FROM tokens WHERE owner = ? and minable = true ORDER BY hash DESC ', [owner]));
+		return res;
+	}
 
 	async get_tx(hash){
 		return await this.request(mysql.format(`SELECT max(T.status) as 'status', T.from, T.to, T.amount as total_amount, 		

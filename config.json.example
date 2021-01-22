@@ -96,11 +96,15 @@
 	"FORKS" : {
 		"fork_block_001" : 0
 	},
-	"mblock_slots": [
-        {
-          "token": "0000000000000000000000000000000000000000000000000000000000000000",
-          "count": 1
-        }    
-    ],
+	"mblock_slots": {
+        "size": 2,
+        "count": 10,
+        "min_stake": 500000e10,
+        "reserve": [
+            "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+            "random"
+        ]
+    },
+    "feader_watchdog": 12,
     "enable_post_tx": false
 }

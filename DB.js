@@ -1250,7 +1250,7 @@ class DB {
         let res = await this.request(mysql.format(`SELECT ledger.id,
 			ledger.amount + IF(token = '${Utils.ENQ_TOKEN_NAME}',
 				(IFNULL(sum(delegates.amount),0) +
-				IFNULL(sum(delegates.reward),0),
+				IFNULL(sum(delegates.reward),0)),
 				0) as amount,
 			token
 			FROM ledger 

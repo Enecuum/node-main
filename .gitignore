@@ -75,6 +75,8 @@ ecosystem.config.js
 
 snapshot.json
 
+log/*
+
 pm2/*
 
 !pm2/*.example

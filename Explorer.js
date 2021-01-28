@@ -293,6 +293,12 @@ class Explorer {
 			res.send(tx);
 		});
 
+		this.app.get('/api/v1/success_tx_by_height', async (req, res) => {
+			console.trace(`requested success_tx_by_height ${JSON.stringify(req.query)}`);
+			let txs = await this.db.get_successful_txs_by_height(req.query.height);
+			res.send(tx);
+		});
+
 		this.app.get('/api/v1/peer_map', async (req, res) => {
 			console.trace('requested poa', req.query);
 			let poa = await this.db.get_clients();

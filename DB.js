@@ -581,6 +581,13 @@ class DB {
 		return {txs};
 	}
 
+	async get_successful_txs_by_height(height){
+		let txs = await this.request(mysql.format(`SELECT transactions.* FROM transactions 
+														LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash 
+														LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash  WHERE status = 3 AND kblocks.n = ?`, height));
+		return {txs};
+	}
+
 	async get_tx_count_ranged(limit){
 		let res = await this.request(mysql.format(`SELECT count(*) as count FROM transactions as T
 			left join mblocks as M ON T.mblocks_hash = M.hash
@@ -855,7 +862,7 @@ class DB {
 	}
 
 	async get_tokens_count(){
-		let cnt = (await this.request(mysql.format("SELECT count(*) as count FROM tokens")))[0];
+		let cnt = (await this.request(mysql.format(`SELECT count(*) as count,  SUM(if(reissuable = 0, 1, 0)) as non_reissuable, SUM(if(reissuable = 1, 1, 0)) as reissuable, SUM(if(minable = 1, 1, 0)) as minable FROM tokens`)))[0];
 		return cnt;
 	}
 
@@ -1233,7 +1240,10 @@ class DB {
 	async get_tokens_all(hashes){
 		if(!hashes.length)
 			return [];
-		let res = await this.request(mysql.format('SELECT * FROM tokens WHERE hash in (?)', [hashes]));
+		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count
+														FROM tokens
+														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash 
+														WHERE tokens.hash in (?)`, [hashes]));
 		return res;
 	}
 
@@ -1286,16 +1296,14 @@ class DB {
 	}
 
 	async get_tx(hash){
-		return await this.request(mysql.format(`SELECT max(T.status) as 'status', T.from, T.to, T.amount as total_amount, 		
-			TKN.fee_min,
- 			T.ticker as token_hash, TKN.fee_value, TKN.fee_type, T.data, T.hash, M.kblocks_hash, M.hash as mblocks_hash 
-			FROM transactions T, mblocks M, tokens TKN
-			WHERE 
-			M.hash = T.mblocks_hash AND 
-			T.status IS NOT NULL AND
-			T.ticker = TKN.hash AND
-		    T.hash =? 
-			GROUP BY T.hash;`, hash));
+		return await this.request(mysql.format(`SELECT T.status, T.from, T.to, T.amount as total_amount, TKN.fee_min, T.ticker as token_hash, TKN.fee_value, TKN.fee_type, T.data, T.hash, M.kblocks_hash, M.hash as mblocks_hash
+													FROM transactions as T
+													INNER JOIN (SELECT MAX(status) AS status
+														FROM transactions
+														WHERE transactions.hash = ?
+													   GROUP BY hash) MaxStatus ON MaxStatus.status = T.status and  T.hash = ?
+													INNER JOIN tokens AS TKN ON TKN.hash = T.ticker
+													INNER JOIN mblocks AS M ON M.hash = T.mblocks_hash`, [hash,hash]));
 	}
 
 	async get_duplicates(hashes){

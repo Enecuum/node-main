@@ -217,7 +217,7 @@ class Explorer {
         });
 
         this.app.get('/api/v1/get_token_info_page', async (req, res) => {
-            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20);
+            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, parseInt(req.query.minable), parseInt(req.query.reissuable));
             res.send({tokens : data.tokens, page_count : data.page_count});
         });
 
@@ -296,7 +296,7 @@ class Explorer {
 		this.app.get('/api/v1/success_tx_by_height', async (req, res) => {
 			console.trace(`requested success_tx_by_height ${JSON.stringify(req.query)}`);
 			let txs = await this.db.get_successful_txs_by_height(req.query.height);
-			res.send(tx);
+			res.send(txs);
 		});
 
 		this.app.get('/api/v1/peer_map', async (req, res) => {

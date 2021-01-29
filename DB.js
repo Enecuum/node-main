@@ -862,7 +862,7 @@ class DB {
 	}
 
 	async get_tokens_count(){
-		let cnt = (await this.request(mysql.format(`SELECT count(*) as count,  SUM(if(reissuable = 0, 1, 0)) as non_reissuable, SUM(if(reissuable = 1, 1, 0)) as reissuable, SUM(if(minable = 1, 1, 0)) as minable FROM tokens`)))[0];
+		let cnt = (await this.request(mysql.format(`SELECT count(*) as count,  SUM(if(reissuable = 0 AND minable = 0, 1, 0)) as non_reissuable, SUM(if(reissuable = 1, 1, 0)) as reissuable, SUM(if(minable = 1, 1, 0)) as minable FROM tokens`)))[0];
 		return cnt;
 	}
 
@@ -1271,17 +1271,30 @@ class DB {
         return {total:total, accounts:res, page_count : Math.ceil(Number(count / page_size))};
     }
 
-    async get_token_info_page(page_num, page_size){
-		let count = (await this.get_tokens_count()).count;
-        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, 
-			count(ledger.amount) as token_holders_count,
-			IFNULL(txs_count, 0) as txs_count
-			FROM tokens 
-			LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
-			LEFT JOIN ledger ON tokens.hash = ledger.token 
-			WHERE tokens.hash != ?
-			GROUP BY token_hash
-			ORDER BY token_holders_count DESC LIMIT ?, ?`, [Utils.ENQ_TOKEN_NAME, page_num * page_size, page_size]));
+    async get_token_info_page(page_num, page_size, minable, reissuable){
+		let where = '';
+		let count_info = await this.get_tokens_count();
+		let count = count_info.count;
+		if(minable !== undefined || reissuable !== undefined) {
+			minable = (minable === 1) ? 1 : 0;
+			reissuable = (reissuable === 1) ? 1 : 0;
+			where = ` WHERE minable = ${minable} AND reissuable = ${reissuable} `;
+
+			if (minable === 0 && reissuable === 0)
+				count = count_info.non_reissuable;
+			else if (minable === 1 && reissuable === 0)
+				count = count_info.minable;
+			else if (minable === 0 && reissuable === 1)
+				count = count_info.reissuable;
+		}
+        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals,
+														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
+														IFNULL(txs_count, 0) as txs_count
+														FROM tokens 
+														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
+														${where}
+														GROUP BY tokens.hash
+														ORDER BY token_holders_count DESC LIMIT ?, ?`, [where, page_num * page_size, page_size]));
         return {tokens:res, page_count : Math.ceil(Number(count) / page_size)};
     }
 

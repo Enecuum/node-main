@@ -581,11 +581,32 @@ class DB {
 		return {txs};
 	}
 
-	async get_successful_txs_by_height(height){
-		let txs = await this.request(mysql.format(`SELECT transactions.* FROM transactions 
-														LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash 
-														LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash  WHERE status = 3 AND kblocks.n = ?`, height));
-		return {txs};
+	async get_successful_txs_by_height(height) {
+		let error = {code: 0, msg: 'successfully'};
+		let txs = [];
+		try {
+			let status = (await this.request(mysql.format(`SELECT IFNULL(sum(IFNULL(included,0)),-1) AS included, IFNULL(sum(IFNULL(calculated,0)),-1) AS calculated FROM mblocks inner join kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE n = ?`, height)))[0];
+			if (status.included <= 0) {
+				error.code = 1;
+				error.msg = 'block not found';
+				return;
+			}
+			if (status.calculated <= 0) {
+				error.code = 2;
+				error.msg = 'block not calculated';
+				return;
+			}
+			txs = await this.request(mysql.format(`SELECT transactions.* FROM transactions 
+													LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash AND mblocks.included = 1 AND calculated = 1
+													LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash  WHERE status = 3 AND kblocks.n = ?`, height));
+		}
+		catch(e){
+			console.error(e);
+			error = {code: 3, msg: 'exaption'};
+		}
+		finally {
+			return {error, data: {txs}};
+		}
 	}
 
 	async get_tx_count_ranged(limit){
@@ -1294,7 +1315,7 @@ class DB {
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
 														${where}
 														GROUP BY tokens.hash
-														ORDER BY token_holders_count DESC LIMIT ?, ?`, [where, page_num * page_size, page_size]));
+														ORDER BY token_holders_count DESC LIMIT ?, ?`, [page_num * page_size, page_size]));
         return {tokens:res, page_count : Math.ceil(Number(count) / page_size)};
     }
 

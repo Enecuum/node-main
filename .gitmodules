@@ -1,0 +1,9 @@
+[submodule "explorer"]
+	path = explorer
+	url = git@github.com:Enecuum/explorer.git
+[submodule "test"]
+	path = test
+	url = git@github.com:Enecuum/test
+[submodule "ext"]
+	path = ext
+	url = git@github.com:enecuum-dev-team/ext.git

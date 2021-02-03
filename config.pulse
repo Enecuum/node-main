@@ -1,0 +1,106 @@
+{
+  "leader_id" : "14532",
+  "loglevel": "silly",
+  "target_speed": 15,
+  "auto_id": true,
+  "explorer": 0,
+  "peek_limit": 64,
+  "mblock_interval_ms": 100,
+  "cashier_interval_ms": 10,
+  "cashier_chunk_size": 10,
+  "reward_ratio":{
+    "pos": 5500,
+    "poa": 3181,
+    "pow": 500,
+    "ref": 819
+  },
+  "block_reward":30460000000,
+  "poa_hearbeat_interval_ms": 25000,
+  "poa_min_interval_ms": 4000,
+  "pending_timeout": 15,
+  "tail_timeout": 100,
+  "max_tps": 9999,
+  "max_mblocks_per_macroblock": 2,
+  "max_txs_per_macroblock": 4,
+  "max_txs_per_microblock": 2,
+  "min_txs_per_microblock": 1,
+  "dbhost": "localhost",
+  "dbname" : "trinity_fullnode",
+  "dbport": 3306,
+  "dbuser" : "root",
+  "dbpass": "root",
+  "difficulty": 0,
+  "mode": "verify",
+  "transfer_lock": 8192,
+  "pos_min_stake": 250010000000000,
+  "top_poses_count": 100,
+  "snapshot_interval": 256,
+  "snapshot_file": "snapshot_pulse.json",
+  "TRUNK": "ENQGENESIS",
+  "ORIGIN": {
+    "publisher": "02833f453fb8bf10cc5e8fd362d563851543559f3ea6e662ef114d8db8f72dda19",
+    "reward" : 1898805637500000000
+  },
+  "randomx": {
+    "mode" : "verify",
+    "key" : "0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62"
+  },
+  "fee_shares":  {
+      "gen_share": 300,
+      "pow_share": 50,
+      "ldr_share": 50,
+      "pos_share": 9600
+  },
+  "stake_limits": {
+    "min_stake": 25e10,
+    "max_stake": 25000e10,
+    "default_stake": 0
+  },
+  "stakes": [
+    25e10,
+    125e10,
+    250e10,
+    1250e10,
+    2500e10,
+    12500e10,
+    25000e10
+  ],
+  "contract_pricelist": {
+    "create_token" :    10000000000000,
+    "create_pos" :      5000000000000,
+    "delegate" :        0,
+    "undelegate" :      0,
+    "transfer" :        0,
+    "pos_reward" :      0,
+    "mint" :            0,
+    "burn" :            0,
+    "custom" :          20000000000
+},
+  "first_message_always_probe" : false,
+  "karma" : {
+        "init" : 1,
+        "dec" : 1,
+        "min" : 1,
+        "inc" : 2,
+        "max" : 1
+  },
+  "ecc": {
+    "ecc_mode": "long",
+    "short": {
+      "msk": 8,
+      "MPK" : {
+        "x" : 512,
+        "y" : 858
+      }
+    },
+    "long": {
+      "MPK" : {
+        "x" : "1 5825281883794849344237221105608988424352585833411156440889932561996640646980823851063222220772231056196233914779149145415922993360261173802749903416410852 5936540946969068380413743119522086657954681104777466166619523872089382825434584986657206195388401394116281463523779867147359068527079261778989280073378929",
+        "y" : "1 4688636763849423634161563668208005436934537036808215312013073914406080229091065664012401435191122593195545398427549560969740485383935412705550883183087988 4084510669689696446896782518572019797370055280953400381296886371059168605719109613476243274436901324059071182863572091904957302065549445841836679753993036"
+      }
+    }
+  },
+  "FORKS" : {
+    "fork_block_001" : 41000
+  }
+}

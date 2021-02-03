@@ -1,0 +1,53 @@
+module.exports = {
+  apps : [
+  //--------------------------------------------------------
+  //-------------------------Fullnode-------------------------
+  //--------------------------------------------------------
+
+  {
+    "name": "fullnode_explorer",
+    "script": "iexplorer.js",
+    "exec_mode" : "cluster",
+    "instances" : 1,
+    "watch": false,
+    "args": "--explorer 80 --id full_node --dbname trinity_fullnode --loglevel silly",
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-explorer.log"
+  },{
+    "name": "fullnode_cashier",
+    "script": "icashier.js",
+    "watch": false,
+    "args": "--cashier_interval_ms 10 --indexer_mode 1 --dbname trinity_fullnode",
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-cashier.log"
+  },{
+    "name": "fullnode_stat",
+    "script": "istat.js",
+    "args": "--dbname trinity_fullnode",
+    "watch": false,
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-stat.log"
+  },{
+    "name": "fullnode_syncer",
+    "script": "isyncer.js",
+    "watch": false,
+    "args": "--id full_node --dbname trinity_fullnode",
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-syncer.log"
+  },{
+    "name": "fullnode_transport",
+    "script": "itransport.js",
+    "args": "--peer=95.216.68.221:8000 --port=8000 --id full_node --dbname trinity_fullnode",
+    "watch": false,
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-transport.log"
+  },{
+    "name": "fullnode_nodeapi",
+    "script": "inodeapi.js",
+    "args": "--id full_node --dbname trinity_fullnode",
+    "watch": false,
+    "merge_logs": true,
+    "log_file" : "log/pm2-fullnode-fullnode_nodeapi.log"
+  }
+]
+};

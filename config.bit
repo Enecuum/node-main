@@ -1,0 +1,103 @@
+{
+  "leader_id" : "12345678",
+  "loglevel": "info",
+  "target_speed": 15,
+  "auto_id": true,
+  "explorer": 0,
+  "peek_limit": 100,
+  "mblock_interval_ms": 100,
+  "cashier_interval_ms": 10,
+  "cashier_chunk_size": 10,
+  "reward_ratio":{
+    "pos": 4000,
+    "poa": 4000,
+    "pow": 1600,
+    "ref": 400
+  },
+  "block_reward": 96560000000,
+  "poa_hearbeat_interval_ms": 250,
+  "poa_min_interval_ms": 100,
+  "pending_timeout": 5,
+  "tail_timeout": 100,
+  "max_tps": 9999,
+  "max_mblocks_per_macroblock": 3,
+  "max_txs_per_macroblock": 9,
+  "max_txs_per_microblock": 3,
+  "min_txs_per_microblock": 1,
+  "dbhost": "localhost",
+  "dbport": 3306,
+  "dbpass": "root",
+  "difficulty": 0,
+  "mode": "verify",
+  "transfer_lock": 5,
+  "pos_min_stake": 250010000000000,
+  "top_poses_count": 100,
+  "snapshot_interval": 100,
+  "snapshot_file": "snapshot_bit.json",
+  "TRUNK": "BITGENESIS",
+  "ORIGIN": {
+    "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+    "reward": "3437266354815106572"
+  },
+  "randomx": {
+    "mode" : "verify",
+    "key" : "0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62"
+  },
+  "fee_shares":  {
+      "gen_share": 3000,
+      "pow_share": 3000,
+      "ldr_share": 0,
+      "pos_share": 4000
+  },
+  "stake_limits": {
+    "min_stake": 25e10,
+    "max_stake": 1000e10,
+    "default_stake": 0
+  },
+  "stakes": [
+    25e10,
+    125e10,
+    250e10,
+    500e10,
+    750e10,
+    1000e10
+  ],
+  "contract_pricelist": {
+    "create_token" :    10000000000000,
+    "create_pos" :      5000000000000,
+    "delegate" :        0,
+    "undelegate" :      0,
+    "transfer" :        0,
+    "pos_reward" :      0,
+    "mint" :            0,
+    "burn" :            0,
+    "custom" :          20000000000
+  },
+  "first_message_always_probe" : false,
+  "karma" : {
+    "init" : 1,
+    "dec" : 1,
+    "min" : 1,
+    "inc" : 2,
+    "max" : 1
+  },
+  "ecc": {
+    "ecc_mode": "long",
+    "short": {
+      "msk": 8,
+      "MPK" : {
+        "x" : 512,
+        "y" : 858
+      }
+    },
+    "long": {
+      "MPK" : {
+        "x" : "1 3880112175745769906129488456404571855313298496010825544782964964123833489278388802716228358058131528518953774702792145679842058700395879994915548189595077 2080522071627240824848138990257546083185256914799209977492439073918549876575237775765153830820632785082314470786485656726830053964692583149237097989320386",
+        "y" : "1 5670372393738907536622431434430349740406923175794846022394579096835401282364953141839015655887440665019253725982752473996102582433456993998941961062159678 2218500320645904249775794701597206295659537597791055170003216970928769044251419537635292801466765144220996985453770076693072401342092975755321573943161131"
+      }
+    }
+  },
+  "FORKS" : {
+    "fork_block_001" : 0
+  }
+}

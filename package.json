@@ -1,0 +1,32 @@
+{
+  "name": "node-trinity",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ext/index.js",
+  "dependencies": {
+    "chai": "^4.2.0",
+    "console-stamp": "^0.2.7",
+    "cors": "^2.8.5",
+    "enecuum-crypto": "https://github.com/prudanoff/enecuum-bin/raw/8075e5a8681e6048b5c573a24a6bc3e525aca1cf/bin/linux64/enecuum-crypto.tar.gz",
+    "node-randomx": "https://github.com/prudanoff/enecuum-bin/raw/master/rx/linux64/node-randomx.tar.gz",
+    "express": "^4.16.4",
+    "jsrsasign": "^8.0.12",
+    "key-encoder": "^2.0.3",
+    "minify": "^4.1.3",
+    "mocha": "^7.0.1",
+    "mysql": "https://github.com/Enecuum/mysql.git",
+    "node-ipc": "^9.1.1",
+    "node-mysql-deadlock-retries": "^2.0.5",
+    "request": "^2.88.0",
+    "ws": "^6.2.1",
+    "yargs": "^12.0.5"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^0.18.4"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Konstantin Zhidanov",
+  "license": "ISC"
+}

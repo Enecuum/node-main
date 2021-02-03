@@ -1,0 +1,123 @@
+{
+  "hash" : "b7ac97e838230a6d3ea10bacb14cd5deecb029ae28a281cd369a40ecec42e761",
+  "kblocks_hash" : "004aac1369c9910b978ce73aaa11d79c44dd7e1aa5e5ac5361f9661678f2f548",
+  "kblock" : {
+    "hash" : "004aac1369c9910b978ce73aaa11d79c44dd7e1aa5e5ac5361f9661678f2f548",
+    "link" : "004aac1369c9910b978ce73aaa11d79c44dd7e1aa5e5ac5361f9661678f2f548",
+    "n" : 0,
+    "sprout" : "BITGENESIS",
+    "time" : 1587625027,
+    "publisher" : "03a3a059b05feb9443c9cc352161f1873b97e0dff61c939e77f1923113631cf8ea",
+    "nonce" : 247,
+    "m_root" : "788535413d66f01c1c5f62292490d182d683243f62a32994f7dd722d76c1003b"
+  },
+  "ledger" : [
+    {
+      "type" : "GENESIS",
+      "id" : "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+      "amount" : 3383481700000000000,
+      "token" : "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "type" : "POS-owner",
+      "id" : "034b4875bf08ffd5a4f0b06c21f951aa3e2f979d2d9f1bb4a64e0600eac2350beb",
+      "amount" : 100000000000000,
+      "token" : "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "type" : "POS-delegator",
+      "id" : "037507b65c61bd6a1252f1acc08fece35f9053a6806e847cd712b1eab90529b86e",
+      "amount" : 50000000000000,
+      "token" : "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "type" : "POW",
+      "id" : "03a3a059b05feb9443c9cc352161f1873b97e0dff61c939e77f1923113631cf8ea",
+      "amount" : 0,
+      "token" : "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "type" : "POA",
+      "id" : "02b2bdbc5c2cd94288afc8bfb601b8378610c115b973fade16165727449a9036d7",
+      "amount" : 250000000000,
+      "token" : "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "id" : "034b4875bf08ffd5a4f0b06c21f951aa3e2f979d2d9f1bb4a64e0600eac2350beb",
+      "amount" : 6000000000000,
+      "token" : "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2"
+    },
+    {
+      "id" : "03a3a059b05feb9443c9cc352161f1873b97e0dff61c939e77f1923113631cf8ea",
+      "amount" : 4000000000000,
+      "token" : "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2"
+    },
+    {
+      "id" : "02b2bdbc5c2cd94288afc8bfb601b8378610c115b973fade16165727449a9036d7",
+      "amount" : 4000000000000,
+      "token" : "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2"
+    }
+  ],
+  "tokens" : [
+    {
+      "hash" : "0000000000000000000000000000000000000000000000000000000000000000",
+      "owner" : "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+      "fee_type" : 0,
+      "fee_value" : 1e8,
+      "fee_min" : 0,
+      "ticker" : "BIT",
+      "decimals" : 10,
+      "total_supply" : 3383481700000000000,
+      "caption" : "official token test network of Enecuum",
+      "active" : 0,
+      "max_supply" : 9000000000000000000,
+      "block_reward" : 96560000000,
+      "min_stake" : 250000000000,
+      "referrer_stake" : 10000000000000,
+      "ref_share" : 1000,
+      "reissuable" : 0,
+      "minable" : 1
+    },
+    {
+      "hash" : "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2",
+      "owner" : "034b4875bf08ffd5a4f0b06c21f951aa3e2f979d2d9f1bb4a64e0600eac2350beb",
+      "fee_type" : 1,
+      "fee_value" : 100,
+      "fee_min" : 20,
+      "ticker" : "QQQ",
+      "decimals" : 10,
+      "total_supply" : 1000e10,
+      "caption" : "test token",
+      "active" : 0,
+      "max_supply" : 9000000000000000000,
+      "block_reward" : 99000000000,
+      "min_stake" : 250000000000,
+      "referrer_stake" : 10000000000000,
+      "ref_share" : 1000,
+      "reissuable" : 0,
+      "minable" : 1
+    }
+  ],
+  "poses" : [
+    {
+      "id" : "fea9f62a50a8e637f867553863aab1fee02d32f4ae1f3b2134b5cc4dcb07c986",
+      "owner" : "034b4875bf08ffd5a4f0b06c21f951aa3e2f979d2d9f1bb4a64e0600eac2350beb",
+      "fee" : 100,
+      "name" : "posos"
+    }],
+  "delegates" : [
+    {
+      "pos_id" : "fea9f62a50a8e637f867553863aab1fee02d32f4ae1f3b2134b5cc4dcb07c986",
+      "delegator" : "037507b65c61bd6a1252f1acc08fece35f9053a6806e847cd712b1eab90529b86e",
+      "amount" : 1000e10,
+      "reward" : 0
+    },
+    {
+      "pos_id" : "fea9f62a50a8e637f867553863aab1fee02d32f4ae1f3b2134b5cc4dcb07c986",
+      "delegator" : "034b4875bf08ffd5a4f0b06c21f951aa3e2f979d2d9f1bb4a64e0600eac2350beb",
+      "amount" : 25001e10,
+      "reward" : 0
+    }],
+  "undelegates" : [],
+  "tokens_index" : []
+}

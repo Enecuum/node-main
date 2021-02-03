@@ -1,0 +1,106 @@
+{
+    "leader_id" : "14532",
+    "load" : 0,
+    "explorer" : 0,
+    "peek_limit" : 100,
+    "dbname" : "trinity",
+    "dbuser" : "root",
+    "dbpass" : "root",
+    "dbport": 4000,
+    "loglevel" : "info",
+    "feeder_interval_ms" : 100,
+    "cashier_interval_ms" : 0,
+    "cashier_chunk_size" : 2,
+    "pending_size" : 10,
+    "block_reward" : 9.656e10,
+    "reward_ratio":{
+        "pos": 4400,
+        "poa": 4000,
+        "pow": 600,
+        "ref": 400
+    },
+	"poa_hearbeat_interval_ms" : 25000,
+	"poa_min_interval_ms" : 1000,
+	"pending_timeout" : 15,
+	"tail_timeout" : 1000,
+	"max_tps" : 70,
+	"max_mblocks_per_macroblock" : 1,
+	"max_txs_per_macroblock" : 1,
+	"max_txs_per_microblock" : 1,
+	"min_txs_per_microblock" : 1,
+	"auto_id": false,
+	"enable_rnd_txs" : false,
+	"randomx": {
+		"mode" : "verify",
+		"key" : "0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62"
+	},
+	"target_speed": 5,
+	"transfer_lock":5,
+	"pos_min_stake": 250010000000000,
+    "top_poses_count": 100,
+        "snapshot_interval": 3,
+        "snapshot_file":"snapshot.json",
+        "TRUNK": "BITGENESIS",
+        "ORIGIN": {
+            "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+            "reward": 338348170e10
+        },
+        "fee_shares":  {
+            "gen_share": 3000,
+            "pow_share": 3000,
+            "ldr_share": 0,
+            "pos_share": 4000
+        },
+        "stake_limits":{
+            "min_stake":25e10,
+            "max_stake":1000e10,
+            "default_stake":0
+        },
+    "contract_pricelist": {
+        "create_token" :    20000000000,
+        "create_pos" :      0,
+        "delegate" :        0,
+        "undelegate" :      0,
+        "transfer" :        0,
+        "pos_reward" :      0,
+        "mint" :            0,
+        "burn" :            0,
+        "custom" :          20000000000
+    },
+    "stakes":[25e10, 125e10, 250e10, 1250e10, 2500e10, 12500e10, 25000e10],
+    "first_message_always_probe": false,
+    "karma" : {
+        "init" : 1,
+        "dec" : 1,
+        "min" : 1,
+        "inc" : 1,
+        "max" : 1
+    },
+    "ecc": {
+        "ecc_mode": "long",
+        "short": {
+            "msk": 8,
+            "MPK" : {
+                "x" : 512,
+                "y" : 858
+            }
+        },
+        "long": {
+            "msk": "763979244226452948404d6351665468576d5a7134743777217a25432a462d4a614e645267556b586e3272357538782f413f4428472b4b6250655368566d5971",
+            "MPK" : {
+                "x" : "1 2103481320415158605209265822173075550717169838970841674760967713907148408952047755573228079957819038879221768237723692288578672885304408965720064913522290 3039266990295095264670720401489580592196201725594144932097384640210531170663246289917093747964011795432880019338391009060347595924568140648605849213126270",
+                "y" : "1 5088913186284138889642676999041528157783993975529996783412564073318371389313449649399163247051539273440064031784542170691984980204754459471831969809782523 5607877014719435740668483125697450646935123035270228225766947616556140699239171002868893453325750917396240538527349731682522432520100277274787785763896962"
+            }
+        }
+    },
+	"FORKS" : {
+		"fork_block_001" : 0
+	},
+	"mblock_slots": [
+        {
+          "token": "0000000000000000000000000000000000000000000000000000000000000000",
+          "count": 1
+        }    
+    ],
+    "enable_post_tx": false
+}

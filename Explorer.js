@@ -217,7 +217,7 @@ class Explorer {
         });
 
         this.app.get('/api/v1/get_token_info_page', async (req, res) => {
-            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, parseInt(req.query.minable), parseInt(req.query.reissuable));
+            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, req.query.type);
             res.send({tokens : data.tokens, page_count : data.page_count});
         });
 

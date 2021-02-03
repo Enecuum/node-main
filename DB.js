@@ -1292,21 +1292,26 @@ class DB {
         return {total:total, accounts:res, page_count : Math.ceil(Number(count / page_size))};
     }
 
-    async get_token_info_page(page_num, page_size, minable, reissuable){
+    async get_token_info_page(page_num, page_size, type){
 		let where = '';
 		let count_info = await this.get_tokens_count();
 		let count = count_info.count;
-		if(minable !== undefined || reissuable !== undefined) {
-			minable = (minable === 1) ? 1 : 0;
-			reissuable = (reissuable === 1) ? 1 : 0;
-			where = ` WHERE minable = ${minable} AND reissuable = ${reissuable} `;
 
-			if (minable === 0 && reissuable === 0)
-				count = count_info.non_reissuable;
-			else if (minable === 1 && reissuable === 0)
+		switch (type) {
+			case 'minable':
+				where = ` WHERE minable = 1 `;
 				count = count_info.minable;
-			else if (minable === 0 && reissuable === 1)
+				break;
+			case 'reissuable':
+				where = ` WHERE reissuable = 1 `;
 				count = count_info.reissuable;
+				break;
+			case 'non-reissuable':
+				where = ` WHERE minable = 0 AND reissuable = 0 `;
+				count = count_info.non_reissuable;
+				break;
+			default:
+				break;
 		}
         let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals,
 														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,

@@ -1306,21 +1306,31 @@ class DB {
 				where = ` WHERE reissuable = 1 `;
 				count = count_info.reissuable;
 				break;
-			case 'non-reissuable':
+			case 'non_reissuable':
 				where = ` WHERE minable = 0 AND reissuable = 0 `;
 				count = count_info.non_reissuable;
 				break;
 			default:
 				break;
 		}
-        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals,
+
+		let owner_slots = await this.get_mining_tkn_owners(this.app_config.mblock_slots.size - this.app_config.mblock_slots.reserve.length, this.app_config.mblock_slots.reserve, this.app_config.mblock_slots.min_stake);
+		owner_slots = owner_slots.concat(this.app_config.mblock_slots.reserve.map(function(item) {
+			return {id:item};
+		}));
+		let in_slot = '0';
+		if(owner_slots.length > 0)
+			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, owner_slots.map(item => item.id));
+
+        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals, minable, reissuable,
 														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
-														IFNULL(txs_count, 0) as txs_count
+														IFNULL(txs_count, 0) as txs_count,
+														${in_slot} as in_slot
 														FROM tokens 
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
 														${where}
 														GROUP BY tokens.hash
-														ORDER BY token_holders_count DESC LIMIT ?, ?`, [page_num * page_size, page_size]));
+														ORDER BY token_holders_count DESC, token_hash LIMIT ?, ?`, [page_num * page_size, page_size]));
         return {tokens:res, page_count : Math.ceil(Number(count) / page_size)};
     }
 

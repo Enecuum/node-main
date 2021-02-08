@@ -318,6 +318,7 @@ class Cashier {
 					accounts[pub].amount = BigInt(accounts[pub].amount) + pos_owner_reward;
 					total_reward += BigInt(pos_owner_reward);
 					this.eindex_entry(rewards,'iv', accounts[pub].id, s.hash, pos_owner_reward);
+                    this.eindex_entry(rewards, 'istat', s.publisher, s.hash, s.reward);
 					this.srewards += pos_owner_reward;
 					this.srewards += delegates_reward;
 				}

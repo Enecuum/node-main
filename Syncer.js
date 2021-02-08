@@ -204,7 +204,7 @@ class Syncer {
 				}
 				console.debug(`response remote snapshot hash = ${remote_snapshot.hash}`);
 				if(remote_snapshot.size === undefined) {
-					console.warn(`Old format response from socket:${socket}`);	
+					console.warn(`Old format response from socket:${socket}`);
 					return result;
 				}
 				//loading snapshot
@@ -298,6 +298,7 @@ class Syncer {
 			return;
 		}
 		this.sync_running = true;
+		await this.transport.selfcast("wait_sync", true);
 		console.info('Synchronizing chain with', socket);
 		try {
 			let local;
@@ -307,7 +308,6 @@ class Syncer {
 			if (!remote) {
 				console.warn('Failed to get remote tail');
 				this.peers[peer_index].failures++;
-				this.sync_running = false;
 				return;
 			}
 			let min = tail.n, max = remote.n;
@@ -316,7 +316,6 @@ class Syncer {
 			if (!fastsync_result.status) {
 				setTimeout(this.sync_chain.bind(this), SYNCER_INTERVAL, socket);
 				this.peers[peer_index].failures++;
-				this.sync_running = false;
 				return;
 			} else {
 				if (tail.n !== fastsync_result.tail.n) {
@@ -335,7 +334,6 @@ class Syncer {
 				if (Object.keys(remote).length === 0) {
 					console.warn(`Empty remote response. Syncronization aborted.`);
 					this.peers[peer_index].failures++;
-					this.sync_running = false;
 					return;
 				}
 				local = (await this.db.peek_range(guess, guess));
@@ -358,7 +356,6 @@ class Syncer {
 			if (remote_hash === undefined) {
 				console.warn(`Failed hash remote. fork = ${fork}`);
 				this.peers[peer_index].failures++;
-				this.sync_running = false;
 				return;
 			}
 			remote.hash = remote_hash.toString('hex');
@@ -370,27 +367,28 @@ class Syncer {
 				if ((await this.db.get_snapshot_hash(remote.link)) === undefined) {
 					console.warn(`Missing snapshot on block ${remote.link}`);
 					setTimeout(this.sync_chain.bind(this), SYNCER_INTERVAL, socket);
-					this.sync_running = false;
 					return;
 				}
 			}
 			//check needed resolve fork
 			if (remote.link !== tail.hash) {
 				console.silly(`remote.link !== tail.hash - ${remote.link !== tail.hash}`);
-				console.silly(`remote = ${JSON.stringify(remote)},  tail = ${JSON.stringify(tail)}`)
+				console.silly(`remote = ${JSON.stringify(remote)},  tail = ${JSON.stringify(tail)}`);
 				//Remove transactions, mblocks, sblocks, snapshots and kblocks before fork
 				let result_delete = await this.db.delete_kblocks_after(fork - 1);
 				if (!result_delete) {
 					console.warn(`Failed to delete blocks after fork at ${fork} kblock .Syncronization aborted`);
-					this.sync_running = false;
 					return;
 				}
 				//Reload from last snapshot before fork
-				let snapshot_info = await this.db.get_snapshot_before(fork);
+				let snapshot_info = await this.db.get_snapshot_before(fork - 1);
+				if(snapshot_info === undefined){
+					console.error(`Not found snapshot before ${fork-1} block`);
+					return;
+				}
 				let snapshot = await this.db.get_snapshot(snapshot_info.hash);
 				if (snapshot === undefined || snapshot.length < 1) {
 					console.error(`Not exist valid snapshot`);
-					this.sync_running = false;
 					return;
 				}
 				let snapshot_json = '';
@@ -399,21 +397,18 @@ class Syncer {
 					snapshot_json.hash = snapshot.hash;
 				} catch (e) {
 					console.error(`Invalid snapshot data. Not parsed JSON:`, e);
-					this.sync_running = false;
 					return;
 				}
 				//Rollback calculation
 				let result_rollback = await this.db.rollback_calculation(snapshot_info.n);
 				if (!result_rollback) {
 					console.warn(`Failed rollback calc to ${snapshot_info.n} kblock .Syncronization aborted`);
-					this.sync_running = false;
 					return;
 				}
 				//Init snapshot
 				let result_init = await this.db.init_snapshot(snapshot_json);
 				if (!result_init) {
 					console.warn(`Failed init snapshot ${snapshot.hash} .Syncronization aborted`);
-					this.sync_running = false;
 					return;
 				}
 			}
@@ -434,7 +429,6 @@ class Syncer {
 					if (candidate === undefined || macroblock === undefined) {
 						console.warn(`Empty response 'get_macroblock'`);
 						this.peers[peer_index].failures++;
-						this.sync_running = false;
 						return;
 					}
 					let {kblock, mblocks, sblocks} = macroblock;
@@ -448,14 +442,12 @@ class Syncer {
 							console.warn(`Sync aborted. Chunk.kblocks start=${fork} lenght=${chunk.length} break i=${i}`);
 							this.peers[peer_index].failures++;
 						}
-						this.sync_running = false;
 						return;
 					}
 					try {
 						let result = await this.put_macroblock(candidate, mblocks, sblocks);
 						if (!result) {
 							console.info('Failed to put macroblock. Syncronization aborted');
-							this.sync_running = false;
 							return;
 						} else {
 							//TODO: tail cached
@@ -463,7 +455,6 @@ class Syncer {
 						}
 					} catch (e) {
 						console.warn(`Failed to put macroblock in sync_chain (e) = ${e}`);
-						this.sync_running = false;
 						return;
 					}
 				}
@@ -473,8 +464,10 @@ class Syncer {
 			this.peers[peer_index].failures = 0;
 		} catch (e) {
 			console.error('Syncronization aborted, error:', e);
+		} finally {
+			this.sync_running = false;
+			await this.transport.selfcast("wait_sync", false);
 		}
-		this.sync_running = false;
 	};
 
 	/*
@@ -615,6 +608,11 @@ class Syncer {
 	async valid_candidate(candidate, mblocks, sblocks, snapshot_hash, n, tail_kblock) {
 		if (n !== tail_kblock.n) {
 			console.debug(`Kblock N = ${n} not equal tail N = ${tail_kblock.n}`);
+			return false;
+		}
+		let cashier_ptr = await this.db.get_cashier_pointer();
+		if(candidate.link !== cashier_ptr) {
+			console.warn(`Cashier lags behind. Validation could not be performed`);
 			return false;
 		}
 		if (candidate.time < tail_kblock.time) {

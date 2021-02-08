@@ -238,7 +238,7 @@ class DB {
 		let kblock_hashes_to_remove = kblocks.map(k => k.hash);
         let kblock_hashes = kblock_hashes_to_remove.concat(fork_kblock_hash);
         if (kblock_hashes.length > 0) {
-			let locs = mysql.format(`LOCK TABLES kblocks WRITE, mblocks WRITE, sblocks WRITE, snapshots WRITE, transactions WRITE, eindex WRITE`);
+			//let locs = mysql.format(`LOCK TABLES kblocks WRITE, mblocks WRITE, sblocks WRITE, snapshots WRITE, transactions WRITE, eindex WRITE`);
 			let mblocks = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (?)', [kblock_hashes]));
 			let mblock_hashes = mblocks.map(m => m.hash);
 			let delete_transactions = '';
@@ -253,9 +253,9 @@ class DB {
 				delete_kblocks.push(mysql.format('DELETE FROM kblocks WHERE hash = ?', item));
 			});
 			//TODO: delete eindex
-			let unlock = mysql.format(`UNLOCK TABLES`);
+			//let unlock = mysql.format(`UNLOCK TABLES`);
 			console.debug(`Delete kblocks: ${kblock_hashes}, mblocks: ${mblock_hashes}`);
-			return this.transaction([locs, delete_transactions, delete_mblocks, delete_sblocks, delete_snapshots, delete_kblocks.join(';'), unlock].join(';'));
+			return this.transaction([/*locs,*/ delete_transactions, delete_mblocks, delete_sblocks, delete_snapshots, delete_kblocks.join(';')/*, unlock*/].join(';'));
 		}
 		return 0;
 	}

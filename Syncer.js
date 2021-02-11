@@ -310,7 +310,7 @@ class Syncer {
 				this.peers[peer_index].failures++;
 				return;
 			}
-			let min = tail.n, max = remote.n;
+			let min = 0, max = remote.n;
 			//FASTSYNC
 			let fastsync_result = await this.fastsync(tail, remote, socket);
 			if (!fastsync_result.status) {

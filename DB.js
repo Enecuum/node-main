@@ -1321,13 +1321,13 @@ class DB {
 				break;
 		}
 
-		let owner_slots = await this.get_mining_tkn_owners(this.app_config.mblock_slots.size - this.app_config.mblock_slots.reserve.length, this.app_config.mblock_slots.reserve, this.app_config.mblock_slots.min_stake);
+		let owner_slots = await this.get_mining_tkn_owners(this.app_config.mblock_slots.count - this.app_config.mblock_slots.reserve.length, this.app_config.mblock_slots.reserve, this.app_config.mblock_slots.min_stake);
 		owner_slots = owner_slots.concat(this.app_config.mblock_slots.reserve.map(function(item) {
 			return {id:item};
 		}));
 		let in_slot = '0';
 		if(owner_slots.length > 0)
-			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, owner_slots.map(item => item.id));
+			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
 
         let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals, minable, reissuable,
 														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,

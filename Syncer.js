@@ -370,10 +370,32 @@ class Syncer {
 					return;
 				}
 			}
+ */
 			//check needed resolve fork
 			if (remote.link !== tail.hash) {
 				console.silly(`remote.link !== tail.hash - ${remote.link !== tail.hash}`);
 				console.silly(`remote = ${JSON.stringify(remote)},  tail = ${JSON.stringify(tail)}`);
+				//check leader sign at fork block before removing chain tail
+				let { macroblock } = await this.transport.unicast(socket, "get_macroblock", {hash: fork_id});
+				if (macroblock === undefined) {
+					console.warn(`Empty response 'get_macroblock'`);
+					this.peers[peer_index].failures++;
+					return;
+				}
+				let {kblock, mblocks} = macroblock;
+				kblock.hash = (Utils.hash_kblock(kblock, this.vm)).toString('hex');
+				if(local === undefined && local.length === 0 && local[0].link !== kblock.hash) {
+					console.warn(`Invalid fork macroblock, 'link' field is not equal`);
+					console.silly(` local.link - ${local[0].link}, kblocks.hash - ${kblock.hash}`);
+					this.peers[peer_index].failures++;
+					return;
+				}
+				let isValid_leader_sign = Utils.valid_leader_sign(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+				if (!isValid_leader_sign) {
+					console.warn(`Sync aborted. Invalid leader sign on mblocks`);
+					this.peers[peer_index].failures++;
+					return;
+				}
 				//Remove transactions, mblocks, sblocks, snapshots and kblocks before fork
 				let result_delete = await this.db.delete_kblocks_after(fork - 1);
 				if (!result_delete) {
@@ -411,6 +433,7 @@ class Syncer {
 					console.warn(`Failed init snapshot ${snapshot.hash} .Syncronization aborted`);
 					return;
 				}
+				tail = await this.db.peek_tail();
 			}
 			//single block sync
 			let chunk;

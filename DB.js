@@ -196,13 +196,13 @@ class DB {
 		let kblocks = await this.request(mysql.format('SELECT hash FROM kblocks WHERE n >= ?', [height]));
 		let kblock_hashes = kblocks.map(k => k.hash);
 		if (kblock_hashes.length > 0) {
-			let mblocks = mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (?)`,[kblock_hashes]);
-			let sblocks = mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (?)`,[kblock_hashes]);
-			let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (?)', [kblock_hashes]));
+			let mblocks = mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
+			let sblocks = mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
+			let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?)', [height]));
 			let mblock_hashes = mblocks_data.map(m => m.hash);
 			let transactions = '';
 			if (mblock_hashes.length > 0)
-				transactions = mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (?)`,[mblock_hashes]);	
+				transactions = mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1)`,[height]);
 			return this.transaction([mblocks, sblocks, transactions].join(';'));
 		}
 		return 0;

@@ -36,7 +36,8 @@ let schema = {
     "pos_reward" :      "1100",
     "transfer" :        "1200",
     "mint" :            "1300",
-    "burn" :            "1400"
+    "burn" :            "1400",
+    "create_pool" :     "1500"
 };
 
 let contract_pricelist = config.contract_pricelist;
@@ -239,6 +240,10 @@ class Contract{
             case "pos_reward" :     return new PosRewardContract(data);
             case "mint" :           return new MintTokenContract(data);
             case "burn" :           return new BurnTokenContract(data);
+            case "create_pool" : return new DexPoolCreateContract(data);
+            case "add_liquidity" : return new DexPoolCreateContract(data);
+            case "remove_liquidity" : return new DexPoolCreateContract(data);
+            case "swap" : return new DexPoolCreateContract(data);
             default : return null;
         }
     }
@@ -943,7 +948,7 @@ class BurnTokenContract extends Contract {
          * check token exist
          * check token reissuable
          * check token owner
-         * chech new amount > 0
+         * check new amount > 0
          * update tokens table total_supply = total_supply - amount
          * update token owner's ledger amount
          */
@@ -986,6 +991,393 @@ class BurnTokenContract extends Contract {
             [data.burn_amount, data.token_hash])
     }
 }
+class DexPoolCreateContract extends Contract {
+    constructor(data) {
+        super();
+        if(!this.validate(data))
+            throw new ContractError("Incorrect contract");
+        this.data = parse(data);
+        this.type = this.data.type;
+    }
+    validate(raw) {
+        /**
+         * parameters:
+         * asset_1 : hex string 64 chars
+         * amount_1 : 0...max_supply
+         * asset_2 : hex string 64 chars
+         * amount_2 : 0...max_supply
+         */
+        if(!isContract(raw))
+            return false;
+        let data = parse(raw);
+        let params = data.parameters;
+
+        let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.asset_1))
+            throw new ContractError("Incorrect asset_1 format");
+        if(!hash_regexp.test(params.asset_2))
+            throw new ContractError("Incorrect asset_2 format");
+
+        let bigintModel = ["amount_1", "amount_2"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_1 <= BigInt(0) || params.amount_1 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_1");
+        }
+        if(params.amount_2 <= BigInt(0) || params.amount_2 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_2");
+        }
+        return true;
+    }
+    async execute(tx, db) {
+        /**
+         * check amount_1 * amount_2 !== 0
+         * check asset_1, asset_2 exist
+         * check pool exist, x_y and y_x are the same
+         * check pubkey balances
+         * add pool to the DB
+         * add LT amount to pubkey
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let pair_id = getPairId(params.asset_1, params.asset_2);
+        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
+            throw new ContractError(`amount_1 * amount_2 cannot be 0`);
+
+        let token_1_info = (await db.get_tokens_all([params.asset_1]));
+        if(!token_1_info)
+            throw new ContractError(`Token ${params.asset_1} not found`);
+        let token_2_info = (await db.get_tokens_all([params.asset_2]))[0];
+        if(!token_2_info)
+            throw new ContractError(`Token ${params.asset_2} not found`);
+
+        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        if(pool_exist)
+            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} already exist`);
+
+        let balance_1 = (await db.get_balance(tx.from, params.asset_1));
+        if(BigInt(balance_1.amount) - BigInt(params.amount_1) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
+        let balance_2 = (await db.get_balance(tx.from, params.asset_2));
+        if(BigInt(balance_2.amount) - BigInt(params.amount_2) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
+
+        // lt = sqrt(amount_1 * amount_2)
+        // TODO: dust
+        let lt_amount = Utils.sqrt(params.amount_1 * params.amount_2);
+
+        let pool_data = {
+            pool_id : tx.hash,
+            pair_id : pair_id,
+            asset_1 : params.asset_1,
+            amount_1 : params.amount_1,
+            asset_2 : params.asset_2,
+            amount_2 : params.amount_2,
+            pool_fee : BigInt(3)
+        };
+        let lt_data = {
+            pool_id : tx.hash,
+            id : tx.from,
+            amount : lt_amount
+        };
+
+        return {
+            amount_changes : [
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_1,
+                    token_hash : params.asset_1,
+                },
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_2,
+                    token_hash : params.asset_2,
+                }
+            ],
+            pos_changes : [],
+            post_action : [
+                this.sqlCreatePool(pool_data),
+                this.sqlMintLiquidityToken(lt_data)
+            ]
+        };
+    }
+    sqlCreatePool(data) {
+        return super.mysql.format(`INSERT INTO dex_pools SET ?`, [data])
+    }
+    sqlMintLiquidityToken(data) {
+        return super.mysql.format(`INSERT INTO dex_tokens SET ?`, [data])
+    }
+}
+
+class PoolLiquidityAddContract extends Contract {
+    constructor(data) {
+        super();
+        if(!this.validate(data))
+            throw new ContractError("Incorrect contract");
+        this.data = parse(data);
+        this.type = this.data.type;
+    }
+    validate(raw) {
+        /**
+         * parameters:
+         * asset_1 : hex string 64 chars
+         * amount_1 : 0...max_supply
+         * asset_2 : hex string 64 chars
+         * amount_2 : 0...max_supply
+         */
+        if(!isContract(raw))
+            return false;
+        let data = parse(raw);
+        let params = data.parameters;
+
+        let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.asset_1))
+            throw new ContractError("Incorrect asset_1 format");
+        if(!hash_regexp.test(params.asset_2))
+            throw new ContractError("Incorrect asset_2 format");
+
+        let bigintModel = ["amount_1", "amount_2"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_1 <= BigInt(0) || params.amount_1 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_1");
+        }
+        if(params.amount_2 <= BigInt(0) || params.amount_2 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_2");
+        }
+        return true;
+    }
+    async execute(tx, db) {
+        /**
+         * check asset_1, asset_2 exist
+         * check pool exist
+         * check pubkey balances
+         * add liquidity to the DB
+         * add LT amount to pubkey
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let pair_id = getPairId(params.asset_1, params.asset_2);
+        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
+            throw new ContractError(`amount_1 * amount_2 cannot be 0`);
+
+        let token_1_info = (await db.get_tokens_all(params.asset_1))[0];
+        if(!token_1_info)
+            throw new ContractError(`Token ${params.asset_1} not found`);
+        let token_2_info = (await db.get_tokens_all(params.asset_2))[0];
+        if(!token_2_info)
+            throw new ContractError(`Token ${params.asset_2} not found`);
+
+        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        if(!pool_exist)
+            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
+
+        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+
+        let required_1 = pool_info.volume_1 * params.amount_2 / pool_info.volume_2;
+        let required_2 = pool_info.volume_2 * params.amount_1 / pool_info.volume_1;
+
+        let amount_1, amount_2;
+
+        if(params.amount_1 >= required_1){
+            amount_1 = required_1;
+            amount_2 = params.amount_2;
+        }
+        else{
+            amount_1 = params.amount_1;
+            amount_2 = required_2
+        }
+
+        pool_info.volume_1 += amount_1;
+        pool_info.volume_2 += amount_2;
+
+        // lt = sqrt(amount_1 * amount_2)
+        // TODO: dust
+        let lt_amount = Utils.sqrt(amount_1 * amount_2);
+
+        let balance_1 = (await db.get_balance(tx.from, params.asset_1));
+        if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
+        let balance_2 = (await db.get_balance(tx.from, params.asset_2));
+        if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
+
+        let pool_data = {
+            pair_id : pair_id,
+            asset_1 : params.asset_1,
+            amount_1 : params.amount_1,
+            asset_2 : params.asset_2,
+            amount_2 : params.amount_2
+        };
+        let lt_data = {
+            pair_id : pair_id,
+            id : tx.from,
+            amount : lt_amount
+        };
+
+        return {
+            amount_changes : [
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_1,
+                    token_hash : params.asset_1,
+                },
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_2,
+                    token_hash : params.asset_2,
+                }
+            ],
+            pos_changes : [],
+            post_action : [
+                this.sqlAddLiquidity(pool_data),
+                this.sqlMintLiquidityToken(lt_data)
+            ]
+        };
+    }
+    sqlAddLiquidity(data) {
+        return super.mysql.format(`UPDATE dex_pools SET amount_1 = amount_1 + ?, amount_2 = amount_2 + ? WHERE pair_id = ? `,
+            [data.amount_1, data.amount_2, data.pair_id]);
+    }
+    sqlMintLiquidityToken(data) {
+        return super.mysql.format(`UPDATE dex_tokens SET amount = amount + ? WHERE pair_id = ? AND id = ?`,
+            [data.amount, data.pair_id, data.id]);
+    }
+}
+
+class PoolLiquidityRemoveContract extends Contract {
+    constructor(data) {
+        super();
+        if(!this.validate(data))
+            throw new ContractError("Incorrect contract");
+        this.data = parse(data);
+        this.type = this.data.type;
+    }
+    validate(raw) {
+        /**
+         * parameters:
+         * asset_1 : hex string 64 chars
+         * asset_2 : hex string 64 chars
+         * amount_lt : 0...MAX_SUPPLY_LIMIT
+         */
+        if(!isContract(raw))
+            return false;
+        let data = parse(raw);
+        let params = data.parameters;
+
+        let paramsModel = ["asset_1", "asset_2", "amount_lt"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.asset_1))
+            throw new ContractError("Incorrect asset_1 format");
+        if(!hash_regexp.test(params.asset_2))
+            throw new ContractError("Incorrect asset_2 format");
+
+        let bigintModel = ["amount_lt"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_lt <= BigInt(0) || params.amount_lt > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_lt");
+        }
+
+        return true;
+    }
+    async execute(tx, db) {
+        /**
+         * check asset_1, asset_2 exist
+         * check pool exist
+         * check pubkey lt balance
+         * decrease pool liquidity
+         * decrease lt balance
+         * increase pubkey balances
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let pair_id = getPairId(params.asset_1, params.asset_2);
+
+        // TODO: this is probably unnececcary checks
+        let token_1_info = (await db.get_tokens_all(params.asset_1))[0];
+        if(!token_1_info)
+            throw new ContractError(`Token ${params.asset_1} not found`);
+        let token_2_info = (await db.get_tokens_all(params.asset_2))[0];
+        if(!token_2_info)
+            throw new ContractError(`Token ${params.asset_2} not found`);
+
+        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        if(!pool_exist)
+            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
+
+        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+
+
+        let pool_data = {
+            pool_id : params.token_hash,
+            asset_1 : params.asset_1,
+            amount_1 : params.amount_1,
+            asset_2 : params.asset_2,
+            amount_2 : params.amount_2
+        };
+        let lt_data = {
+            pool_id : params.token_hash,
+            id : tx.from,
+            amount : lt_amount
+        };
+
+        return {
+            amount_changes : [
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_1,
+                    token_hash : params.asset_1,
+                },
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_2,
+                    token_hash : params.asset_2
+                }
+            ],
+            pos_changes : [],
+            post_action : [
+                this.sqlAddLiquidity(pool_data),
+                this.sqlMintLiquidityToken(lt_data)
+            ]
+        };
+    }
+    sqlAddLiquidity(data) {
+        return super.mysql.format(`UPDATE dex_pools SET amount_1 = amount_1 + ?, amount_2 = amount_2 + ? WHERE pool_id = ? `,
+            [data.amount_1, data.amount_2, data.pool_id]);
+    }
+    sqlMintLiquidityToken(data) {
+        return super.mysql.format(`UPDATE dex_tokens SET amount = amount + ? WHERE pool_id = ? AND id = ?`,
+            [data.amount, data.pool_id, data.id]);
+    }
+}
+
+function getPairId(asset_1, asset_2){
+    if(BigInt(asset_1) < BigInt(asset_2))
+        return `${asset_1}${asset_2}`;
+    else return`${asset_2}${asset_1}`;
+}
+
 module.exports.toHex = toHex;
 module.exports.parse = parse;
 module.exports.processData = processData;

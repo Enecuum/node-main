@@ -1894,6 +1894,18 @@ class DB {
 		let res = this.request(mysql.format("UPDATE rois SET calc_rois = ?, calc_rois_sim = ? WHERE token = ?", [rois, rois_sim, token]));
 		return res;
 	}
+
+	async dex_get_pool_info(pair_id){
+
+	}
+
+	async dex_check_pool_exist(pair_id){
+		let res = (await this.request(mysql.format(`SELECT 1 FROM dex_pools WHERE pair_id = ? LIMIT 1`, [pair_id])));
+		return res.length !== 0;
+	}
+
+	async dex_delete_pool(pair_id){
+	}
 }
 
 module.exports.DB = DB;

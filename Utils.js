@@ -598,6 +598,25 @@ let utils = {
 			return integerPart + delimiter + fractionalPart.substring(0, fixed);
 		}
 		else return '';
+	},
+	sqrt : function(value) {
+		if (value < 0n) {
+			throw 'square root of negative numbers is not supported'
+		}
+
+		if (value < BigInt(2)) {
+			return value;
+		}
+
+		function newtonIteration(n, x0) {
+			const x1 = ((n / x0) + x0) >> 1n;
+			if (x0 === x1 || x0 === (x1 - 1n)) {
+				return x0;
+			}
+			return newtonIteration(n, x1);
+		}
+
+		return newtonIteration(value, 1n);
 	}
 };
 

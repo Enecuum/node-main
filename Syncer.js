@@ -57,6 +57,7 @@ class Syncer {
 		this.on_macroblock_busy = false;
 		this.on_microblock_busy = false;
 		this.on_statblock_busy = false;
+		this.on_init_db = false;
 		this.transport = new Transport(this.config.id, 'syncer');
 		this.transport.on('macroblock', this.on_macroblock.bind(this));
 		this.transport.on('microblocks', this.on_microblocks.bind(this));
@@ -310,11 +311,12 @@ class Syncer {
 				this.peers[peer_index].failures++;
 				return;
 			}
-			let min = 0;
+			let remote_chain_start = await this.transport.unicast(socket, "get_chain_start");
+			let min = remote_chain_start.n;
 			let max = remote.n;
-			let first_block = await this.db.get_first_macroblock();
-			if(first_block)
-				min = first_block[0].n;
+			let local_chain_start = (await this.db.get_chain_start_macroblock())[0];
+			if(local_chain_start.n > min)
+				min = local_chain_start.n;
 			//FASTSYNC
 			let fastsync_result = await this.fastsync(tail, remote, socket);
 			if (!fastsync_result.status) {
@@ -606,7 +608,19 @@ class Syncer {
 		let kblock = msg.data;
 		console.silly(`on_tail kblock = ${JSON.stringify(kblock)}`);
 		let tail = await this.db.peek_tail();
-		if (kblock.n > tail.n) {
+		if(tail === undefined){
+			if(!this.on_init_db){
+				try {
+					this.on_init_db = true;
+					await this.db.init_database();
+				}catch (e) {
+					console.error(e);
+				} finally {
+					this.on_init_db = false;
+				}
+			}
+		}
+		else if (kblock.n > tail.n) {
 			this.sync_chain([msg.host, msg.port].join(":"));
 		}
 	}
@@ -631,7 +645,7 @@ class Syncer {
 				console.warn(`Cashier lags behind. Validation could not be performed`);
 				return false;
 			} else {
-				console.warn(`Syncer wait cashier. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				console.debug(`Validation wait cashier. step - ${i + 1}/${this.config.sync_validation_try_count}`);
 				await new Promise(r => setTimeout(r, 100));
 			}
 		}
@@ -676,7 +690,7 @@ class Syncer {
 		for (let i = 0; i < this.config.sync_validation_try_count; i++) {
 			snapshot_hash = await this.db.get_snapshot_hash(candidate.link);
 			if (snapshot_hash === undefined && (n % this.config.snapshot_interval) === 0) {
-				console.warn(`Missing snapshot on block ${candidate.hash}. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				console.debug(`Validation missing snapshot on block ${candidate.hash}. step - ${i + 1}/${this.config.sync_validation_try_count}`);
 				await new Promise(r => setTimeout(r, 100));
 			} else
 				break;
@@ -751,6 +765,8 @@ class Syncer {
 			console.trace('on_macroblock candidate', JSON.stringify(candidate));
 			console.trace('on_macroblock macroblock', JSON.stringify(macroblock));
 			let tail = await this.db.peek_tail();
+			if (tail === undefined)
+				return;
 			console.trace('on_macroblock tail', JSON.stringify(tail));
 			let is_valid = await this.valid_candidate(candidate, mblocks, sblocks, kblock.n, tail);
 			if (is_valid) {
@@ -758,7 +774,6 @@ class Syncer {
 				try {
 					let result = await this.put_macroblock(candidate, mblocks, sblocks);
 					if (!result) {
-						this.on_macroblock_busy = false;
 						console.warn('macroblock insert aborted');
 						return;
 					} else {
@@ -775,9 +790,9 @@ class Syncer {
 					this.sync_chain([msg.host, msg.port].join(":"));
 				}
 			}
-			this.on_macroblock_busy = false;
 		} catch (e) {
 			console.error('on macroblock aborted, error:', e);
+		} finally {
 			this.on_macroblock_busy = false;
 		}
 	};

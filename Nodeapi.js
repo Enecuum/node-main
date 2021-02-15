@@ -32,6 +32,7 @@ class NodeAPI {
         this.transport.on('snapshot', this.on_get_snapshot.bind(this));
         this.transport.on('snapshot_chunk', this.on_get_snapshot_chunk.bind(this));
         this.transport.on('get_macroblock', this.on_get_macroblock.bind(this));
+        this.transport.on('get_chain_start', this.on_get_chain_start.bind(this));
     }
 
     async on_post_tx(msg) {
@@ -62,6 +63,12 @@ class NodeAPI {
             let pred = await this.db.get_macroblock(succ.link);
             return {candidate: succ, macroblock: pred};
         }
+    };
+    //return start of chain macroblock (actual for fastsync nodes)
+    async on_get_chain_start(){
+        console.debug(`on get_start_chain`);
+        let res = (await this.db.get_chain_start_macroblock())[0];
+        return res;
     };
 
     //returns: hash, size_bytes

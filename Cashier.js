@@ -709,11 +709,10 @@ class Cashier {
 		await this.cashier(run_once);
 	}
 	async cashier(run_once) {
-        try {
+		try {
 			let cur_hash = await this.db.get_cashier_pointer();
-			if (cur_hash === null) {
-				cur_hash = this.db.ORIGIN.hash;
-			}
+			if (cur_hash === null)
+				return;
 			let next = await this.db.get_next_block(cur_hash);
 			let block = (await this.db.get_kblock(cur_hash))[0];
 			if (block === undefined)
@@ -737,11 +736,12 @@ class Cashier {
 			//let put_time = process.hrtime(time);
 			//console.debug(`chunk ${cur_hash} calculated in`, Utils.format_time(put_time));
 		} catch (e) {
-            console.error(e);
-        }
-		if (run_once === false)
-			setTimeout(this.cashier.bind(this, run_once), this.config.cashier_interval_ms);
-    }
+			console.error(e);
+		} finally {
+			if (run_once === false)
+				setTimeout(this.cashier.bind(this, run_once), this.config.cashier_interval_ms);
+		}
+	}
 }
 
 module.exports = Cashier;

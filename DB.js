@@ -508,7 +508,7 @@ class DB {
 		return snapshot;
 	};
 
-	get_first_macroblock(){
+	get_chain_start_macroblock(){
 	    //get ferst of chain macroblock
         let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, reward FROM kblocks 
                                                     LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
@@ -524,30 +524,6 @@ class DB {
 				tail = tail[0];
 			else
 				return;
-			if (!tail) {
-				console.info("Initializing database...");
-				let snapshot = Utils.load_snapshot_from_file(this.app_config.snapshot_file);
-				//TODO: validation snapshot
-				if (snapshot === undefined) {
-					console.error(`Snapshot is undefined`);
-					return;
-				}
-				tail = snapshot.kblock;
-				snapshot.hash = Utils.hash_snapshot(snapshot);
-				let init_result = await this.init_snapshot(snapshot);
-				if (!init_result) {
-					console.error(`Failed initialize Database.`);
-					return;
-				}
-				delete snapshot.kblock;
-				let hash = Utils.hash_snapshot(snapshot);
-				let put_result = await this.put_snapshot(snapshot, hash);
-				if (!put_result) {
-					console.error(`Failed put snapshot.`);
-					return;
-				}
-				console.info("Database initialized");
-			}
 			this.cached_tail = tail;
 			this.last_tail = now;
 			return tail;
@@ -555,6 +531,30 @@ class DB {
 			return this.cached_tail;
 		}
 	};
+
+	async init_database() {
+        console.info("Initializing database...");
+        let snapshot = Utils.load_snapshot_from_file(this.app_config.snapshot_file);
+        //TODO: validation snapshot
+        if (snapshot === undefined) {
+            console.error(`Snapshot is undefined`);
+            return;
+        }
+        snapshot.hash = Utils.hash_snapshot(snapshot);
+        let init_result = await this.init_snapshot(snapshot);
+        if (!init_result) {
+            console.error(`Failed initialize Database.`);
+            return;
+        }
+        delete snapshot.kblock;
+        let hash = Utils.hash_snapshot(snapshot);
+        let put_result = await this.put_snapshot(snapshot, hash);
+        if (!put_result) {
+            console.error(`Failed put snapshot.`);
+            return;
+        }
+        console.info("Database initialized");
+    }
 
 	peek_range(min, max) {
 		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);

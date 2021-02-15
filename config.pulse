@@ -115,5 +115,6 @@
       ]
   },
   "feader_watchdog": 12,
-  "enable_post_tx": false
+  "enable_post_tx": false,
+  "sync_validation_try_count": 10
 }

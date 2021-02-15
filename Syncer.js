@@ -362,15 +362,6 @@ class Syncer {
 			let fork_id = remote.hash;
 			console.debug('fork_id = ', fork_id);
 
-			//check if snapshot is needed at this step
-			if (((fork - 1) % this.config.snapshot_interval) === 0) {
-				if ((await this.db.get_snapshot_hash(remote.link)) === undefined) {
-					console.warn(`Missing snapshot on block ${remote.link}`);
-					setTimeout(this.sync_chain.bind(this), SYNCER_INTERVAL, socket);
-					return;
-				}
-			}
- */
 			//check needed resolve fork
 			if (remote.link !== tail.hash) {
 				console.silly(`remote.link !== tail.hash - ${remote.link !== tail.hash}`);
@@ -455,16 +446,10 @@ class Syncer {
 						return;
 					}
 					let {kblock, mblocks, sblocks} = macroblock;
-					let snapshot_hash = await this.db.get_snapshot_hash(candidate.link);
-					//if (!(await this.valid_candidate(kblock, mblocks, sblocks, snapshot_hash, fork + i, candidate))) {
-					if (!(await this.valid_candidate(candidate, mblocks, sblocks, snapshot_hash, kblock.n, tail))) {
-						if (snapshot_hash === undefined && ((fork + i - 1) % this.config.snapshot_interval) === 0) {
-							console.warn(`Missing snapshot on block ${candidate.hash}`);
-							setTimeout(this.sync_chain.bind(this), SYNCER_INTERVAL, socket);
-						} else {
-							console.warn(`Sync aborted. Chunk.kblocks start=${fork} lenght=${chunk.length} break i=${i}`);
-							this.peers[peer_index].failures++;
-						}
+					let is_valid = await this.valid_candidate(candidate, mblocks, sblocks, kblock.n, tail);
+					if (!is_valid) {
+						console.warn(`Sync aborted. Chunk.kblocks start=${fork} lenght=${chunk.length} break i=${i}`);
+						this.peers[peer_index].failures++;
 						return;
 					}
 					try {
@@ -628,21 +613,29 @@ class Syncer {
 		this.transport.broadcast("tail", tail);
 	}
 
-	async valid_candidate(candidate, mblocks, sblocks, snapshot_hash, n, tail_kblock) {
+	async valid_candidate(candidate, mblocks, sblocks, n, tail_kblock) {
 		if (n !== tail_kblock.n) {
 			console.debug(`Kblock N = ${n} not equal tail N = ${tail_kblock.n}`);
 			return false;
 		}
-		let cashier_ptr = await this.db.get_cashier_pointer();
-		if(candidate.link !== cashier_ptr) {
-			console.warn(`Cashier lags behind. Validation could not be performed`);
-			return false;
+		// waiting for the cashier to calculate the previous block
+		for (let i = 0; i < this.config.sync_validation_try_count; i++) {
+			let cashier_ptr = await this.db.get_cashier_pointer();
+			if (candidate.link === cashier_ptr) {
+				break;
+			} else if (i === (this.config.sync_validation_try_count - 1)) {
+				console.warn(`Cashier lags behind. Validation could not be performed`);
+				return false;
+			} else {
+				console.warn(`Syncer wait cashier. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				await new Promise(r => setTimeout(r, 100));
+			}
 		}
 		if (candidate.time < tail_kblock.time) {
 			console.warn(`Candidte block time is greater than the current time of the leader pos. Candidte time: ${candidate.time}, current time: ${tail_kblock.time}`);
 			return false;
 		}
-		if (mblocks.length === 0 || sblocks.length === 0){
+		if (mblocks.length === 0 || sblocks.length === 0) {
 			console.warn(`Ignore empty candidate ${candidate.hash}`);
 			return false;
 		}
@@ -659,7 +652,7 @@ class Syncer {
 			console.warn(`Invalid leader sign on mblocks`);
 			return false;
 		}
-		if(Utils.exist_native_token_count(valid_mblocks) < this.native_mblocks_count){
+		if (Utils.exist_native_token_count(valid_mblocks) < this.native_mblocks_count) {
 			console.warn(`wrong candidte ${candidate.hash} , no native token mblocks found`);
 			return false;
 		}
@@ -673,6 +666,17 @@ class Syncer {
 		let valid_sblocks = Utils.valid_full_statblocks(sblocks, pos_info, pos_min_stake, top_poses);
 		end = new Date().getTime();
 		console.debug(`validation sblocks (size:${valid_sblocks.length}) time: ${end - start}ms`);
+
+		let snapshot_hash = undefined;
+		//waiting for the cashier to generate a snapshot
+		for (let i = 0; i < this.config.sync_validation_try_count; i++) {
+			snapshot_hash = await this.db.get_snapshot_hash(candidate.link);
+			if (snapshot_hash === undefined && (n % this.config.snapshot_interval) === 0) {
+				console.warn(`Missing snapshot on block ${candidate.hash}. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				await new Promise(r => setTimeout(r, 100));
+			} else
+				break;
+		}
 		let recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
 		if (candidate.m_root !== recalc_m_root) {
 			console.warn(`After recalc block, changed m_root: before ${candidate.m_root}, after ${recalc_m_root}`);
@@ -744,9 +748,7 @@ class Syncer {
 			console.trace('on_macroblock macroblock', JSON.stringify(macroblock));
 			let tail = await this.db.peek_tail();
 			console.trace('on_macroblock tail', JSON.stringify(tail));
-			let snapshot_hash = await this.db.get_snapshot_hash(tail.hash);
-			let is_valid = await this.valid_candidate(candidate, mblocks, sblocks, snapshot_hash, kblock.n, tail);
-			//let is_valid = await this.valid_header_candidate(candidate, mblocks, kblock.n, tail.n);
+			let is_valid = await this.valid_candidate(candidate, mblocks, sblocks, kblock.n, tail);
 			if (is_valid) {
 				console.silly('Appending block', JSON.stringify({candidate, mblocks, sblocks}));
 				try {

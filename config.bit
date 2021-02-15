@@ -9,10 +9,10 @@
   "cashier_interval_ms": 10,
   "cashier_chunk_size": 10,
   "reward_ratio":{
-    "pos": 4000,
-    "poa": 4000,
-    "pow": 1600,
-    "ref": 400
+    "pos": 5500,
+    "poa": 3181,
+    "pow": 500,
+    "ref": 819
   },
   "block_reward": 96560000000,
   "poa_hearbeat_interval_ms": 250,
@@ -38,17 +38,17 @@
   "TRUNK": "BITGENESIS",
   "ORIGIN": {
     "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
-    "reward": "3437266354815106572"
+    "reward": "417259582513106572"
   },
   "randomx": {
     "mode" : "verify",
     "key" : "0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62"
   },
   "fee_shares":  {
-      "gen_share": 3000,
-      "pow_share": 3000,
-      "ldr_share": 0,
-      "pos_share": 4000
+      "gen_share": 300,
+      "pow_share": 50,
+      "ldr_share": 50,
+      "pos_share": 9600
   },
   "stake_limits": {
     "min_stake": 25e10,

@@ -16,6 +16,32 @@ const Utils = require('./Utils');
 const ContractMachine = require('./SmartContracts');
 const {ContractError} = require('./errors');
 
+class Substate {
+	constructor(config, db){
+		this.config = config;
+		this.db = db;
+		this.accounts = [];
+		this.delegates = [];
+		this.tokens = [];
+		this.poses = [];
+		this.transfers = [];
+		this.pools = [];
+	}
+	init(txs){
+		let accounts = [];
+		let tickers = [];
+		let token_changes = {};
+		let delegation_ledger = {};
+		let transfer_ledger = {};
+		let rewards = [];
+		for(let tx of txs){
+			if(ContractMachine.isContract(tx.data)){
+
+			}
+		}
+	}
+}
+
 class Cashier {
 	constructor(config, db){
 		this.config = config;
@@ -30,6 +56,63 @@ class Cashier {
 			return;
 		arr.push({type : type, id : id, hash : hash, value : value });
 	}
+
+	processTransfer(tx, substate){
+		let token = substate.tokens.find(tok => ((tok.hash === tx.ticker)));
+		if (token === undefined) {
+			return this.status_entry(Utils.TX_STATUS.REJECTED, tx);
+		}
+		let token_enq = substate.tokens.find(tok => ((tok.hash === Utils.ENQ_TOKEN_NAME)));
+
+		let token_fee = BigInt(Utils.calc_fee(token, tx.amount));
+		let native_fee = BigInt(Utils.calc_fee(token_enq, 0));
+		tx.amount = BigInt(tx.amount);
+		if ((tx.amount - token_fee) >= BigInt(0)) {
+
+			// Take amount from `from`
+			substate.accounts.change(
+				{
+					id : tx.from,
+					token : tx.ticker,
+					amount : BigInt(-1) * tx.amount
+				}
+			);
+
+			// Give token fee to token owner
+			substate.accounts.change(
+				{
+					id : token.owner,
+					token : tx.ticker,
+					amount : token_fee
+				}
+			);
+
+			// Take native fee amount from token owner
+			substate.accounts.change(
+				{
+					id : token.owner,
+					token : Utils.ENQ_TOKEN_NAME,
+					amount : BigInt(-1) * native_fee
+				}
+			);
+
+			// Give amount to `to`
+			substate.accounts.change(
+				{
+					id : tx.to,
+					token : tx.ticker,
+					amount : BigInt(tx.amount - token_fee)
+				}
+			);
+		}
+		else
+			return this.status_entry(Utils.TX_STATUS.REJECTED, tx);
+	}
+
+	processContract(tx, substate){
+
+	}
+
 	status_entry(status, tx) {
 		if(this.config.indexer_mode === 1)
 			return {
@@ -439,6 +522,9 @@ class Cashier {
 			return;
 		}
 
+		//let Substate = new Substate(this.config, this.db);
+
+
 		accounts.push(this.db.ORIGIN.publisher);
 
 		if (chunk.mblocks.length !== 0) {
@@ -465,6 +551,7 @@ class Cashier {
 		// Also reject all TXs with incorrect contracts
 		for(let i = 0; i < chunk.txs.length; i++){
 			let tx = chunk.txs[i];
+			// TODO: вынести
 			if (duplicates.some(d => d.hash === tx.hash) || (i !== chunk.txs.findIndex(t => t.hash === tx.hash))) {
 				statuses.push(this.status_entry(Utils.TX_STATUS.DUPLICATE, tx));
 				console.debug(`duplicate tx ${JSON.stringify(tx)}`);
@@ -473,6 +560,7 @@ class Cashier {
 				i--;
 				continue;
 			}
+
 			if (ContractMachine.isContract(tx.data)) {
 				try {
 					// Clone tx object so we can pass amount without fee
@@ -744,4 +832,5 @@ class Cashier {
 	}
 }
 
-module.exports = Cashier;
+module.exports.Cashier = Cashier;
+module.exports.Substate = Substate;

@@ -1896,7 +1896,20 @@ class DB {
 	}
 
 	async dex_get_pool_info(pair_id){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id = ?`, pair_id)));
+		return res.length !== 0;
+	}
 
+	async dex_get_pools(ids){
+		if(!ids.length)
+			return [];
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id IN (?)`, [ids])));
+		return res.length !== 0;
+	}
+
+	async dex_get_pools_all(){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
+		return res.length !== 0;
 	}
 
 	async dex_check_pool_exist(pair_id){

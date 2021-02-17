@@ -201,6 +201,10 @@ function parse(raw){
     return data;
 }
 
+function getContractParams(tx){
+
+}
+
 async function processData(tx, db, kblock){
     let contract = Contract.createContract(tx.data);
     if(!contract)
@@ -217,11 +221,20 @@ async function processData(tx, db, kblock){
     return contract.execute(tx, db, kblock);
 }
 
-function validate(data){
-    let contract = Contract.createContract(data);
+function create(tx, db){
+    let contract = Contract.createContract(tx.data);
     if(!contract)
         return false;
-    return contract.validate(data);
+    if(tx.amount < BigInt(contract_pricelist[contract.type])){
+        throw new ContractError("Invalid amount");
+    }
+    if(tx.to !== db.ORIGIN.publisher){
+        throw new ContractError(`Invalid recipient address, expected ${db.ORIGIN.publisher} , given ${tx.to}`);
+    }
+    if(tx.ticker !== Utils.ENQ_TOKEN_NAME){
+        throw new ContractError(`Invalid token, expected ${Utils.ENQ_TOKEN_NAME} , given ${tx.ticker}`);
+    }
+    return contract;
 }
 
 class Contract{
@@ -1034,13 +1047,139 @@ class DexPoolCreateContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check amount_1 * amount_2 !== 0
          * check asset_1, asset_2 exist
          * check pool exist, x_y and y_x are the same
          * check pubkey balances
          * add pool to the DB
+         * add LT amount to pubkey
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let pair_id = getPairId(params.asset_1, params.asset_2);
+        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
+            throw new ContractError(`amount_1 * amount_2 cannot be 0`);
+
+        let token_1_info = await substate.get_token_info(params.asset_1);
+        if(!token_1_info)
+            throw new ContractError(`Token ${params.asset_1} not found`);
+        let token_2_info = await substate.get_token_info(params.asset_2);
+        if(!token_2_info)
+            throw new ContractError(`Token ${params.asset_2} not found`);
+
+        let pool_exist = await substate.dex_check_pool_exist(pair_id);
+        if(pool_exist)
+            throw new ContractError(`Pool ${pair_id} already exist`);
+
+        let balance_1 = (await substate.get_balance(tx.from, params.asset_1));
+        if(BigInt(balance_1.amount) - BigInt(params.amount_1) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
+        let balance_2 = (await substate.get_balance(tx.from, params.asset_2));
+        if(BigInt(balance_2.amount) - BigInt(params.amount_2) < BigInt(0))
+            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
+
+        // lt = sqrt(amount_1 * amount_2)
+        // TODO: dust
+        let lt_amount = Utils.sqrt(params.amount_1 * params.amount_2);
+
+        let pool_data = {
+            pool_id : tx.hash,
+            pair_id : pair_id,
+            asset_1 : params.asset_1,
+            amount_1 : params.amount_1,
+            asset_2 : params.asset_2,
+            amount_2 : params.amount_2,
+            pool_fee : BigInt(3)
+        };
+        substate.pools_change(pool_data);
+        let lt_data = {
+            pool_id : tx.hash,
+            id : tx.from,
+            amount : lt_amount
+        };
+
+        return {
+            amount_changes : [
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_1,
+                    token_hash : params.asset_1,
+                },
+                {
+                    id : tx.from,
+                    amount_change : BigInt(-1) * params.amount_2,
+                    token_hash : params.asset_2,
+                }
+            ],
+            pos_changes : [],
+            post_action : [
+                this.sqlCreatePool(pool_data),
+                this.sqlMintLiquidityToken(lt_data)
+            ]
+        };
+    }
+    sqlCreatePool(data) {
+        return super.mysql.format(`INSERT INTO dex_pools SET ?`, [data])
+    }
+    sqlMintLiquidityToken(data) {
+        return super.mysql.format(`INSERT INTO dex_tokens SET ?`, [data])
+    }
+}
+
+class SubstateDexPoolCreateContract extends Contract {
+    constructor(data) {
+        super();
+        if(!this.validate(data))
+            throw new ContractError("Incorrect contract");
+        this.data = parse(data);
+        this.type = this.data.type;
+    }
+    validate(raw) {
+        /**
+         * parameters:
+         * asset_1 : hex string 64 chars
+         * amount_1 : 0...max_supply
+         * asset_2 : hex string 64 chars
+         * amount_2 : 0...max_supply
+         */
+        if(!isContract(raw))
+            return false;
+        let data = parse(raw);
+        let params = data.parameters;
+
+        let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.asset_1))
+            throw new ContractError("Incorrect asset_1 format");
+        if(!hash_regexp.test(params.asset_2))
+            throw new ContractError("Incorrect asset_2 format");
+
+        let bigintModel = ["amount_1", "amount_2"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_1 <= BigInt(0) || params.amount_1 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_1");
+        }
+        if(params.amount_2 <= BigInt(0) || params.amount_2 > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_2");
+        }
+        return true;
+    }
+    async execute(tx, db, state) {
+        /**
+         * check amount_1 * amount_2 !== 0
+         * check asset_1, asset_2 exist
+         * check pool exist, x_y and y_x are the same
+         * check pubkey balances
+         * add pool to the state
          * add LT amount to pubkey
          */
         if(this.data.type === undefined)
@@ -1058,10 +1197,12 @@ class DexPoolCreateContract extends Contract {
         if(!token_2_info)
             throw new ContractError(`Token ${params.asset_2} not found`);
 
-        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        // TODO state.dex_check_pool_exist
+        let pool_exist = (await state.dex_check_pool_exist(pair_id))[0];
         if(pool_exist)
             throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} already exist`);
 
+        // TODO state.get_balance
         let balance_1 = (await db.get_balance(tx.from, params.asset_1));
         if(BigInt(balance_1.amount) - BigInt(params.amount_1) < BigInt(0))
             throw new ContractError(`Token ${params.asset_1} insufficient balance`);
@@ -1071,6 +1212,7 @@ class DexPoolCreateContract extends Contract {
 
         // lt = sqrt(amount_1 * amount_2)
         // TODO: dust
+        // TODO is lt_amount does not relate to pool volume at all?
         let lt_amount = Utils.sqrt(params.amount_1 * params.amount_2);
 
         let pool_data = {
@@ -1087,7 +1229,10 @@ class DexPoolCreateContract extends Contract {
             id : tx.from,
             amount : lt_amount
         };
-
+        // TODO
+        state.pools.add(pool_data);
+        state.dex_tokens.add(lt_data);
+        state.accounts.change();
         return {
             amount_changes : [
                 {
@@ -1373,7 +1518,7 @@ class PoolLiquidityRemoveContract extends Contract {
 }
 
 function getPairId(asset_1, asset_2){
-    if(BigInt(asset_1) < BigInt(asset_2))
+    if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
         return `${asset_1}${asset_2}`;
     else return`${asset_2}${asset_1}`;
 }
@@ -1381,12 +1526,14 @@ function getPairId(asset_1, asset_2){
 module.exports.toHex = toHex;
 module.exports.parse = parse;
 module.exports.processData = processData;
+module.exports.create = create;
+module.exports.getPairId = getPairId;
 module.exports.serialize_object = serialize_object;
 module.exports.deserialize = deserialize;
 module.exports.prettify = prettify;
 module.exports.isContract = isContract;
 module.exports.dataFromObject = dataFromObject;
 module.exports.sizeMarker = sizeMarker;
-module.exports.validate = validate;
+//module.exports.validate = validate;
 module.exports.contract_pricelist = contract_pricelist;
 module.exports.Contract = Contract;

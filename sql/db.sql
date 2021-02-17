@@ -65,6 +65,19 @@ CREATE TABLE `delegates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+
+CREATE TABLE `trinity`.`dex_pools` (
+  `pool_id` VARCHAR(64) NOT NULL,
+  `pair_id` VARCHAR(128) NOT NULL,
+  `asset_1` VARCHAR(64) NOT NULL,
+  `amount_1` BIGINT(20) UNSIGNED NULL,
+  `asset_2` VARCHAR(64) NOT NULL,
+  `amount_2` BIGINT(20) UNSIGNED NULL,
+  `pool_fee` BIGINT(20) UNSIGNED NULL,
+  PRIMARY KEY (`pool_id`),
+  UNIQUE INDEX `pair_id_UNIQUE` (`pair_id` ASC));
+
+
 --
 -- Table structure for table `snapshots`
 --

@@ -120,7 +120,7 @@ class DB {
 		this.transaction(sql);
 	};
 
-	async init_snapshot(snapshot) {
+	async init_snapshot(snapshot, save_snapshot) {
 		let INSERT_CHUNK_SIZE = 100;
 		try {
             console.info(`Setting snapshot: ${snapshot.hash}`);
@@ -184,8 +184,12 @@ class DB {
 			}
 			let cashier_ptr = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", snapshot.kblocks_hash);
             //let unlock = mysql.format(`UNLOCK TABLES`);
+			let sql_put_snapshot = "";
+			if(save_snapshot){
+				sql_put_snapshot = mysql.format("INSERT INTO snapshots SET ?", [{hash:snapshot.hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
+			}
 
-			return this.transaction([truncate, sprouts, kblock, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), cashier_ptr].join(';'));
+			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), cashier_ptr].join(';'));
         }catch (e) {
             console.error(e);
             return false;
@@ -196,6 +200,7 @@ class DB {
 		let kblocks = await this.request(mysql.format('SELECT hash FROM kblocks WHERE n >= ?', [height]));
 		let kblock_hashes = kblocks.map(k => k.hash);
 		if (kblock_hashes.length > 0) {
+			/*
 			let mblocks = mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
 			let sblocks = mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
 			let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?)', [height]));
@@ -204,6 +209,19 @@ class DB {
 			if (mblock_hashes.length > 0)
 				transactions = mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1)`,[height]);
 			return this.transaction([mblocks, sblocks, transactions].join(';'));
+			*/
+			let mblocks = [];
+			let sblocks = [];
+			let transactions = [];
+			kblock_hashes.forEach(async hash => {
+				mblocks.push(mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash = ? AND calculated = 1`,[hash]));
+				sblocks.push(mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash = ? AND calculated = 1`,[hash]));
+				let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash = ? AND calculated = 1', [hash]));
+				let mblock_hashes = mblocks_data.map(m => m.hash);
+				if (mblock_hashes.length > 0)
+					transactions.push(mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (?)`,[mblock_hashes]));
+			});
+			return this.transaction([mblocks.join(';'), sblocks.join(';'), transactions.join(';')].join(';'));
 		}
 		return 0;
 	};
@@ -541,16 +559,9 @@ class DB {
             return;
         }
         snapshot.hash = Utils.hash_snapshot(snapshot);
-        let init_result = await this.init_snapshot(snapshot);
+        let init_result = await this.init_snapshot(snapshot, true);
         if (!init_result) {
             console.error(`Failed initialize Database.`);
-            return;
-        }
-        delete snapshot.kblock;
-        let hash = Utils.hash_snapshot(snapshot);
-        let put_result = await this.put_snapshot(snapshot, hash);
-        if (!put_result) {
-            console.error(`Failed put snapshot.`);
             return;
         }
         console.info("Database initialized");

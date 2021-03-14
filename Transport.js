@@ -19,6 +19,8 @@ const PEER_FAIL_LIMIT = 10;
 
 let call_count = 0;
 let unicast_count = 0;
+let call_list = {};
+let host_list = {};
 
 class Transport {
 
@@ -87,7 +89,7 @@ class Transport {
 					return new Promise(function(resolve, reject){
 						let callback_name = `callback${this.callback_counter}`;
 						this.callback_counter++;
-						let killswitch = setTimeout(()=> {this.ipc.server.off(callback_name, "*"); reject(`Killswitch engaged for ${method}`)} , 15000);
+						let killswitch = setTimeout(()=> {this.ipc.server.off(callback_name, "*"); reject(`Killswitch engaged for ${method}`)} , 25000);
 
 						this.ipc.server.on(
 							callback_name,
@@ -168,6 +170,20 @@ class Transport {
 		if (req.method === 'POST') {
 			let request = '';
 
+			let host = req.socket.remoteAddress;
+			if (host.substr(0, 7) === "::ffff:") {
+				host = host.substr(7);
+			}
+			if(host_list[host]> 5){
+				response.error = {
+					code : 1,
+					message : "Request limit exceeded"
+				};
+				res.write(JSON.stringify(response));
+				res.end();
+				return;
+			}
+
 			req.on('data', function (chunk) {
 				request += chunk;
 			});
@@ -179,7 +195,7 @@ class Transport {
 				};
 				res.write(JSON.stringify(response));
 				res.end();
-			} , 20000);
+			} , 40000);
 
 			let callback = (async function () {
 				call_count++;
@@ -194,11 +210,30 @@ class Transport {
 				// TODO: заменить по коду data на params
 				request.data = request.params;
 				delete(request.params);
+/*if(call_list[request.method] > 10) {
+	console.warn(`callback max limit ${request.method}`);
+	clearTimeout(req_timeout);
+	call_count--;
+	res.end();
+	return;
+}*/
+				if(call_list[request.method])
+                    call_list[request.method]++;
+				else
+                    call_list[request.method]=1;
 
-				request.host = req.connection.remoteAddress;
+                console.debug(`call_list ${JSON.stringify(call_list)}`);
+
+				request.host = req.socket.remoteAddress;
 				if (request.host.substr(0, 7) === "::ffff:") {
 					request.host = request.host.substr(7);
 				}
+
+				if(host_list[request.host])
+					host_list[request.host]++;
+				else
+					host_list[request.host]=1;
+				console.debug(`host_list ${JSON.stringify(host_list)}`);
 
 				res.writeHead(200, "OK", {'Content-Type': 'application/json'});
 
@@ -244,6 +279,8 @@ class Transport {
 					res.write(JSON.stringify(response));
 				}
 				clearTimeout(req_timeout);
+                call_list[request.method]--;
+				host_list[request.host]--;
 				call_count--;
 				res.end();
 			}).bind(this);
@@ -262,7 +299,9 @@ class Transport {
 
 	add_peer(peer){
 		console.silly(`add_peer ${JSON.stringify(peer)}`);
-		if (peer.id === this.client_id){
+		if( peer.id === undefined && !peer.primary){
+		    return;
+        }else if (peer.id === this.client_id){
 			return;
 		}
 
@@ -300,7 +339,8 @@ class Transport {
 	update_peers(peers){
 		console.silly(`update_peers ${JSON.stringify(peers)}`);
 		peers.forEach(p => {
-			this.add_peer(p);
+		    if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
+			    this.add_peer(p);
 		});
 	}
 
@@ -320,7 +360,7 @@ class Transport {
 
 	selfcast(method, data){
 		return this.http_request(`localhost:${this.port}`, method, data)
-			.catch(err => console.debug("Unicast failed, cannot connect to", socket));
+			.catch(err => console.debug("Unicast failed, cannot connect to localhost"));
 	}
 
 	query(){
@@ -429,7 +469,7 @@ class Tip {
 			let callback_name = `callback${this.ipc.config.id}${this.callback_counter}`;
 			this.callback_counter++;
 
-			let killswitch = setTimeout(()=> {unicast_count--; this.ipc.of[this.hubid].off(callback_name, "*"); reject("Killswitch engaged")} , 15000);
+			let killswitch = setTimeout(()=> {unicast_count--; this.ipc.of[this.hubid].off(callback_name, "*"); reject("Killswitch engaged")} , 25000);
 
 			this.ipc.of[this.hubid].on(callback_name, function (message) {
 					unicast_count--;

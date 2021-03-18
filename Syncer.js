@@ -257,9 +257,10 @@ class Syncer {
 			snapshot_json.hash = remote_snapshot.hash;
 			//putting kblocks with undelegate transactions
             let i = 0;
-			for (let und of snapshot_json.undelegates) {
+            let undelegates = snapshot_json.undelegates.filter(item => item.amount > 0);
+			for (let und of undelegates) {
 				i++;
-			    console.info(`loading und: ${i}/${snapshot_json.undelegates.length}   (${JSON.stringify(und)})`);
+			    console.info(`loading und: ${i}/${undelegates.length}`);
 				let und_height = Number(und.height);
 				if (!und.delegator) {
 					//get macroblock

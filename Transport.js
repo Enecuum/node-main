@@ -89,7 +89,7 @@ class Transport {
 					return new Promise(function(resolve, reject){
 						let callback_name = `callback${this.callback_counter}`;
 						this.callback_counter++;
-						let killswitch = setTimeout(()=> {this.ipc.server.off(callback_name, "*"); reject(`Killswitch engaged for ${method}`)} , 25000);
+						let killswitch = setTimeout(()=> {this.ipc.server.off(callback_name, "*"); reject(`Killswitch engaged for ${method}`)} , 15000);
 
 						this.ipc.server.on(
 							callback_name,
@@ -170,20 +170,6 @@ class Transport {
 		if (req.method === 'POST') {
 			let request = '';
 
-			let host = req.socket.remoteAddress;
-			if (host.substr(0, 7) === "::ffff:") {
-				host = host.substr(7);
-			}
-			if(host_list[host]> 5){
-				response.error = {
-					code : 1,
-					message : "Request limit exceeded"
-				};
-				res.write(JSON.stringify(response));
-				res.end();
-				return;
-			}
-
 			req.on('data', function (chunk) {
 				request += chunk;
 			});
@@ -195,7 +181,7 @@ class Transport {
 				};
 				res.write(JSON.stringify(response));
 				res.end();
-			} , 40000);
+			} , 20000);
 
 			let callback = (async function () {
 				call_count++;
@@ -210,13 +196,7 @@ class Transport {
 				// TODO: заменить по коду data на params
 				request.data = request.params;
 				delete(request.params);
-/*if(call_list[request.method] > 10) {
-	console.warn(`callback max limit ${request.method}`);
-	clearTimeout(req_timeout);
-	call_count--;
-	res.end();
-	return;
-}*/
+
 				if(call_list[request.method])
                     call_list[request.method]++;
 				else
@@ -469,7 +449,7 @@ class Tip {
 			let callback_name = `callback${this.ipc.config.id}${this.callback_counter}`;
 			this.callback_counter++;
 
-			let killswitch = setTimeout(()=> {unicast_count--; this.ipc.of[this.hubid].off(callback_name, "*"); reject("Killswitch engaged")} , 25000);
+			let killswitch = setTimeout(()=> {unicast_count--; this.ipc.of[this.hubid].off(callback_name, "*"); reject("Killswitch engaged")} , 15000);
 
 			this.ipc.of[this.hubid].on(callback_name, function (message) {
 					unicast_count--;

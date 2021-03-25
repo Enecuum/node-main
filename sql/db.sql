@@ -65,8 +65,8 @@ CREATE TABLE `delegates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
-
-CREATE TABLE `trinity`.`dex_pools` (
+DROP TABLE IF EXISTS `dex_pools`;
+CREATE TABLE `dex_pools` (
   `pool_id` VARCHAR(64) NOT NULL,
   `pair_id` VARCHAR(128) NOT NULL,
   `asset_1` VARCHAR(64) NOT NULL,

@@ -15,7 +15,16 @@
 const Utils = require('./Utils');
 const {ContractError} = require('./errors');
 const {OutOfRangeError} = require('./errors');
-const config = require('./config.json');
+const fs = require('fs');
+let config = {};
+try {
+    config = JSON.parse(fs.readFileSync('./config.pulse', 'utf8'));
+
+} catch (e) {
+    console.info('No configuration file found.', e)
+}
+
+//const config = require('./config.pulse');
 let schema = {
     "root" :            "0000",
     "custom" :          "0100",
@@ -221,6 +230,13 @@ async function processData(tx, db, kblock){
     return contract.execute(tx, db, kblock);
 }
 
+function validate(data){
+    let contract = Contract.createContract(data);
+    if(!contract)
+        return false;
+    return contract.validate(data);
+}
+
 function create(tx, db){
     let contract = Contract.createContract(tx.data);
     if(!contract)
@@ -379,14 +395,14 @@ class CreateTokenContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         if(this.data.type === undefined)
             return null;
 
         let params = this.data.parameters;
 
         // Check token exist
-        let existing = await db.get_tickers_all();
+        let existing = await substate.get_tickers_all();
         if (existing.some(d => d.ticker === params.ticker))
             throw new ContractError(`Ticker ${params.ticker} already exist`);
 
@@ -403,6 +419,7 @@ class CreateTokenContract extends Contract {
             reissuable : params.reissuable || 0,
             minable : params.minable || 0
         };
+
         if(params.minable === 1){
             tok_data.max_supply =       params.max_supply;
             tok_data.block_reward =     params.block_reward;
@@ -410,6 +427,12 @@ class CreateTokenContract extends Contract {
             tok_data.referrer_stake =   params.referrer_stake;
             tok_data.ref_share =        params.ref_share;
         }
+        substate.tokens_add(tok_data);
+        substate.accounts_change({
+            id : tx.from,
+            amount : tok_data.total_supply,
+            token : tx.hash,
+        });
         return {
             amount_changes : [
                 {
@@ -466,14 +489,14 @@ class CreatePosContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         if(this.data.type === undefined)
             return null;
 
         let params = this.data.parameters;
 
         if(params.name){
-            let existing = await db.get_pos_names();
+            let existing = await substate.get_pos_names();
             if (existing.some(d => d.name === params.name))
                 throw new ContractError(`Contract with name ${params.name} already exist`);
         }
@@ -484,7 +507,7 @@ class CreatePosContract extends Contract {
             fee : params.fee,
             name : params.name || null
         };
-
+        substate.poses_add(pos_data);
         return {
             amount_changes : [],
             pos_changes : [],
@@ -531,7 +554,7 @@ class DelegateContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check pos_id exist
          * change tx.from balance = balance - amount
@@ -543,14 +566,20 @@ class DelegateContract extends Contract {
         let params = this.data.parameters;
 
         // Check pos contract exist
-        let existing = await db.get_pos_contract_all();
-        if (!existing.some(d => d.id === params.pos_id))
+        let existing = await substate.get_pos_contract_all();
+        if (!existing.some(d => d.pos_id === params.pos_id))
             throw new ContractError(`POS contract ${params.pos_id} doesn't exist`);
         let lend_data = {
             pos_id : params.pos_id,
             delegator : tx.from,
             amount : params.amount
         };
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * BigInt(params.amount),
+            token : tx.ticker,
+        });
+        substate.delegators_add(lend_data);
 
         return {
             amount_changes : [
@@ -614,7 +643,7 @@ class UndelegateContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db, kblock) {
+    async execute(tx, substate, kblock) {
         /**
          * get lend row from delegates table
          * check amount <= delegated amount
@@ -626,19 +655,19 @@ class UndelegateContract extends Contract {
 
         let params = this.data.parameters;
 
-        let leased = (await db.get_pos_delegates(params.pos_id, [tx.from]))[0];
+        let leased = await substate.get_pos_delegates(params.pos_id, tx.from);
         if(!leased)
             throw new ContractError("pos_id not found");
-        if(params.amount > leased.amount)
+        if(params.amount > leased.delegated)
             throw new ContractError("Unbond amount is bigger than leased amount");
 
         // Amount will be deducted from current DB value in finalize_macroblock
         let delegates_data = {
             pos_id : params.pos_id,
             delegator : tx.from,
-            amount : BigInt(-1) *  BigInt(params.amount),
+            amount : BigInt(-1) * BigInt(params.amount),
         };
-
+        substate.delegators_change(delegates_data);
         let undelegates_data = {
             id : tx.hash,
             pos_id : params.pos_id,
@@ -646,6 +675,7 @@ class UndelegateContract extends Contract {
             amount : params.amount,
             height : kblock.n
         };
+        substate.undelegates_add(undelegates_data);
 
         return {
             amount_changes : [],
@@ -701,7 +731,7 @@ class TransferContract extends Contract {
             throw new ContractError("Incorrect undelegate_id format");
         return true;
     }
-    async execute(tx, db, kblock) {
+    async execute(tx, substate, kblock) {
         /**
          * get undelegated from undelegates table by undelegated_id
          * check TRANSFER_LOCK time
@@ -713,8 +743,8 @@ class TransferContract extends Contract {
 
         let params = this.data.parameters;
 
-        let transfer = (await db.get_pos_undelegates(params.undelegate_id))[0];
-        let und_tx = (await db.get_tx(params.undelegate_id))[0];
+        let transfer = await substate.get_pos_undelegates(params.undelegate_id);
+        let und_tx = (await substate.db.get_tx(params.undelegate_id))[0];
         if(und_tx === undefined) {
             throw new ContractError("Undelegate TX not found");
         }
@@ -726,15 +756,26 @@ class TransferContract extends Contract {
         }
         if(!transfer)
             throw new ContractError("Transfer not found");
-        if(transfer.amount === 0)
+        if(BigInt(transfer.amount) === BigInt(0))
             throw new ContractError("Transfer has already been processed");
-        if(!this.checkTime(transfer, db.app_config.transfer_lock, kblock))
+        if(!this.checkTime(transfer, substate.get_transfer_lock(), kblock))
             throw new ContractError("Freeze time has not passed yet");
 
         let data = {
             id : params.undelegate_id,
-            amount : BigInt(0)
+            pos_id : params.pos_id,
+            delegator : tx.from,
+            amount : BigInt(0),
+            height : kblock.n
         };
+
+        substate.accounts_change({
+            id : tx.from,
+            amount : transfer.amount,
+            token : tx.ticker,
+        });
+        substate.undelegates_change(data);
+
         return {
             amount_changes : [
                 {
@@ -795,7 +836,7 @@ class PosRewardContract extends Contract {
             throw new ContractError("Incorrect pos_id format");
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check pos exist
          * get delegator's reward
@@ -805,7 +846,7 @@ class PosRewardContract extends Contract {
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
-        let leased = (await db.get_pos_delegates(params.pos_id, [tx.from]))[0];
+        let leased = await substate.get_pos_delegates(params.pos_id, tx.from);
         if(!leased)
             throw new ContractError("Delegate not found");
         if(leased.reward <=  BigInt(0))
@@ -814,9 +855,15 @@ class PosRewardContract extends Contract {
         let data = {
             pos_id : params.pos_id,
             delegator : tx.from,
-            amount : BigInt(-1) *  BigInt(leased.reward)
+            amount : BigInt(-1) * BigInt(leased.reward)
         };
 
+        substate.accounts_change({
+            id : tx.from,
+            amount : leased.reward,
+            token : tx.ticker,
+        });
+        substate.claim_reward(data);
         return {
             amount_changes : [
                 {
@@ -878,7 +925,7 @@ class MintTokenContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check token exist
          * check token reissuable
@@ -890,7 +937,7 @@ class MintTokenContract extends Contract {
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
-        let token_info = (await db.get_tokens_all(params.token_hash))[0];
+        let token_info = await substate.get_token_info(params.token_hash);
         if(!token_info)
             throw new ContractError("Token not found");
         if(token_info.owner !== tx.from)
@@ -903,7 +950,16 @@ class MintTokenContract extends Contract {
             token_hash : params.token_hash,
             mint_amount : params.amount
         };
-
+        let tok_data = {
+            hash : params.token_hash,
+            total_supply : params.amount
+        };
+        substate.tokens_change(tok_data);
+        substate.accounts_change({
+            id : tx.from,
+            amount : params.amount,
+            token : params.token_hash,
+        });
         return {
             amount_changes : [
                 {
@@ -956,7 +1012,7 @@ class BurnTokenContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check token exist
          * check token reissuable
@@ -968,7 +1024,7 @@ class BurnTokenContract extends Contract {
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
-        let token_info = (await db.get_tokens_all(params.token_hash))[0];
+        let token_info = await substate.get_token_info(params.token_hash);
         if(!token_info)
             throw new ContractError("Token not found");
         if(token_info.owner !== tx.from)
@@ -981,7 +1037,16 @@ class BurnTokenContract extends Contract {
             token_hash : params.token_hash,
             burn_amount : params.amount
         };
-
+        let tok_data = {
+            hash : params.token_hash,
+            total_supply : BigInt(-1) * params.amount
+        };
+        substate.tokens_change(tok_data);
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * params.amount,
+            token : params.token_hash,
+        });
         return {
             amount_changes : [
                 {
@@ -1095,7 +1160,7 @@ class DexPoolCreateContract extends Contract {
             amount_2 : params.amount_2,
             pool_fee : BigInt(3)
         };
-        substate.pools_change(pool_data);
+        substate.pools_add(pool_data);
         let lt_data = {
             pool_id : tx.hash,
             id : tx.from,
@@ -1534,6 +1599,6 @@ module.exports.prettify = prettify;
 module.exports.isContract = isContract;
 module.exports.dataFromObject = dataFromObject;
 module.exports.sizeMarker = sizeMarker;
-//module.exports.validate = validate;
+module.exports.validate = validate;
 module.exports.contract_pricelist = contract_pricelist;
 module.exports.Contract = Contract;

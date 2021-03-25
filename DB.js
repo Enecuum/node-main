@@ -990,25 +990,63 @@ class DB {
 		return this.transaction([sql_i, sw].join(';'));
 	}
 
-	process_ledger_mblocks(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts){
+	process_ledger_mblocks(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts, substate){
 		let sts = [];
 		let pnd = [];
 		let ind = [];
 
-		let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
+		//let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
 		let mb = mysql.format('UPDATE mblocks SET calculated = 1 WHERE `hash` in (?)', [mblocks.map(m => m.hash)]);
 
 		if (txs.length) {
 			txs.forEach(function (s) {
 				sts.push(mysql.format("UPDATE transactions SET `status` = ? WHERE `hash` = ? AND `mblocks_hash` = ?", [s.status, s.hash, s.mblocks_hash]));
 				// TODO: DELETE FROM pending WHERE `hash` in (?)
-				pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
+				//pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
 			});
 		}
 
 		ind = this.generate_eindex(rewards, kblock.time, tokens_counts);
+		// substate part
+		let state_sql = [];
+		if(substate.accounts.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [substate.accounts.map(a => [a.id, a.amount, a.token])]));
+		if(substate.pools.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pool_id`, `pair_id`, `asset_1`, `amount_1`, `asset_2`, `amount_2`, `pool_fee`) VALUES ? ON DUPLICATE KEY UPDATE `amount_1` = VALUES(amount_1), `amount_2` = VALUES(amount_2)", [substate.pools.filter(a => a.changed !== true).map(p => [p.pool_id, p.pair_id, p.asset_1, p.amount_1, p.asset_2, p.amount_2, p.pool_fee])]));
+		substate.tokens = substate.tokens.filter(a => a.changed === true);
+		if(substate.tokens.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO tokens (`hash`, `owner`, `fee_type`, `fee_value`, `fee_min`, `ticker`, `caption`, `decimals`, `total_supply`, `reissuable`, `minable`, `max_supply`, `block_reward`, `min_stake`, `referrer_stake`, `ref_share`) VALUES ? ON DUPLICATE KEY UPDATE `total_supply` = VALUES(total_supply)", [substate.tokens.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.caption, a.decimals, a.total_supply, a.reissuable, a.minable, a.max_supply, a.block_reward, a.min_stake, a.referrer_stake, a.ref_share ])]));
+		substate.poses = substate.poses.filter(a => a.changed === true);
+		if(substate.poses.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO poses (`id`, `owner`, `fee`, `name`) VALUES ? ", [substate.poses.map(a => [a.id, a.owner, a.fee, a.name])]));
 
-		let sql = [ins, sts.join(';'), pnd.join(';'), ind.join(';'), mb, post_action.join(';')].join(';');
+
+		for( let pos in substate.delegation_ledger){
+			for( let del in substate.delegation_ledger[pos]){
+				if(substate.delegation_ledger[pos][del].changed === true){
+					state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
+						pos_id : pos,
+						delegator : del,
+						amount : substate.delegation_ledger[pos][del].delegated,
+						reward : substate.delegation_ledger[pos][del].reward
+					}]));
+				}
+			}
+		}
+
+		for( let und in substate.undelegates){
+			if(substate.undelegates[und].changed === true){
+				state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
+					id : substate.undelegates[und].id,
+					pos_id : substate.undelegates[und].pos_id,
+					amount : substate.undelegates[und].amount,
+					height : substate.undelegates[und].height
+				}]));
+			}
+		}
+
+		let sql = [sts.join(';'), pnd.join(';'), ind.join(';'), mb, state_sql.join(';')].join(';');
+		//return;
 		return this.transaction(sql);
 	}
 
@@ -1812,7 +1850,7 @@ class DB {
 	}
 
 	async get_pos_undelegates(id){
-		let res = this.request(mysql.format("SELECT * FROM undelegates WHERE id = ?", [id]));
+		let res = await this.request(mysql.format("SELECT * FROM undelegates WHERE id = ?", [id]));
 		return res;
 	}
 
@@ -1904,12 +1942,12 @@ class DB {
 		if(!ids.length)
 			return [];
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id IN (?)`, [ids])));
-		return res.length !== 0;
+		return res;
 	}
 
 	async dex_get_pools_all(){
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
-		return res.length !== 0;
+		return res;
 	}
 
 	async dex_check_pool_exist(pair_id){

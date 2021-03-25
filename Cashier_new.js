@@ -7,7 +7,28 @@ class Substate {
         this.config = config;
         this.db = db;
         this.accounts = [];
-        this.delegates = [];
+        // Build delegation ledger
+        // Object be like :
+        // {
+        // 		"pos1" : {
+        // 			"addr1" : {
+        // 				delegated: 0,
+        // 				undelegated: 0
+        // 			}
+        // 			"addr2" : {
+        // 				delegated: 0,
+        //				undelegated: 0
+        // 			}
+        // 		},
+        // 		"pos2" : {
+        // 			"addr1" : {
+        // 				delegated: 0,
+        // 				undelegated: 0
+        // 			}
+        // 		}
+        // }
+        this.delegation_ledger = {};
+        this.undelegates = {};
         this.tokens = [];
         this.poses = [];
         this.transfers = [];
@@ -27,17 +48,135 @@ class Substate {
                 return hash;
         });
         this.tokens = await this.db.get_tokens_all(this.tokens);
+
+        //this.poses = this.poses.filter((v, i, a) => a.indexOf(v) === i);
+        //this.poses = this.poses.filter(v => v !== null);
+        this.poses = await this.db.get_pos_names();
+
+        for (let pos_id in this.delegation_ledger) {
+            let ids = Object.keys(this.delegation_ledger[pos_id]);
+            let delegates = await this.db.get_pos_delegates(pos_id, ids);
+            if(delegates){
+
+                for (let del of delegates) {
+                    this.delegation_ledger[pos_id][del.delegator].delegated = BigInt(del.amount);
+                    this.delegation_ledger[pos_id][del.delegator].reward = BigInt(del.reward);
+                }
+            }
+            for (let del in this.delegation_ledger[pos_id]) {
+                if(!this.delegation_ledger[pos_id][del].hasOwnProperty('delegated'))
+                    delete this.delegation_ledger[pos_id][del]
+            }
+        }
+
+        for (let und in this.undelegates) {
+            let row = (await this.db.get_pos_undelegates(und))[0];
+            if(row)
+                this.undelegates[und] = row;
+            else
+                delete this.undelegates[und]
+        }
+
         this.pools = await this.db.dex_get_pools(this.pools);
     }
-    fillByContract(contract){
+    setState(state){
+        this.delegation_ledger = JSON.parse(JSON.stringify(state.delegation_ledger));
+        for(let pos in state.delegation_ledger){
+            for(let del in state.delegation_ledger[pos]){
+                this.delegation_ledger[pos][del] = Object.assign({}, state.delegation_ledger[pos][del]);
+            }
+        }
+        for(let und in state.undelegates){
+            this.undelegates[und] = Object.assign({}, state.undelegates[und]);
+        }
+        // for (let el of Object.keys(state.delegation_ledger)) {
+        //     this.delegation_ledger[el.pos_id][el.delegator].delegated += BigInt(el.delegated);
+        //     this.delegation_ledger[el.pos_id][el.delegator].undelegated += BigInt(el.undelegated);
+        //     this.delegation_ledger[el.pos_id][el.delegator].reward += BigInt(el.reward);
+        // }
+        this.undelegates = Object.assign({}, state.undelegates);
+        this.tokens = state.tokens.map(a => Object.assign({}, a));
+        this.poses = state.poses.map(a => Object.assign({}, a));
+        this.transfers = state.transfers.map(a => Object.assign({}, a));
+        this.pools = state.pools.map(a => Object.assign({}, a));
+        this.pools_ledger = state.pools_ledger.map(a => Object.assign({}, a));
+        this.accounts = state.accounts.map(a => Object.assign({}, a));
+    }
+    fillByContract(contract, tx){
         let type = contract.type;
         switch(type) {
+            case "create_token" : {
+                // token hash as tx hash
+                this.tokens.push(tx.hash);
+            }
+                break;
+            case "create_pos" : {
+                // pos_id as tx hash
+            }
+                break;
+            case "delegate" : {
+                // pos_id as tx hash
+                if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id] = {}
+                }
+                if (!this.delegation_ledger[contract.data.parameters.pos_id].hasOwnProperty(tx.from)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {}
+                }
+            }
+                break;
+            case "undelegate" : {
+                // pos_id as tx hash
+                if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id] = {}
+                }
+                if (!this.delegation_ledger[contract.data.parameters.pos_id].hasOwnProperty(tx.from)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {
+                        delegated: BigInt(0),
+                        undelegated: BigInt(0),
+                        reward: BigInt(0)
+                    }
+                }
+            }
+                break;
+            case "transfer" : {
+                // pos_id as tx hash
+                if (!this.undelegates.hasOwnProperty(contract.data.parameters.undelegate_id)) {
+                    this.undelegates[contract.data.parameters.undelegate_id] = {}
+                }
+            }
+                break;
+            case "pos_reward" : {
+                // pos_id as tx hash
+                if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id] = {}
+                }
+                if (!this.delegation_ledger[contract.data.parameters.pos_id].hasOwnProperty(tx.from)) {
+                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {
+                        delegated: BigInt(0),
+                        undelegated: BigInt(0),
+                        reward: BigInt(0)
+                    }
+                }
+            }
+                break;
+            case "mint" : {
+                // pos_id as tx hash
+                this.tokens.push(contract.data.parameters.token_hash);
 
+            }
+                break;
+            case "burn" : {
+                // pos_id as tx hash
+                this.tokens.push(contract.data.parameters.token_hash);
+
+            }
+                break;
             case "create_pool" : {
                 // asset_1 token info
                 // asset_2 token info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2))
             }
                 break;
             case "add_liquidity" : {
@@ -62,10 +201,122 @@ class Substate {
             default : return false;
         }
     }
-    pools_change(changes){
+    validateState(){
+        // check all ledger for non-negative values
+        if (this.accounts.some(d => d.amount < 0)) {
+            return false;
+        }
+        if (this.tokens.some(d => d.total_supply < 0)) {
+            return false;
+        }
+        if (Object.keys(this.delegation_ledger).some(function (val) {
+            for (let id in this.delegation_ledger[val]) {
+                if (this.delegation_ledger[val][id].delegated < 0 || this.delegation_ledger[val][id].undelegated < 0 || this.delegation_ledger[val][id].reward < 0) {
+                    return true;
+                }
+            }})){
+            return false;
+        }
+        return true;
+    }
+    get_tickers_all(){
+        return this.tokens;
+    }
+    get_pos_names(){
+        return this.poses;
+    }
+    get_pos_contract_all(){
+        return this.poses;
+    }
+    pools_add(changes){
         if(this.pools.find(a => a.hash === changes.pair_id))
             throw new ContractError(`Pool ${changes.pair_id} already exist`);
+        changes.changed = true;
         this.pools.push(changes);
+    }
+    tokens_add(changes){
+        if(this.tokens.find(a => a.hash === changes.hash))
+            throw new ContractError(`Token ${changes.hash} already exist`);
+        changes.changed = true;
+        this.tokens.push(changes);
+    }
+    poses_add(changes){
+        if(this.poses.find(a => a.name === changes.name))
+            throw new ContractError(`Pos ${changes.name} already exist`);
+        changes.changed = true;
+        this.poses.push(changes);
+    }
+    delegators_add(changes){
+        if (!this.delegation_ledger.hasOwnProperty(changes.pos_id)) {
+            this.delegation_ledger[changes.pos_id] = {}
+        }
+        if (!this.delegation_ledger[changes.pos_id].hasOwnProperty(changes.delegator)) {
+            this.delegation_ledger[changes.pos_id][changes.delegator] = {
+                delegated: BigInt(0),
+                undelegated: BigInt(0),
+                reward: BigInt(0)
+            }
+        }
+        if(this.delegation_ledger[changes.pos_id][changes.delegator].delegated + changes.amount < BigInt(0)){
+            throw new ContractError(`Negative delegation_ledger state`);
+        }
+        this.delegation_ledger[changes.pos_id][changes.delegator].delegated += changes.amount;
+        this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
+    }
+    delegators_change(changes){
+        if(this.delegation_ledger[changes.pos_id][changes.delegator].delegated + changes.amount < BigInt(0)){
+            throw new ContractError(`Negative delegation_ledger state`);
+        }
+        this.delegation_ledger[changes.pos_id][changes.delegator].delegated += changes.amount;
+        this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
+    }
+    tokens_change(changes){
+        let tok_idx = this.tokens.findIndex(a => a.hash === changes.hash);
+        //changes.changed = true;
+        if(tok_idx > -1){
+            if(this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
+                throw new ContractError(`Negative tokens state`);
+            this.tokens[tok_idx].total_supply += changes.total_supply;
+            this.tokens[tok_idx].changed = true;
+        }
+    }
+    accounts_change(changes){
+        let acc_idx = this.accounts.findIndex(acc => ((acc.id === changes.id) && (acc.token === changes.token)));
+        changes.changed = true;
+        if(acc_idx > -1){
+            if((BigInt(this.accounts[acc_idx].amount) + BigInt(changes.amount)) < BigInt(0))
+                throw new ContractError(`Negative ledger state`);
+            this.accounts[acc_idx].amount = BigInt(this.accounts[acc_idx].amount) + BigInt(changes.amount);
+        }
+        else{
+            if(BigInt(changes.amount) < BigInt(0))
+                throw new ContractError(`Negative ledger state`);
+            this.accounts.push(changes);
+        }
+
+    }
+    undelegates_add(changes){
+        if(this.undelegates.hasOwnProperty(changes.id))
+            throw new ContractError(`Undelegate ${changes.id} already exist`);
+        changes.changed = true;
+        this.undelegates[changes.id] = changes;
+    }
+    undelegates_change(changes){
+        changes.changed = true;
+        this.undelegates[changes.id] = changes;
+    }
+    claim_reward(changes){
+        this.delegation_ledger[changes.pos_id][changes.delegator].reward = BigInt(0);
+        this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
+    }
+    get_pos_delegates(pos_id, delegator){
+        return this.delegation_ledger[pos_id][delegator];
+    }
+    get_pos_undelegates(undelegate_id){
+        return this.undelegates[undelegate_id];
+    }
+    get_transfer_lock(){
+        return this.db.app_config.transfer_lock;
     }
     get_token_info(hash){
         if(!hash)
@@ -80,7 +331,6 @@ class Substate {
         let index = this.accounts.findIndex(acc => ((acc.id === id) && (acc.token === token)));
         return (index > -1) ? this.accounts[index] : ({amount : 0, decimals : 10});
     }
-
 }
 
 class Cashier {
@@ -101,7 +351,7 @@ class Cashier {
     processTransfer(tx, substate){
         let token = substate.tokens.find(tok => ((tok.hash === tx.ticker)));
         if (token === undefined) {
-            return this.status_entry(Utils.TX_STATUS.REJECTED, tx);
+            throw new ContractError("Token not found");
         }
         let token_enq = substate.tokens.find(tok => ((tok.hash === Utils.ENQ_TOKEN_NAME)));
 
@@ -111,7 +361,7 @@ class Cashier {
         if ((tx.amount - token_fee) >= BigInt(0)) {
 
             // Take amount from `from`
-            substate.accounts.change(
+            substate.accounts_change(
                 {
                     id : tx.from,
                     token : tx.ticker,
@@ -119,17 +369,8 @@ class Cashier {
                 }
             );
 
-            // Give token fee to token owner
-            substate.accounts.change(
-                {
-                    id : token.owner,
-                    token : tx.ticker,
-                    amount : token_fee
-                }
-            );
-
             // Take native fee amount from token owner
-            substate.accounts.change(
+            substate.accounts_change(
                 {
                     id : token.owner,
                     token : Utils.ENQ_TOKEN_NAME,
@@ -137,8 +378,17 @@ class Cashier {
                 }
             );
 
+            // Give token fee to token owner
+            substate.accounts_change(
+                {
+                    id : token.owner,
+                    token : tx.ticker,
+                    amount : token_fee
+                }
+            );
+
             // Give amount to `to`
-            substate.accounts.change(
+            substate.accounts_change(
                 {
                     id : tx.to,
                     token : tx.ticker,
@@ -147,7 +397,7 @@ class Cashier {
             );
         }
         else
-            return this.status_entry(Utils.TX_STATUS.REJECTED, tx);
+            throw new ContractError("Negative ledger state");
     }
 
     processContract(tx, substate){
@@ -176,12 +426,7 @@ class Cashier {
         let accounts = [];
         let statuses = [];
         let post_action = [];
-        let tickers = [];
-        let token_changes = {};
         let contracts = {};
-        let delegation_ledger = {};
-        let transfer_ledger = {};
-        let block_fees = BigInt(0);
         let total_pos_stake = BigInt(0);
         let time = process.hrtime();
         let rewards = [];
@@ -316,6 +561,8 @@ class Cashier {
                     m.reward = BigInt(0);
                     total_mblock_reward += m.reward;
                     accounts.push({id: m.publisher, amount: m.reward, token: m.token});
+                    pub = accounts.findIndex(a => ((a.id === m.publisher)  && (a.token === m.token)));
+
                     this.mrewards += m.reward;
                 }
 
@@ -555,21 +802,24 @@ class Cashier {
             let ledger = BigInt((await this.db.get_total_supply()).amount);
             let formula = BigInt(this.config.ORIGIN.reward) + (BigInt(token_enq.block_reward) * BigInt(kblock.n + 1));
             console.log(`n: ${kblock.n}`);
-            console.log(`Ledger:  ${ledger}`);
-            console.log(`Formula: ${formula}`);
-            console.log(`Dust:    ${dust_block + dust_fees}`);
+            //console.log(`Ledger:  ${ledger}`);
+            //console.log(`Formula: ${formula}`);
+            //console.log(`Dust:    ${dust_block + dust_fees}`);
             console.log(`Diff:    ${formula - ledger} \r\n`);
+            if(formula - ledger !== 0n)
+                throw new ContractError(``);
+
             return;
         }
 
-        let Substate = new Substate(this.config, this.db);
+        let substate = new Substate(this.config, this.db);
 
-        accounts.push(this.db.ORIGIN.publisher);
+        substate.accounts.push(this.db.ORIGIN.publisher);
 
         if (chunk.mblocks.length !== 0) {
-            accounts = accounts.concat(chunk.txs.map(tx => tx.from));
-            accounts = accounts.concat(chunk.txs.map(tx => tx.to));
-            accounts.push(kblock.publisher);
+            substate.accounts = substate.accounts.concat(chunk.txs.map(tx => tx.from));
+            substate.accounts = substate.accounts.concat(chunk.txs.map(tx => tx.to));
+            substate.accounts.push(kblock.publisher);
         }
 
         // TODO: костыль. Вынести валидацию в explorer. Ужадить из кассира после вайпа истории
@@ -580,26 +830,31 @@ class Cashier {
         });
         let tokens = await this.db.get_tokens_all(filtered_tickers);
         let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
-        accounts = accounts.concat(tokens.map(token => token.owner));
+        substate.accounts = substate.accounts.concat(tokens.map(token => token.owner));
+
+        substate.tokens.push(Utils.ENQ_TOKEN_NAME);
+        substate.tokens = substate.tokens.concat(filtered_tickers);
 
         let duplicates = await this.db.get_duplicates(chunk.txs.map(tx => tx.hash));
         console.silly(`duplicates = ${JSON.stringify(duplicates)}`);
         console.debug(`duplicates.length = ${duplicates.length}`);
 
-        // Parse all contracts to get involved accounts
-        // Also get all involved POS contracts and delegators
-        // Also reject all TXs with incorrect contracts
-        for(let i = 0; i < chunk.txs.length; i++){
+        // Remove duplicates
+        for(let i = 0; i < chunk.txs.length; i++) {
             let tx = chunk.txs[i];
-            // TODO: вынести
             if (duplicates.some(d => d.hash === tx.hash) || (i !== chunk.txs.findIndex(t => t.hash === tx.hash))) {
                 statuses.push(this.status_entry(Utils.TX_STATUS.DUPLICATE, tx));
                 console.debug(`duplicate tx ${JSON.stringify(tx)}`);
                 // remove this tx from array
                 chunk.txs.splice(i, 1);
                 i--;
-                continue;
             }
+        }
+        // Parse all contracts to get involved accounts
+        // Also get all involved POS contracts and delegators
+        // Also reject all TXs with incorrect contracts
+        for(let i = 0; i < chunk.txs.length; i++){
+            let tx = chunk.txs[i];
 
             if (ContractMachine.isContract(tx.data)) {
                 try {
@@ -609,49 +864,9 @@ class Cashier {
                     // Create contract to get it's params. Without execution
                     contracts[tx.hash] = await ContractMachine.create(_tx, this.db);
                     // Pass contract's params to substate to add data
-                    Substate.fillByContract(contracts[tx.hash]);
-                    // Add involved addresses to the rest
-                    for (let acc of contracts[tx.hash].amount_changes) {
-                        accounts.push(acc.id);
-                    }
-                    // Build delegation ledger
-                    // Object be like :
-                    // {
-                    // 		"pos1" : {
-                    // 			"addr1" : {
-                    // 				delegated: 0,
-                    // 				undelegated: 0
-                    // 			}
-                    // 			"addr2" : {
-                    // 				delegated: 0,
-                    //				undelegated: 0
-                    // 			}
-                    // 		},
-                    // 		"pos2" : {
-                    // 			"addr1" : {
-                    // 				delegated: 0,
-                    // 				undelegated: 0
-                    // 			}
-                    // 		}
-                    // }
-                    for (let el of contracts[tx.hash].pos_changes) {
-                        if (!delegation_ledger.hasOwnProperty(el.pos_id)) {
-                            delegation_ledger[el.pos_id] = {}
-                        }
-                        if (!delegation_ledger[el.pos_id].hasOwnProperty(el.delegator)) {
-                            delegation_ledger[el.pos_id][el.delegator] = {
-                                delegated: BigInt(0),
-                                undelegated: BigInt(0),
-                                reward: BigInt(0)
-                            }
-                        }
-                        if (el.transfer) {
-                            if (transfer_ledger[el.transfer] === true) {
-                                throw new ContractError("Transfer has already been executed.");
-                            }
-                            transfer_ledger[el.transfer] = true;
-                        }
-                    }
+
+                    substate.fillByContract(contracts[tx.hash], tx);
+
                 } catch (err) {
                     //if(err instanceof ContractError)
                     // TODO: logger-style errors
@@ -664,149 +879,40 @@ class Cashier {
                 }
             }
         }
-        // Fill delegation_ledger with delegated amounts/ We can't get undelegated by address
-        for (let pos_id in delegation_ledger) {
-            let ids = Object.keys(delegation_ledger[pos_id]);
-            let delegates = await this.db.get_pos_delegates(pos_id, ids);
-            for (let del of delegates) {
-                delegation_ledger[pos_id][del.delegator].delegated = BigInt(del.amount);
-                delegation_ledger[pos_id][del.delegator].reward = BigInt(del.reward);
-            }
-        }
-        accounts = accounts.filter((v, i, a) => a.indexOf(v) === i);
-        accounts = accounts.filter(v => v !== null);
 
-        console.trace(`cashier ${accounts.length} accounts: ${Utils.JSON_stringify(accounts)}`);
+        console.trace(`cashier ${substate.accounts.length} accounts: ${Utils.JSON_stringify(substate.accounts)}`);
+        console.silly(`accounts = ${JSON.stringify(substate.accounts)}`);
 
-        //Substate.accounts = await this.db.get_accounts_all(accounts);
+        await substate.loadState();
+        let substate_copy = new Substate(this.config, this.db);
+        for(let i = 0; i < chunk.txs.length; i++){
+            let tx = chunk.txs[i];
 
-        console.silly(`accounts = ${JSON.stringify(accounts)}`);
-
-        for(let [i, tx] of chunk.txs.entries()) {
-            let from = accounts.findIndex(acc => ((acc.id === tx.from) && (acc.token === tx.ticker)));
-            let to = accounts.findIndex(acc => ((acc.id === tx.to) && (acc.token === tx.ticker)));
-
-            let token = tokens.find(tok => ((tok.hash === tx.ticker)));
-            if (token === undefined) {
-                statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-                console.silly(`rejected tx `, JSON.stringify(tx));
-                continue;
-            }
-            let tok_owner = accounts.findIndex(acc => ((acc.id === token.owner) && (acc.token === token.hash)));
-            let tok_owner_enq = accounts.findIndex(acc => ((acc.id === token.owner) && (acc.token === Utils.ENQ_TOKEN_NAME)));
-
-            let token_fee = BigInt(Utils.calc_fee(token, tx.amount));
-            let native_fee = BigInt(Utils.calc_fee(token_enq, 0));
+            //let substate_copy = Object.assign({}, substate);
+            substate_copy.setState(substate);
             tx.amount = BigInt(tx.amount);
-            if ((from > -1)
-                && (accounts[from].amount >= tx.amount)
-                && (accounts[tok_owner_enq].amount >= native_fee)
-                && ((tx.amount - token_fee) >= BigInt(0))) {
 
-                // Clone accounts
-                let accounts_copy = accounts.map(a => Object.assign({}, a));
-                let dl_copy = {};
-                accounts_copy[from].amount = BigInt(accounts_copy[from].amount) - tx.amount;
-                accounts_copy[tok_owner].amount = BigInt(accounts_copy[tok_owner].amount) + token_fee;
+            try {
+                console.trace("Process transfer");
 
-                accounts_copy[tok_owner_enq].amount = BigInt(accounts_copy[tok_owner_enq].amount) - native_fee;
-
-                if (to > -1) {
-                    accounts_copy[to].amount = BigInt(accounts_copy[to].amount) + BigInt(tx.amount - token_fee);
-                } else {
-                    accounts_copy.push({id: tx.to, amount: BigInt(tx.amount - token_fee), token: tx.ticker});
-                }
+                this.processTransfer(tx, substate_copy);
                 // Check if tx has contract
+
                 let contract = contracts[tx.hash] || null;
                 if (contract) {
-                    for (let el of contract.amount_changes) {
-                        let changed = accounts_copy.findIndex(acc => ((acc.id === el.id) && (acc.token === el.token_hash)));
-                        if (changed > -1)
-                            accounts_copy[changed].amount = BigInt(accounts_copy[changed].amount) + BigInt(el.amount_change);
-                        else
-                            accounts_copy.push({
-                                id: el.id,
-                                amount: BigInt(el.amount_change),
-                                token: el.token_hash
-                            });
-                    }
-                    // Clone delegation_ledger
-                    dl_copy = Object.assign({}, delegation_ledger);
-                    for (let el of contract.pos_changes) {
-                        dl_copy[el.pos_id][el.delegator].delegated += BigInt(el.delegated);
-                        dl_copy[el.pos_id][el.delegator].undelegated += BigInt(el.undelegated);
-                        dl_copy[el.pos_id][el.delegator].reward += BigInt(el.reward);
-                    }
-                    // Check ticker unique
-                    if (contract.token_info) {
-                        if (contract.token_info.ticker) {
-                            if (tickers.includes(contract.token_info.ticker)) {
-                                statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-                                console.silly(`rejected tx `, Utils.JSON_stringify(tx));
-                                continue;
-                            }
-                            tickers.push(contract.token_info.ticker);
-                        }
-                        if (contract.token_info.supply_change) {
-                            if (token_changes[contract.token_info.hash] === undefined) {
-                                token_changes[contract.token_info.hash] = {
-                                    db_supply: BigInt(0),
-                                    supply_change: BigInt(0)
-                                };
-                            }
-                            token_changes[contract.token_info.hash].db_supply = contract.token_info.db_supply;
-                            token_changes[contract.token_info.hash].supply_change += contract.token_info.supply_change;
-                            if ((BigInt(token_changes[contract.token_info.hash].db_supply) + BigInt(token_changes[contract.token_info.hash].supply_change)) < BigInt(0)) {
-                                statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-
-                                console.silly(`rejected tx `, Utils.JSON_stringify(tx));
-                                continue;
-                            }
-                        }
-                    }
+                    await contract.execute(tx, substate_copy, kblock);
+                    // add eindex entry for claims
+                    //this.eindex_entry(rewards, 'ic', rec.delegator, tx.hash, BigInt(-1) * rec.reward);
                 }
-
-                // Check copy for negative amounts.
-                if (accounts_copy.some(d => d.amount < 0)) {
-                    statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-
-                    console.silly(`rejected tx `, Utils.JSON_stringify(tx));
-                }
-                // Check dl_copy for negative delegates & undelegates.
-                else if (Object.keys(dl_copy).some(function (val) {
-                    for (let id in dl_copy[val]) {
-                        if (dl_copy[val][id].delegated < 0 || dl_copy[val][id].undelegated < 0 || dl_copy[val][id].reward < 0) {
-                            return true;
-                        }
-                    }
-                })) {
-                    statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-
-                    console.silly(`rejected tx `, Utils.JSON_stringify(tx));
-                } else {
-                    // Add tx fee
-                    block_fees += native_fee;
-                    // Replace old accounts
-                    accounts = accounts_copy.map(a => Object.assign({}, a));
-                    // Add post_action
-                    if (contract) {
-                        // Replace old delegation_ledger
-                        delegation_ledger = Object.assign({}, dl_copy);
-                        for(let rec of contract.pos_changes){
-                            if(rec.reward < BigInt(0))
-                                this.eindex_entry(rewards, 'ic', rec.delegator, tx.hash, BigInt(-1) * rec.reward);
-
-                        }
-                        post_action = post_action.concat(contracts[tx.hash].post_action);
-                    }
-                    statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
-
-                    console.silly(`approved tx `, Utils.JSON_stringify(tx));
-                }
-            } else {
+                //this.processTransfer(tx, substate_copy);
+                statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
+                console.silly(`approved tx `, Utils.JSON_stringify(tx));
+                //substate = Object.assign({}, substate_copy);
+                substate.setState(substate_copy);
+            }
+            catch(err) {
                 statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-
-                console.silly(`rejected tx `, Utils.JSON_stringify(tx));
+                console.warn(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
             }
         }
 
@@ -829,8 +935,8 @@ class Cashier {
                 }
             }
         }
-
-        await this.db.process_ledger_mblocks(accounts, statuses, chunk.mblocks, post_action, rewards, kblock, tokens_counts);
+        //return;
+        await this.db.process_ledger_mblocks(accounts, statuses, chunk.mblocks, post_action, rewards, kblock, tokens_counts, substate);
 
         time = process.hrtime(time);
         console.debug(`cashier_timing: mblocks chunk ${hash} saved in`, Utils.format_time(time));
@@ -850,12 +956,17 @@ class Cashier {
             if (block === undefined)
                 block = await this.db.peek_tail();
             // Create snapshot of current block if needed
+            // if(block.n === 150529)
+            //    return
             if ((block.n) % this.config.snapshot_interval === 0) {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);
+                //let snapshot = await this.db.create_snapshot(cur_hash); //cur_hash);
+                //let hash = Utils.hash_snapshot(snapshot);
+                //console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                 if (!snapshot_hash) {
                     let snapshot = await this.db.create_snapshot(cur_hash); //cur_hash);
                     let hash = Utils.hash_snapshot(snapshot);
-                    console.debug(`Snapshot hash of ${block.n} kblock: ${hash}`);
+                    console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                     await this.db.put_snapshot(snapshot, hash);
                 }
             }

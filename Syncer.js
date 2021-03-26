@@ -684,8 +684,9 @@ class Syncer {
 				await new Promise(r => setTimeout(r, 100));
 			}
 		}
-		if (candidate.time < tail_kblock.time) {
-			console.warn(`Candidte block time is greater than the current time of the leader pos. Candidte time: ${candidate.time}, current time: ${tail_kblock.time}`);
+		let now = new Date() / 1000;
+		if (candidate.time < tail_kblock.time || candidate.time > now) {
+			console.warn(`Incorrect candidate block time. Candidate time: ${candidate.time}, tail time: ${tail_kblock.time}, current time: ${now}`);
 			return false;
 		}
 		if (mblocks.length === 0 || sblocks.length === 0) {

@@ -130,11 +130,7 @@ class Substate {
                     this.delegation_ledger[contract.data.parameters.pos_id] = {}
                 }
                 if (!this.delegation_ledger[contract.data.parameters.pos_id].hasOwnProperty(tx.from)) {
-                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {
-                        delegated: BigInt(0),
-                        undelegated: BigInt(0),
-                        reward: BigInt(0)
-                    }
+                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {}
                 }
             }
                 break;
@@ -151,11 +147,7 @@ class Substate {
                     this.delegation_ledger[contract.data.parameters.pos_id] = {}
                 }
                 if (!this.delegation_ledger[contract.data.parameters.pos_id].hasOwnProperty(tx.from)) {
-                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {
-                        delegated: BigInt(0),
-                        undelegated: BigInt(0),
-                        reward: BigInt(0)
-                    }
+                    this.delegation_ledger[contract.data.parameters.pos_id][tx.from] = {}
                 }
             }
                 break;
@@ -176,7 +168,7 @@ class Substate {
                 // asset_2 token info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2))
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id)
             }
                 break;
             case "add_liquidity" : {
@@ -185,7 +177,7 @@ class Substate {
                 // asset_1asset_2 pool
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2))
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id)
             }
                 break;
             case "remove_liquidity" :
@@ -194,7 +186,7 @@ class Substate {
                 // asset_1asset_2 pool
                 this.tokens.push(contract.params.asset_1);
                 this.tokens.push(contract.params.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.params.asset_1, contract.params.asset_2))
+                this.pools.push(ContractMachine.getPairId(contract.params.asset_1, contract.params.asset_2).pair_id);
                 break;
             case "swap" :
                 break;
@@ -272,7 +264,6 @@ class Substate {
     }
     tokens_change(changes){
         let tok_idx = this.tokens.findIndex(a => a.hash === changes.hash);
-        //changes.changed = true;
         if(tok_idx > -1){
             if(this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
                 throw new ContractError(`Negative tokens state`);
@@ -550,7 +541,8 @@ class Cashier {
                 let owner = accounts.findIndex(a => ((a.id === tok_obj[m.token].owner)  && (a.token === m.token)));
 
                 let stake = mblock_pubs[m.hash].stake;
-                if (pub > -1) {
+
+                if (pub > -1 && tok_obj[m.token].total_poa_stake > BigInt(0)) {
                     m.reward = BigInt(stake) * tok_obj[m.token].total_poa_reward / tok_obj[m.token].total_poa_stake;
                     accounts[pub].amount = BigInt(accounts[pub].amount) + m.reward;
                     total_mblock_reward += m.reward;
@@ -560,9 +552,10 @@ class Cashier {
                     console.warn(`PoA miner with low-stake detected at mblock ${JSON.stringify(m)}`);
                     m.reward = BigInt(0);
                     total_mblock_reward += m.reward;
-                    accounts.push({id: m.publisher, amount: m.reward, token: m.token});
-                    pub = accounts.findIndex(a => ((a.id === m.publisher)  && (a.token === m.token)));
-
+                    if(pub < 0){
+                        accounts.push({id: m.publisher, amount: m.reward, token: m.token});
+                        pub = accounts.findIndex(a => ((a.id === m.publisher)  && (a.token === m.token)));
+                    }
                     this.mrewards += m.reward;
                 }
 
@@ -912,7 +905,7 @@ class Cashier {
             }
             catch(err) {
                 statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-                console.warn(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
+                //console.warn(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
             }
         }
 

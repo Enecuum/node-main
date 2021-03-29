@@ -15,6 +15,7 @@
 const Utils = require('./Utils');
 const {ContractError} = require('./errors');
 const {OutOfRangeError} = require('./errors');
+const ContractParser = require('./contractParser').ContractParser;
 const fs = require('fs');
 let config = {};
 try {
@@ -24,7 +25,6 @@ try {
     console.info('No configuration file found.', e)
 }
 
-//const config = require('./config.pulse');
 let schema = {
     "root" :            "0000",
     "custom" :          "0100",
@@ -56,162 +56,15 @@ let MAX_SUPPLY_LIMIT = BigInt('18446744073709551615');
 let MAX_DECIMALS = BigInt(10);
 let ENQ_INTEGER_COIN = BigInt(10000000000);
 
-function toHex(d) {
-    let hex = Number(d).toString(16);
-    while ((hex.length % 2) !== 0) {
-        hex = "0" + hex;
-    }
-    return hex;
-}
-function sizeMarker(size) {
-    let markerSize = 0xFFFF; // Max chunk size
-    if(size > markerSize)
-        throw new OutOfRangeError(`Size can't be bigger than ${markerSize}`);
-    let marker = toHex(size);
-    while (marker.length < 4) {
-        marker = "0" + marker;
-    }
-    return marker;
-}
+let parser = new ContractParser(schema, contract_pricelist);
+
 // TODO: possible false-positive results because of data field format
 function isContract(raw) {
-    if(raw === undefined || raw === null)
-        return false;
-    let chunk = getChunk(raw);
-    if((chunk.size === raw.length) && contract_pricelist.hasOwnProperty(chunk.key))
-        return chunk.key;
-    return false;
+    return parser.isContract(raw);
 }
-function getkey(object, value) {
-    return Object.keys(object).find(key => object[key] === value);
-}
-function getChunk(bin){
-    let size = parseInt(bin.substring(0, 4), 16);
-    let key = getkey(schema, bin.substring(4,8));
-    return {
-        size : size,
-        key : key,
-        data : bin.substr(8, size - 8)
-    }
-}
-function dataFromObject(obj){
-    let res = {
-        parameters : []
-    };
-    for(let param in obj.parameters){
 
-        let type = undefined;
-        switch (typeof obj.parameters[param]){
-            case "bigint" : {
-                type = "bigint";
-                break;
-            }
-            case "string" : {
-                type = "string";
-                break;
-            }
-            default : type = "int";
-        }
-        //let type = (typeof obj.parameters[param] === "string") ? "string" : "int";
-        res.parameters.push({key : param, [type] : obj.parameters[param]})
-    }
-    return serialize_object({
-        [obj.type] : res
-    });
-}
-function serialize_object(obj){
-    let binary = "";
-    if((!(Array.isArray(obj))) && (typeof obj !== "object"))
-        return obj.toString();
-
-    if(Array.isArray(obj)){
-        for (let el of obj){
-            let res = serialize_object(el);
-            binary += res;
-        }
-    }
-    else {
-        for (let key in obj) {
-            let code = schema[key];
-            let res = serialize_object(obj[key]);
-            binary += sizeMarker(res.length + 8) + code + res;
-        }
-    }
-    return binary;
-}
-function deserialize(bin){
-    let arr = [];
-    while(bin.length > 0){
-        let chunk = getChunk(bin);
-        if(bin.length === chunk.size){
-            if((!contract_pricelist.hasOwnProperty(chunk.key))
-                && (chunk.key !== "parameters")
-                && (chunk.key !== "object")){
-                arr.push([chunk.key, chunk.data]);
-                return arr;
-            }
-            bin = bin.substring(8, bin.length);
-        }
-        if(bin.length > chunk.size)
-            arr.push([chunk.key, chunk.data]);
-        else
-            arr.push([chunk.key, deserialize(chunk.data)]);
-        bin = bin.substring(chunk.size);
-    }
-    return arr;
-}
-function prettify(data){
-    let res = {};
-    let arr = [];
-    for(let i = 0; i < (data.length); i++){
-        let el = data[i];
-        if(Array.isArray(el)){
-            arr.push(prettify(el))
-        }
-        else{
-            if(!Array.isArray(data[i+1])){
-                res[el] = data[i+1];
-                i++;
-            }
-            else{
-                res[el] = prettify(data[i+1]);
-                i++;
-            }
-        }
-    }
-    if(arr.length > 0)
-        return arr;
-    return res;
-}
 function parse(raw){
-    let data = {};
-    let input = (deserialize(raw))[0];
-    data.type = input[0];
-    input = prettify(input[1]);
-    //data.procedure_name = input[0].procedure_name;
-    let params = input[0].parameters;
-    data.parameters = {};
-    for(let i = 0; i < params.length; i+=2){
-        let value = (Object.keys(params[i+1]))[0];
-        if(value === "int" || value === "bigint" || value === "float"){
-            if(value === "bigint"){
-                value = BigInt(params[i+1][value]);
-            }
-            else {
-                if(isNaN(params[i+1][value]))
-                    throw new Error("Not a number");
-                value = parseInt(params[i+1][value]);
-            }
-        }
-        else
-            value = params[i+1][value];
-        data.parameters[params[i].key] = value;
-    }
-    return data;
-}
-
-function getContractParams(tx){
-
+    return parser.parse(raw);
 }
 
 async function processData(tx, db, kblock){
@@ -269,10 +122,10 @@ class Contract{
             case "pos_reward" :     return new PosRewardContract(data);
             case "mint" :           return new MintTokenContract(data);
             case "burn" :           return new BurnTokenContract(data);
-            case "create_pool" : return new DexPoolCreateContract(data);
-            case "add_liquidity" : return new DexPoolCreateContract(data);
-            case "remove_liquidity" : return new DexPoolCreateContract(data);
-            case "swap" : return new DexPoolCreateContract(data);
+            case "create_pool" :    return new DexPoolCreateContract(data);
+            case "add_liquidity" :  return new DexLiquidityAddContract(data);
+            case "remove_liquidity" : return new DexLiquidityRemoveContract(data);
+            case "swap" :           return new DexLiquiditySwapContract(data);
             default : return null;
         }
     }
@@ -434,23 +287,14 @@ class CreateTokenContract extends Contract {
             token : tx.hash,
         });
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : tok_data.total_supply,
-                    token_hash : tx.hash,
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [this.sqlInsertToken(tok_data)],
+            post_action : [],
             token_info : {
                 hash : tx.hash,
                 ticker : params.ticker
             }
         };
-    }
-    sqlInsertToken(data) {
-        return super.mysql.format(`INSERT INTO tokens SET ?`, [data])
     }
 }
 class CreatePosContract extends Contract {
@@ -511,11 +355,8 @@ class CreatePosContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : [this.sqlInsertPos(pos_data)]
+            post_action : []
         };
-    }
-    sqlInsertPos(data) {
-        return super.mysql.format(`INSERT INTO poses SET ?`, [data])
     }
 }
 class DelegateContract extends Contract {
@@ -582,28 +423,10 @@ class DelegateContract extends Contract {
         substate.delegators_add(lend_data);
 
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * BigInt(params.amount),
-                    token_hash : tx.ticker,
-                }
-            ],
-            pos_changes : [
-                {
-                    pos_id : params.pos_id,
-                    delegator : tx.from,
-                    delegated : params.amount,
-                    undelegated : BigInt(0),
-                    reward : BigInt(0)
-                }
-            ],
-            post_action : [this.sqlInsertDelegates(lend_data)]
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
         };
-    }
-    sqlInsertDelegates(data) {
-        return super.mysql.format(`INSERT INTO delegates (pos_id, delegator, amount) VALUES (?)
-        ON DUPLICATE KEY UPDATE amount = amount + VALUES(amount)`, [[data.pos_id, data.delegator, data.amount]])
     }
 }
 class UndelegateContract extends Contract {
@@ -679,29 +502,9 @@ class UndelegateContract extends Contract {
 
         return {
             amount_changes : [],
-            pos_changes : [
-                {
-                    pos_id : params.pos_id,
-                    delegator : tx.from,
-                    delegated : BigInt(-1) *  BigInt(params.amount),
-                    undelegated : params.amount,
-                    reward : BigInt(0)
-                }
-            ],
-            post_action : [
-                this.sqlUpdateDelegates(delegates_data),
-                this.sqlInsertUndelegates(undelegates_data)
-            ]
+            pos_changes : [],
+            post_action : []
         };
-    }
-    sqlUpdateDelegates(data) {
-        // TODO: CAST(? AS UNSIGNED INTEGER)
-        return super.mysql.format(`UPDATE delegates SET amount = amount + ? WHERE pos_id = ? AND delegator = ?`,
-            [data.amount, data.pos_id, data.delegator])
-    }
-    sqlInsertUndelegates(data) {
-        return super.mysql.format(`INSERT INTO undelegates (id, pos_id, amount, height) VALUES (?)`,
-            [[data.id, data.pos_id, data.amount, data.height]])
     }
 }
 class TransferContract extends Contract {
@@ -777,24 +580,9 @@ class TransferContract extends Contract {
         substate.undelegates_change(data);
 
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : transfer.amount,
-                    token_hash : tx.ticker,
-                }
-            ],
-            pos_changes : [
-                {
-                    pos_id : transfer.pos_id,
-                    delegator : tx.from,
-                    delegated : BigInt(0),
-                    undelegated : BigInt(0),
-                    transfer : params.undelegate_id,
-                    reward : BigInt(0)
-                }
-            ],
-            post_action : [this.sqlUpdateUndelegates(data)]
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
         };
     }
 
@@ -804,9 +592,6 @@ class TransferContract extends Contract {
             return false;
         }
         else return (BigInt(kblock.n) - BigInt(transfer.height)) >= BigInt(transfer_lock);
-    }
-    sqlUpdateUndelegates(data) {
-        return super.mysql.format(`UPDATE undelegates SET amount = ? WHERE id = ?`, [data.amount, data.id])
     }
 }
 class PosRewardContract extends Contract {
@@ -865,29 +650,10 @@ class PosRewardContract extends Contract {
         });
         substate.claim_reward(data);
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : leased.reward,
-                    token_hash : tx.ticker,
-                }
-            ],
-            pos_changes : [
-                {
-                    pos_id : params.pos_id,
-                    delegator : tx.from,
-                    delegated : BigInt(0),
-                    undelegated : BigInt(0),
-                    reward : BigInt(-1) *  BigInt(leased.reward)
-                }
-            ],
-            post_action : [this.sqlUpdateDelegatesReward(data)]
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
         };
-    }
-    sqlUpdateDelegatesReward(data) {
-        // TODO: CAST(? AS UNSIGNED INTEGER)
-        return super.mysql.format(`UPDATE delegates SET reward = reward + ? WHERE pos_id = ? AND delegator = ?`,
-            [data.amount, data.pos_id, data.delegator])
     }
 }
 class MintTokenContract extends Contract {
@@ -961,20 +727,10 @@ class MintTokenContract extends Contract {
             token : params.token_hash,
         });
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : params.amount,
-                    token_hash : params.token_hash,
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [this.sqlUpdateTokensSupply(data)]
+            post_action : []
         };
-    }
-    sqlUpdateTokensSupply(data) {
-        return super.mysql.format(`UPDATE tokens SET total_supply = total_supply + CAST(? AS UNSIGNED INTEGER) WHERE hash = ?`,
-            [data.mint_amount, data.token_hash])
     }
 }
 class BurnTokenContract extends Contract {
@@ -1048,25 +804,15 @@ class BurnTokenContract extends Contract {
             token : params.token_hash,
         });
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount,
-                    token_hash : params.token_hash,
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [this.sqlUpdateTokensSupply(data)],
+            post_action : [],
             token_info : {
                 hash : params.token_hash,
                 db_supply : token_info.total_supply,
                 supply_change :  BigInt(-1) * params.amount
             }
         };
-    }
-    sqlUpdateTokensSupply(data) {
-        return super.mysql.format(`UPDATE tokens SET total_supply = total_supply - CAST(? AS UNSIGNED INTEGER) WHERE hash = ?`,
-            [data.burn_amount, data.token_hash])
     }
 }
 class DexPoolCreateContract extends Contract {
@@ -1119,214 +865,89 @@ class DexPoolCreateContract extends Contract {
          * check pool exist, x_y and y_x are the same
          * check pubkey balances
          * add pool to the DB
+         * decrease asset_1, asset_2 pubkey balance
          * add LT amount to pubkey
          */
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
 
-        let pair_id = getPairId(params.asset_1, params.asset_2);
-        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
+        let assets = getPairId(params.asset_1, params.asset_2);
+        let pair_id = assets.pair_id;
+        assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
+        assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
+
+        if((BigInt(assets.amount_1) * BigInt(assets.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
 
-        let token_1_info = await substate.get_token_info(params.asset_1);
+        let token_1_info = await substate.get_token_info(assets.asset_1);
         if(!token_1_info)
-            throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = await substate.get_token_info(params.asset_2);
+            throw new ContractError(`Token ${assets.asset_1} not found`);
+        let token_2_info = await substate.get_token_info(assets.asset_2);
         if(!token_2_info)
-            throw new ContractError(`Token ${params.asset_2} not found`);
+            throw new ContractError(`Token ${assets.asset_2} not found`);
 
         let pool_exist = await substate.dex_check_pool_exist(pair_id);
         if(pool_exist)
             throw new ContractError(`Pool ${pair_id} already exist`);
 
-        let balance_1 = (await substate.get_balance(tx.from, params.asset_1));
-        if(BigInt(balance_1.amount) - BigInt(params.amount_1) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
-        let balance_2 = (await substate.get_balance(tx.from, params.asset_2));
-        if(BigInt(balance_2.amount) - BigInt(params.amount_2) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
+        let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
+        if(BigInt(balance_1.amount) - BigInt(assets.amount_1) < BigInt(0))
+            throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
+        let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
+        if(BigInt(balance_2.amount) - BigInt(assets.amount_2) < BigInt(0))
+            throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
 
         // lt = sqrt(amount_1 * amount_2)
-        // TODO: dust
-        let lt_amount = Utils.sqrt(params.amount_1 * params.amount_2);
-
+        let lt_amount = Utils.sqrt(assets.amount_1 * assets.amount_2);
+        // TODO: take pool_fee from params
         let pool_data = {
             pool_id : tx.hash,
             pair_id : pair_id,
-            asset_1 : params.asset_1,
-            amount_1 : params.amount_1,
-            asset_2 : params.asset_2,
-            amount_2 : params.amount_2,
-            pool_fee : BigInt(3)
+            asset_1 : assets.asset_1,
+            amount_1 : assets.amount_1,
+            asset_2 : assets.asset_2,
+            amount_2 : assets.amount_2,
+            pool_fee : BigInt(0),
+            lp_token : tx.hash
         };
+        let tok_data = {
+            hash : tx.hash,
+            owner : tx.from,
+            fee_type : 0,
+            fee_value : BigInt(0),
+            fee_min : BigInt(0),
+            ticker : crypto.randomBytes(6),
+            caption : crypto.randomBytes(6),
+            decimals : BigInt(10),
+            total_supply : lt_amount,
+            reissuable : 1,
+            minable : 0
+        };
+
+        substate.tokens_add(tok_data);
+        substate.accounts_change({
+            id : tx.from,
+            amount : lt_amount,
+            token : tx.hash,
+        });
+
         substate.pools_add(pool_data);
         let lt_data = {
             pool_id : tx.hash,
-            id : tx.from,
-            amount : lt_amount
-        };
-
-        return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_1,
-                    token_hash : params.asset_1,
-                },
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_2,
-                    token_hash : params.asset_2,
-                }
-            ],
-            pos_changes : [],
-            post_action : [
-                this.sqlCreatePool(pool_data),
-                this.sqlMintLiquidityToken(lt_data)
-            ]
-        };
-    }
-    sqlCreatePool(data) {
-        return super.mysql.format(`INSERT INTO dex_pools SET ?`, [data])
-    }
-    sqlMintLiquidityToken(data) {
-        return super.mysql.format(`INSERT INTO dex_tokens SET ?`, [data])
-    }
-}
-
-class SubstateDexPoolCreateContract extends Contract {
-    constructor(data) {
-        super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
-        this.data = parse(data);
-        this.type = this.data.type;
-    }
-    validate(raw) {
-        /**
-         * parameters:
-         * asset_1 : hex string 64 chars
-         * amount_1 : 0...max_supply
-         * asset_2 : hex string 64 chars
-         * amount_2 : 0...max_supply
-         */
-        if(!isContract(raw))
-            return false;
-        let data = parse(raw);
-        let params = data.parameters;
-
-        let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
-        if (paramsModel.some(key => params[key] === undefined)){
-            throw new ContractError("Incorrect param structure");
-        }
-        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
-        if(!hash_regexp.test(params.asset_1))
-            throw new ContractError("Incorrect asset_1 format");
-        if(!hash_regexp.test(params.asset_2))
-            throw new ContractError("Incorrect asset_2 format");
-
-        let bigintModel = ["amount_1", "amount_2"];
-        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
-            throw new ContractError("Incorrect field format, BigInteger expected");
-        }
-        if(params.amount_1 <= BigInt(0) || params.amount_1 > MAX_SUPPLY_LIMIT){
-            throw new ContractError("Incorrect amount_1");
-        }
-        if(params.amount_2 <= BigInt(0) || params.amount_2 > MAX_SUPPLY_LIMIT){
-            throw new ContractError("Incorrect amount_2");
-        }
-        return true;
-    }
-    async execute(tx, db, state) {
-        /**
-         * check amount_1 * amount_2 !== 0
-         * check asset_1, asset_2 exist
-         * check pool exist, x_y and y_x are the same
-         * check pubkey balances
-         * add pool to the state
-         * add LT amount to pubkey
-         */
-        if(this.data.type === undefined)
-            return null;
-        let params = this.data.parameters;
-
-        let pair_id = getPairId(params.asset_1, params.asset_2);
-        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
-            throw new ContractError(`amount_1 * amount_2 cannot be 0`);
-
-        let token_1_info = (await db.get_tokens_all([params.asset_1]));
-        if(!token_1_info)
-            throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = (await db.get_tokens_all([params.asset_2]))[0];
-        if(!token_2_info)
-            throw new ContractError(`Token ${params.asset_2} not found`);
-
-        // TODO state.dex_check_pool_exist
-        let pool_exist = (await state.dex_check_pool_exist(pair_id))[0];
-        if(pool_exist)
-            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} already exist`);
-
-        // TODO state.get_balance
-        let balance_1 = (await db.get_balance(tx.from, params.asset_1));
-        if(BigInt(balance_1.amount) - BigInt(params.amount_1) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
-        let balance_2 = (await db.get_balance(tx.from, params.asset_2));
-        if(BigInt(balance_2.amount) - BigInt(params.amount_2) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
-
-        // lt = sqrt(amount_1 * amount_2)
-        // TODO: dust
-        // TODO is lt_amount does not relate to pool volume at all?
-        let lt_amount = Utils.sqrt(params.amount_1 * params.amount_2);
-
-        let pool_data = {
-            pool_id : tx.hash,
             pair_id : pair_id,
-            asset_1 : params.asset_1,
-            amount_1 : params.amount_1,
-            asset_2 : params.asset_2,
-            amount_2 : params.amount_2,
-            pool_fee : BigInt(3)
-        };
-        let lt_data = {
-            pool_id : tx.hash,
             id : tx.from,
             amount : lt_amount
         };
-        // TODO
-        state.pools.add(pool_data);
-        state.dex_tokens.add(lt_data);
-        state.accounts.change();
+        substate.lt_add(lt_data);
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_1,
-                    token_hash : params.asset_1,
-                },
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_2,
-                    token_hash : params.asset_2,
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [
-                this.sqlCreatePool(pool_data),
-                this.sqlMintLiquidityToken(lt_data)
-            ]
+            post_action : []
         };
     }
-    sqlCreatePool(data) {
-        return super.mysql.format(`INSERT INTO dex_pools SET ?`, [data])
-    }
-    sqlMintLiquidityToken(data) {
-        return super.mysql.format(`INSERT INTO dex_tokens SET ?`, [data])
-    }
 }
-
-class PoolLiquidityAddContract extends Contract {
+class DexLiquidityAddContract extends Contract {
     constructor(data) {
         super();
         if(!this.validate(data))
@@ -1369,7 +990,7 @@ class PoolLiquidityAddContract extends Contract {
         }
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check asset_1, asset_2 exist
          * check pool exist
@@ -1385,18 +1006,19 @@ class PoolLiquidityAddContract extends Contract {
         if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
 
-        let token_1_info = (await db.get_tokens_all(params.asset_1))[0];
+        let token_1_info = (await substate.get_token_info(params.asset_1));
         if(!token_1_info)
             throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = (await db.get_tokens_all(params.asset_2))[0];
+        let token_2_info = (await substate.get_token_info(params.asset_2));
         if(!token_2_info)
             throw new ContractError(`Token ${params.asset_2} not found`);
 
-        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        let pool_exist = (await substate.dex_check_pool_exist(pair_id));
         if(!pool_exist)
             throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
 
-        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+        // TODO: dex_get_pool_info in substate
+        let pool_info = (await substate.dex_get_pool_info(pair_id))[0];
 
         let required_1 = pool_info.volume_1 * params.amount_2 / pool_info.volume_2;
         let required_2 = pool_info.volume_2 * params.amount_1 / pool_info.volume_1;
@@ -1416,16 +1038,25 @@ class PoolLiquidityAddContract extends Contract {
         pool_info.volume_2 += amount_2;
 
         // lt = sqrt(amount_1 * amount_2)
-        // TODO: dust
         let lt_amount = Utils.sqrt(amount_1 * amount_2);
 
-        let balance_1 = (await db.get_balance(tx.from, params.asset_1));
+        let balance_1 = (await substate.get_balance(tx.from, params.asset_1));
         if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
             throw new ContractError(`Token ${params.asset_1} insufficient balance`);
-        let balance_2 = (await db.get_balance(tx.from, params.asset_2));
+        let balance_2 = (await substate.get_balance(tx.from, params.asset_2));
         if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
             throw new ContractError(`Token ${params.asset_2} insufficient balance`);
 
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * amount_1,
+            token : params.asset_1,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * amount_2,
+            token : params.asset_2,
+        });
         let pool_data = {
             pair_id : pair_id,
             asset_1 : params.asset_1,
@@ -1433,30 +1064,17 @@ class PoolLiquidityAddContract extends Contract {
             asset_2 : params.asset_2,
             amount_2 : params.amount_2
         };
+        substate.pools_change(pool_data);
         let lt_data = {
             pair_id : pair_id,
             id : tx.from,
             amount : lt_amount
         };
-
+        substate.lt_change(lt_data);
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_1,
-                    token_hash : params.asset_1,
-                },
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_2,
-                    token_hash : params.asset_2,
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [
-                this.sqlAddLiquidity(pool_data),
-                this.sqlMintLiquidityToken(lt_data)
-            ]
+            post_action : []
         };
     }
     sqlAddLiquidity(data) {
@@ -1468,8 +1086,7 @@ class PoolLiquidityAddContract extends Contract {
             [data.amount, data.pair_id, data.id]);
     }
 }
-
-class PoolLiquidityRemoveContract extends Contract {
+class DexLiquidityRemoveContract extends Contract {
     constructor(data) {
         super();
         if(!this.validate(data))
@@ -1506,10 +1123,9 @@ class PoolLiquidityRemoveContract extends Contract {
         if(params.amount_lt <= BigInt(0) || params.amount_lt > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_lt");
         }
-
         return true;
     }
-    async execute(tx, db) {
+    async execute(tx, substate) {
         /**
          * check asset_1, asset_2 exist
          * check pool exist
@@ -1525,18 +1141,18 @@ class PoolLiquidityRemoveContract extends Contract {
         let pair_id = getPairId(params.asset_1, params.asset_2);
 
         // TODO: this is probably unnececcary checks
-        let token_1_info = (await db.get_tokens_all(params.asset_1))[0];
+        let token_1_info = (await substate.get_token_info(params.asset_1));
         if(!token_1_info)
             throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = (await db.get_tokens_all(params.asset_2))[0];
+        let token_2_info = (await substate.get_token_info(params.asset_2));
         if(!token_2_info)
             throw new ContractError(`Token ${params.asset_2} not found`);
 
-        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        let pool_exist = (await substate.dex_check_pool_exist(pair_id));
         if(!pool_exist)
             throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
 
-        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+        let pool_info = (await substate.dex_get_pool_info(pair_id))[0];
 
 
         let pool_data = {
@@ -1546,59 +1162,151 @@ class PoolLiquidityRemoveContract extends Contract {
             asset_2 : params.asset_2,
             amount_2 : params.amount_2
         };
+        substate.pools_change(pool_data);
+
         let lt_data = {
             pool_id : params.token_hash,
             id : tx.from,
             amount : lt_amount
         };
-
+        substate.lt_change(lt_data);
         return {
-            amount_changes : [
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_1,
-                    token_hash : params.asset_1,
-                },
-                {
-                    id : tx.from,
-                    amount_change : BigInt(-1) * params.amount_2,
-                    token_hash : params.asset_2
-                }
-            ],
+            amount_changes : [],
             pos_changes : [],
-            post_action : [
-                this.sqlAddLiquidity(pool_data),
-                this.sqlMintLiquidityToken(lt_data)
-            ]
+            post_action : []
         };
     }
-    sqlAddLiquidity(data) {
-        return super.mysql.format(`UPDATE dex_pools SET amount_1 = amount_1 + ?, amount_2 = amount_2 + ? WHERE pool_id = ? `,
-            [data.amount_1, data.amount_2, data.pool_id]);
+}
+class DexLiquiditySwapContract extends Contract {
+    constructor(data) {
+        super();
+        if(!this.validate(data))
+            throw new ContractError("Incorrect contract");
+        this.data = parse(data);
+        this.type = this.data.type;
     }
-    sqlMintLiquidityToken(data) {
-        return super.mysql.format(`UPDATE dex_tokens SET amount = amount + ? WHERE pool_id = ? AND id = ?`,
-            [data.amount, data.pool_id, data.id]);
+    validate(raw) {
+        /**
+         * parameters:
+         * asset_in : hex string 64 chars
+         * asset_out : hex string 64 chars
+         * amount_in : 0...MAX_SUPPLY_LIMIT
+         */
+        if(!isContract(raw))
+            return false;
+        let data = parse(raw);
+        let params = data.parameters;
+
+        let paramsModel = ["asset_in", "asset_out", "amount_in"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.asset_in))
+            throw new ContractError("Incorrect asset_in format");
+        if(!hash_regexp.test(params.asset_out))
+            throw new ContractError("Incorrect asset_out format");
+
+        let bigintModel = ["amount_in"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_in <= BigInt(0) || params.amount_in > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_in");
+        }
+
+        return true;
+    }
+    async execute(tx, substate) {
+        /**
+         * check asset_in, asset_out exist
+         * check pool exist
+         * check pubkey amount_in balance
+         * change pool liquidity
+         * decrease pubkey amount_in balances
+         * increase pubkey amount_out balances
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let pair_id = getPairId(params.asset_in, params.asset_out);
+
+        // TODO: this is probably unnececcary checks
+        // let token_1_info = (await db.get_tokens_all(params.asset_in))[0];
+        // if(!token_1_info)
+        //     throw new ContractError(`Token ${params.asset_1} not found`);
+        // let token_2_info = (await db.get_tokens_all(params.asset_out))[0];
+        // if(!token_2_info)
+        //     throw new ContractError(`Token ${params.asset_2} not found`);
+
+        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        if(!pool_exist)
+            throw new ContractError(`Pool ${pair_id} not exist`);
+
+        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+        let amount_1, amount_2;
+
+        let k = pool_info.amount_1 * pool_info.amount_2;
+
+        // amount_out = volume_2 - k/(volume_1 + amount_in)
+        let amount_out = (BigInt(k)) / params.amount_in;
+
+        if(pool_info.asset_1 === params.asset_in){
+            amount_1 = params.amount_in;
+            amount_2 = amount_out;
+        }
+        else {
+            amount_1 = amount_out;
+            amount_2 = params.amount_in;
+        }
+
+        // // Take amount_in
+        //         // substate.accounts_change({
+        //         //     id : tx.from,
+        //         //     amount : leased.reward,
+        //         //     token : tx.ticker,
+        //         // });
+        //         // // Give amount_out
+        //         // substate.accounts_change({
+        //         //     id : tx.from,
+        //         //     amount : leased.reward,
+        //         //     token : tx.ticker,
+        //         // });
+        let pool_data = {
+            pool_id : params.token_hash,
+            asset_1 : params.asset_1,
+            amount_1 : params.amount_1 + amount_1,
+            asset_2 : params.asset_2,
+            amount_2 : params.amount_2 + amount_2
+        };
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
     }
 }
 
 function getPairId(asset_1, asset_2){
     if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
-        return `${asset_1}${asset_2}`;
-    else return`${asset_2}${asset_1}`;
+        return {
+            pair_id : `${asset_1}${asset_2}`,
+            asset_1 : asset_1,
+            asset_2 : asset_2
+        };
+    else return {
+        pair_id : `${asset_2}${asset_1}`,
+        asset_1 : asset_2,
+        asset_2 : asset_1
+    };
 }
 
-module.exports.toHex = toHex;
-module.exports.parse = parse;
 module.exports.processData = processData;
 module.exports.create = create;
 module.exports.getPairId = getPairId;
-module.exports.serialize_object = serialize_object;
-module.exports.deserialize = deserialize;
-module.exports.prettify = prettify;
 module.exports.isContract = isContract;
-module.exports.dataFromObject = dataFromObject;
-module.exports.sizeMarker = sizeMarker;
 module.exports.validate = validate;
 module.exports.contract_pricelist = contract_pricelist;
 module.exports.Contract = Contract;

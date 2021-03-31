@@ -1020,7 +1020,6 @@ class DB {
 		if(substate.poses.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO poses (`id`, `owner`, `fee`, `name`) VALUES ? ", [substate.poses.map(a => [a.id, a.owner, a.fee, a.name])]));
 
-
 		for( let pos in substate.delegation_ledger){
 			for( let del in substate.delegation_ledger[pos]){
 				if(substate.delegation_ledger[pos][del].changed === true){

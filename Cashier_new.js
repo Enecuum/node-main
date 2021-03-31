@@ -154,13 +154,11 @@ class Substate {
             case "mint" : {
                 // pos_id as tx hash
                 this.tokens.push(contract.data.parameters.token_hash);
-
             }
                 break;
             case "burn" : {
                 // pos_id as tx hash
                 this.tokens.push(contract.data.parameters.token_hash);
-
             }
                 break;
             case "create_pool" : {
@@ -220,6 +218,29 @@ class Substate {
     get_pos_contract_all(){
         return this.poses;
     }
+    get_pos_delegates(pos_id, delegator){
+        return this.delegation_ledger[pos_id][delegator];
+    }
+    get_pos_undelegates(undelegate_id){
+        return this.undelegates[undelegate_id];
+    }
+    get_transfer_lock(){
+        return this.db.app_config.transfer_lock;
+    }
+    get_token_info(hash){
+        if(!hash)
+            return null;
+        return this.tokens.find(a => a.hash === hash);
+    }
+    dex_check_pool_exist(pair_id){
+        let index = this.pools.findIndex(pool => (pool.pair_id === pair_id));
+        return (index > -1);
+    }
+    get_balance(id, token){
+        let index = this.accounts.findIndex(acc => ((acc.id === id) && (acc.token === token)));
+        return (index > -1) ? this.accounts[index] : ({amount : 0, decimals : 10});
+    }
+
     pools_add(changes){
         if(this.pools.find(a => a.hash === changes.pair_id))
             throw new ContractError(`Pool ${changes.pair_id} already exist`);
@@ -255,6 +276,18 @@ class Substate {
         this.delegation_ledger[changes.pos_id][changes.delegator].delegated += changes.amount;
         this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
     }
+    pools_change(changes){
+        let pool_idx = this.pools.findIndex(a => a.pair_id === changes.pair_id);
+        if(pool_idx > -1){
+            if(this.pools[pool_idx].amount_1 + changes.amount_1 < BigInt(0))
+                throw new ContractError(`Negative pools state`);
+            if(this.pools[pool_idx].amount_2 + changes.amount_2 < BigInt(0))
+                throw new ContractError(`Negative pools state`);
+            this.pools[pool_idx].amount_1 += changes.amount_1;
+            this.pools[pool_idx].amount_2 += changes.amount_2;
+            this.pools[pool_idx].changed = true;
+        }
+    }
     delegators_change(changes){
         if(this.delegation_ledger[changes.pos_id][changes.delegator].delegated + changes.amount < BigInt(0)){
             throw new ContractError(`Negative delegation_ledger state`);
@@ -284,7 +317,6 @@ class Substate {
                 throw new ContractError(`Negative ledger state`);
             this.accounts.push(changes);
         }
-
     }
     undelegates_add(changes){
         if(this.undelegates.hasOwnProperty(changes.id))
@@ -299,28 +331,6 @@ class Substate {
     claim_reward(changes){
         this.delegation_ledger[changes.pos_id][changes.delegator].reward = BigInt(0);
         this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
-    }
-    get_pos_delegates(pos_id, delegator){
-        return this.delegation_ledger[pos_id][delegator];
-    }
-    get_pos_undelegates(undelegate_id){
-        return this.undelegates[undelegate_id];
-    }
-    get_transfer_lock(){
-        return this.db.app_config.transfer_lock;
-    }
-    get_token_info(hash){
-        if(!hash)
-            return null;
-        return this.tokens.find(a => a.hash === hash);
-    }
-    dex_check_pool_exist(pair_id){
-        let index = this.pools.findIndex(pool => (pool.pair_id === pair_id));
-        return (index > -1);
-    }
-    get_balance(id, token){
-        let index = this.accounts.findIndex(acc => ((acc.id === id) && (acc.token === token)));
-        return (index > -1) ? this.accounts[index] : ({amount : 0, decimals : 10});
     }
 }
 

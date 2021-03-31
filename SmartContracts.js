@@ -256,9 +256,11 @@ class CreateTokenContract extends Contract {
 
         // Check token exist
         let existing = await substate.get_tickers_all();
+        let existing_db = await substate.db.get_tickers_all();
         if (existing.some(d => d.ticker === params.ticker))
             throw new ContractError(`Ticker ${params.ticker} already exist`);
-
+        if (existing_db.some(d => d.ticker === params.ticker))
+            throw new ContractError(`Ticker ${params.ticker} already exist`);
         let tok_data = {
             hash : tx.hash,
             owner : tx.from,
@@ -909,15 +911,16 @@ class DexPoolCreateContract extends Contract {
             asset_2 : assets.asset_2,
             amount_2 : assets.amount_2,
             pool_fee : BigInt(0),
-            lp_token : tx.hash
+            token_hash : tx.hash
         };
+        // TODO: random ticker & caption
         let tok_data = {
             hash : tx.hash,
-            owner : tx.from,
+            owner : `03${Utils.ENQ_TOKEN_NAME}`,
             fee_type : 0,
             fee_value : BigInt(0),
             fee_min : BigInt(0),
-            ticker : crypto.randomBytes(6),
+            ticker : `LT_${crypto.randomBytes(3)}`,
             caption : crypto.randomBytes(6),
             decimals : BigInt(10),
             total_supply : lt_amount,
@@ -925,21 +928,24 @@ class DexPoolCreateContract extends Contract {
             minable : 0
         };
 
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * assets.amount_1,
+            token : assets.asset_1,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * assets.amount_2,
+            token : assets.asset_2,
+        });
         substate.tokens_add(tok_data);
         substate.accounts_change({
             id : tx.from,
             amount : lt_amount,
             token : tx.hash,
         });
-
         substate.pools_add(pool_data);
-        let lt_data = {
-            pool_id : tx.hash,
-            pair_id : pair_id,
-            id : tx.from,
-            amount : lt_amount
-        };
-        substate.lt_add(lt_data);
+
         return {
             amount_changes : [],
             pos_changes : [],
@@ -1002,7 +1008,11 @@ class DexLiquidityAddContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let pair_id = getPairId(params.asset_1, params.asset_2);
+        let assets = getPairId(params.asset_1, params.asset_2);
+        let pair_id = assets.pair_id;
+        assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
+        assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
+
         if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
 
@@ -1020,17 +1030,17 @@ class DexLiquidityAddContract extends Contract {
         // TODO: dex_get_pool_info in substate
         let pool_info = (await substate.dex_get_pool_info(pair_id))[0];
 
-        let required_1 = pool_info.volume_1 * params.amount_2 / pool_info.volume_2;
-        let required_2 = pool_info.volume_2 * params.amount_1 / pool_info.volume_1;
+        let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
+        let required_2 = pool_info.volume_2 * assets.amount_1 / pool_info.volume_1;
 
         let amount_1, amount_2;
 
-        if(params.amount_1 >= required_1){
+        if(assets.amount_1 >= required_1){
             amount_1 = required_1;
-            amount_2 = params.amount_2;
+            amount_2 = assets.amount_2;
         }
         else{
-            amount_1 = params.amount_1;
+            amount_1 = assets.amount_1;
             amount_2 = required_2
         }
 
@@ -1040,50 +1050,48 @@ class DexLiquidityAddContract extends Contract {
         // lt = sqrt(amount_1 * amount_2)
         let lt_amount = Utils.sqrt(amount_1 * amount_2);
 
-        let balance_1 = (await substate.get_balance(tx.from, params.asset_1));
+        let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
         if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_1} insufficient balance`);
-        let balance_2 = (await substate.get_balance(tx.from, params.asset_2));
+            throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
+        let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
         if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
-            throw new ContractError(`Token ${params.asset_2} insufficient balance`);
+            throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
+
+        let pool_data = {
+            pair_id : pair_id,
+            asset_1 : assets.asset_1,
+            amount_1 : amount_1,
+            asset_2 : assets.asset_2,
+            amount_2 : amount_2
+        };
+        let tok_data = {
+            hash : pool_info.token_hash,
+            total_supply : lt_amount
+        };
 
         substate.accounts_change({
             id : tx.from,
             amount : BigInt(-1) * amount_1,
-            token : params.asset_1,
+            token : assets.asset_1,
         });
         substate.accounts_change({
             id : tx.from,
             amount : BigInt(-1) * amount_2,
-            token : params.asset_2,
+            token : assets.asset_2,
         });
-        let pool_data = {
-            pair_id : pair_id,
-            asset_1 : params.asset_1,
-            amount_1 : params.amount_1,
-            asset_2 : params.asset_2,
-            amount_2 : params.amount_2
-        };
-        substate.pools_change(pool_data);
-        let lt_data = {
-            pair_id : pair_id,
+        substate.accounts_change({
             id : tx.from,
-            amount : lt_amount
-        };
-        substate.lt_change(lt_data);
+            amount : lt_amount,
+            token : pool_info.token_hash,
+        });
+        substate.pools_change(pool_data);
+        substate.tokens_change(tok_data);
+
         return {
             amount_changes : [],
             pos_changes : [],
             post_action : []
         };
-    }
-    sqlAddLiquidity(data) {
-        return super.mysql.format(`UPDATE dex_pools SET amount_1 = amount_1 + ?, amount_2 = amount_2 + ? WHERE pair_id = ? `,
-            [data.amount_1, data.amount_2, data.pair_id]);
-    }
-    sqlMintLiquidityToken(data) {
-        return super.mysql.format(`UPDATE dex_tokens SET amount = amount + ? WHERE pair_id = ? AND id = ?`,
-            [data.amount, data.pair_id, data.id]);
     }
 }
 class DexLiquidityRemoveContract extends Contract {
@@ -1097,79 +1105,92 @@ class DexLiquidityRemoveContract extends Contract {
     validate(raw) {
         /**
          * parameters:
-         * asset_1 : hex string 64 chars
-         * asset_2 : hex string 64 chars
-         * amount_lt : 0...MAX_SUPPLY_LIMIT
+         * hash : hex string 64 chars
+         * amount : 0...MAX_SUPPLY_LIMIT
          */
         if(!isContract(raw))
             return false;
         let data = parse(raw);
         let params = data.parameters;
 
-        let paramsModel = ["asset_1", "asset_2", "amount_lt"];
+        let paramsModel = ["hash", "amount"];
         if (paramsModel.some(key => params[key] === undefined)){
             throw new ContractError("Incorrect param structure");
         }
         let hash_regexp = /^[0-9a-fA-F]{64}$/i;
-        if(!hash_regexp.test(params.asset_1))
-            throw new ContractError("Incorrect asset_1 format");
-        if(!hash_regexp.test(params.asset_2))
-            throw new ContractError("Incorrect asset_2 format");
+        if(!hash_regexp.test(params.hash))
+            throw new ContractError("Incorrect hash format");
 
-        let bigintModel = ["amount_lt"];
+        let bigintModel = ["amount"];
         if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
             throw new ContractError("Incorrect field format, BigInteger expected");
         }
-        if(params.amount_lt <= BigInt(0) || params.amount_lt > MAX_SUPPLY_LIMIT){
-            throw new ContractError("Incorrect amount_lt");
+        if(params.amount <= BigInt(0) || params.amount > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount");
         }
         return true;
     }
     async execute(tx, substate) {
         /**
-         * check asset_1, asset_2 exist
+         * check hash exist
          * check pool exist
-         * check pubkey lt balance
+         * check pubkey hash balance
          * decrease pool liquidity
-         * decrease lt balance
+         * decrease hash balance
          * increase pubkey balances
          */
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
 
-        let pair_id = getPairId(params.asset_1, params.asset_2);
 
         // TODO: this is probably unnececcary checks
-        let token_1_info = (await substate.get_token_info(params.asset_1));
-        if(!token_1_info)
-            throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = (await substate.get_token_info(params.asset_2));
-        if(!token_2_info)
-            throw new ContractError(`Token ${params.asset_2} not found`);
+        let token_info = (await substate.get_token_info(params.hash));
+        if(!token_info)
+            throw new ContractError(`Token ${params.hash} not found`);
 
-        let pool_exist = (await substate.dex_check_pool_exist(pair_id));
-        if(!pool_exist)
-            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
+        let balance = (await substate.get_balance(tx.from, params.hash));
+        if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
+            throw new ContractError(`Token ${params.hash} insufficient balance`);
 
-        let pool_info = (await substate.dex_get_pool_info(pair_id))[0];
+        // TODO:
+        let pool_info = (await substate.dex_get_pool_info_by_token(params.hash))[0];
+        //amount_1 = volume_1 * amount / lt_emission
+        //amount_2 = volume_2 * amount / lt_emission
+        let amount_1 = pool_info.volume_1 * params.amount / token_info.total_supply;
+        let amount_2 = pool_info.volume_2 * params.amount / token_info.total_supply;
 
-
+        // TODO: check negative volume
+        // TODO: check negative token supply
         let pool_data = {
-            pool_id : params.token_hash,
-            asset_1 : params.asset_1,
-            amount_1 : params.amount_1,
-            asset_2 : params.asset_2,
-            amount_2 : params.amount_2
+            pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
+            asset_1 : pool_info.asset_1,
+            amount_1 : BigInt(-1) * amount_1,
+            asset_2 : pool_info.asset_2,
+            amount_2 : BigInt(-1) * amount_2
         };
-        substate.pools_change(pool_data);
+        let tok_data = {
+            hash : pool_info.token_hash,
+            total_supply : BigInt(-1) * params.amount
+        };
 
-        let lt_data = {
-            pool_id : params.token_hash,
+        substate.accounts_change({
             id : tx.from,
-            amount : lt_amount
-        };
-        substate.lt_change(lt_data);
+            amount : amount_1,
+            token : pool_info.asset_1,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : amount_2,
+            token : pool_info.asset_2,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * params.amount,
+            token : pool_info.token_hash,
+        });
+        substate.pools_change(pool_data);
+        substate.tokens_change(tok_data);
         return {
             amount_changes : [],
             pos_changes : [],
@@ -1260,26 +1281,6 @@ class DexLiquiditySwapContract extends Contract {
             amount_1 = amount_out;
             amount_2 = params.amount_in;
         }
-
-        // // Take amount_in
-        //         // substate.accounts_change({
-        //         //     id : tx.from,
-        //         //     amount : leased.reward,
-        //         //     token : tx.ticker,
-        //         // });
-        //         // // Give amount_out
-        //         // substate.accounts_change({
-        //         //     id : tx.from,
-        //         //     amount : leased.reward,
-        //         //     token : tx.ticker,
-        //         // });
-        let pool_data = {
-            pool_id : params.token_hash,
-            asset_1 : params.asset_1,
-            amount_1 : params.amount_1 + amount_1,
-            asset_2 : params.asset_2,
-            amount_2 : params.amount_2 + amount_2
-        };
 
         return {
             amount_changes : [],

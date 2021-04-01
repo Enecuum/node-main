@@ -217,8 +217,8 @@ class Explorer {
         });
 
         this.app.get('/api/v1/get_token_info_page', async (req, res) => {
-            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20);
-            res.send({tokens : data.tokens, page_count : data.page_count});
+            let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, req.query.type);
+            res.send({tokens : data.tokens, page_size : 20, page_count : data.page_count});
         });
 
         this.app.get('/api/v1/get_tokens_by_owner', async (req, res) => {
@@ -291,6 +291,12 @@ class Explorer {
 				tx.fee = tx.fee.toString();
 			}
 			res.send(tx);
+		});
+
+		this.app.get('/api/v1/success_tx_by_height', async (req, res) => {
+			console.trace(`requested success_tx_by_height ${JSON.stringify(req.query)}`);
+			let txs = await this.db.get_successful_txs_by_height(req.query.height);
+			res.send(txs);
 		});
 
 		this.app.get('/api/v1/peer_map', async (req, res) => {
@@ -830,19 +836,16 @@ class Explorer {
 			res.send(data);
 		});
 		this.app.get('/api-docs.json', (req, res) => {
-			//console.log(this.stake_limits);
 		  res.setHeader('Content-Type', 'application/json');
 		  res.send(swaggerSpec);
-
 		  console.log(swaggerSpec);
-
 		});
 		
-                let routes = [];
-                this.app._router.stack.forEach(function (r) {
-                if (r.route && r.route.path) {
-                    routes.push(r.route.path)
-                }
+		let routes = [];
+		this.app._router.stack.forEach(function (r) {
+		if (r.route && r.route.path) {
+			routes.push(r.route.path)
+		}
     });
 
     this.app.get('/api/v1/list', function (request, response) {

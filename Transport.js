@@ -19,6 +19,8 @@ const PEER_FAIL_LIMIT = 10;
 
 let call_count = 0;
 let unicast_count = 0;
+let call_list = {};
+let host_list = {};
 
 class Transport {
 
@@ -195,10 +197,23 @@ class Transport {
 				request.data = request.params;
 				delete(request.params);
 
-				request.host = req.connection.remoteAddress;
+				if(call_list[request.method])
+                    call_list[request.method]++;
+				else
+                    call_list[request.method]=1;
+
+                console.debug(`call_list ${JSON.stringify(call_list)}`);
+
+				request.host = req.socket.remoteAddress;
 				if (request.host.substr(0, 7) === "::ffff:") {
 					request.host = request.host.substr(7);
 				}
+
+				if(host_list[request.host])
+					host_list[request.host]++;
+				else
+					host_list[request.host]=1;
+				console.debug(`host_list ${JSON.stringify(host_list)}`);
 
 				res.writeHead(200, "OK", {'Content-Type': 'application/json'});
 
@@ -244,6 +259,8 @@ class Transport {
 					res.write(JSON.stringify(response));
 				}
 				clearTimeout(req_timeout);
+                call_list[request.method]--;
+				host_list[request.host]--;
 				call_count--;
 				res.end();
 			}).bind(this);
@@ -262,7 +279,9 @@ class Transport {
 
 	add_peer(peer){
 		console.silly(`add_peer ${JSON.stringify(peer)}`);
-		if (peer.id === this.client_id){
+		if( peer.id === undefined && !peer.primary){
+		    return;
+        }else if (peer.id === this.client_id){
 			return;
 		}
 
@@ -300,7 +319,8 @@ class Transport {
 	update_peers(peers){
 		console.silly(`update_peers ${JSON.stringify(peers)}`);
 		peers.forEach(p => {
-			this.add_peer(p);
+		    if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
+			    this.add_peer(p);
 		});
 	}
 
@@ -320,7 +340,7 @@ class Transport {
 
 	selfcast(method, data){
 		return this.http_request(`localhost:${this.port}`, method, data)
-			.catch(err => console.debug("Unicast failed, cannot connect to", socket));
+			.catch(err => console.debug("Unicast failed, cannot connect to localhost"));
 	}
 
 	query(){

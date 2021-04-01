@@ -120,7 +120,7 @@ class DB {
 		this.transaction(sql);
 	};
 
-	async init_snapshot(snapshot) {
+	async init_snapshot(snapshot, save_snapshot) {
 		let INSERT_CHUNK_SIZE = 100;
 		try {
             console.info(`Setting snapshot: ${snapshot.hash}`);
@@ -184,8 +184,12 @@ class DB {
 			}
 			let cashier_ptr = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", snapshot.kblocks_hash);
             //let unlock = mysql.format(`UNLOCK TABLES`);
+			let sql_put_snapshot = "";
+			if(save_snapshot){
+				sql_put_snapshot = mysql.format("INSERT INTO snapshots SET ?", [{hash:snapshot.hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
+			}
 
-			return this.transaction([truncate, sprouts, kblock, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), cashier_ptr].join(';'));
+			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), cashier_ptr].join(';'));
         }catch (e) {
             console.error(e);
             return false;
@@ -196,14 +200,28 @@ class DB {
 		let kblocks = await this.request(mysql.format('SELECT hash FROM kblocks WHERE n >= ?', [height]));
 		let kblock_hashes = kblocks.map(k => k.hash);
 		if (kblock_hashes.length > 0) {
-			let mblocks = mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (?)`,[kblock_hashes]);
-			let sblocks = mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (?)`,[kblock_hashes]);
-			let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (?)', [kblock_hashes]));
+			/*
+			let mblocks = mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
+			let sblocks = mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1`,[height]);
+			let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?)', [height]));
 			let mblock_hashes = mblocks_data.map(m => m.hash);
 			let transactions = '';
 			if (mblock_hashes.length > 0)
-				transactions = mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (?)`,[mblock_hashes]);	
+				transactions = mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (SELECT hash FROM mblocks WHERE kblocks_hash in (SELECT hash FROM kblocks WHERE n >= ?) AND calculated = 1)`,[height]);
 			return this.transaction([mblocks, sblocks, transactions].join(';'));
+			*/
+			let mblocks = [];
+			let sblocks = [];
+			let transactions = [];
+			kblock_hashes.forEach(async hash => {
+				mblocks.push(mysql.format(`UPDATE mblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash = ? AND calculated = 1`,[hash]));
+				sblocks.push(mysql.format(`UPDATE sblocks SET calculated = 0, indexed = 0 WHERE kblocks_hash = ? AND calculated = 1`,[hash]));
+				let mblocks_data = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash = ? AND calculated = 1', [hash]));
+				let mblock_hashes = mblocks_data.map(m => m.hash);
+				if (mblock_hashes.length > 0)
+					transactions.push(mysql.format(`UPDATE transactions SET status = null WHERE mblocks_hash in (?)`,[mblock_hashes]));
+			});
+			return this.transaction([mblocks.join(';'), sblocks.join(';'), transactions.join(';')].join(';'));
 		}
 		return 0;
 	};
@@ -238,7 +256,7 @@ class DB {
 		let kblock_hashes_to_remove = kblocks.map(k => k.hash);
         let kblock_hashes = kblock_hashes_to_remove.concat(fork_kblock_hash);
         if (kblock_hashes.length > 0) {
-			let locs = mysql.format(`LOCK TABLES kblocks WRITE, mblocks WRITE, sblocks WRITE, snapshots WRITE, transactions WRITE, eindex WRITE`);
+			//let locs = mysql.format(`LOCK TABLES kblocks WRITE, mblocks WRITE, sblocks WRITE, snapshots WRITE, transactions WRITE, eindex WRITE`);
 			let mblocks = await this.request(mysql.format('SELECT hash FROM mblocks WHERE kblocks_hash in (?)', [kblock_hashes]));
 			let mblock_hashes = mblocks.map(m => m.hash);
 			let delete_transactions = '';
@@ -253,9 +271,9 @@ class DB {
 				delete_kblocks.push(mysql.format('DELETE FROM kblocks WHERE hash = ?', item));
 			});
 			//TODO: delete eindex
-			let unlock = mysql.format(`UNLOCK TABLES`);
+			//let unlock = mysql.format(`UNLOCK TABLES`);
 			console.debug(`Delete kblocks: ${kblock_hashes}, mblocks: ${mblock_hashes}`);
-			return this.transaction([locs, delete_transactions, delete_mblocks, delete_sblocks, delete_snapshots, delete_kblocks.join(';'), unlock].join(';'));
+			return this.transaction([/*locs,*/ delete_transactions, delete_mblocks, delete_sblocks, delete_snapshots, delete_kblocks.join(';')/*, unlock*/].join(';'));
 		}
 		return 0;
 	}
@@ -341,6 +359,25 @@ class DB {
             						LEFT JOIN kblocks t2 ON t2.n = (t1.n - ?) `, [ki,kblock_hash, period, period]);
 		let res = await this.request(sql);
 		return res[0];
+	}
+
+	async get_mining_tkn_owners(limit, ignore_owners, min_stake) {
+		let sql = mysql.format(`SELECT id FROM (
+								SELECT DISTINCT id, amount FROM tokens
+								LEFT JOIN ledger ON tokens.owner = ledger.id AND ledger.token = ?
+								WHERE minable = true
+								AND id NOT IN (?)
+								AND amount > ?
+								ORDER BY amount DESC LIMIT ?) as SUB_T`, [Utils.ENQ_TOKEN_NAME, ignore_owners, min_stake, limit]);
+		return this.request(sql);
+	}
+
+	async get_used_slots(kblock_hash) {
+		let sql = mysql.format(`SELECT owner AS id, count(*) AS count FROM mblocks
+									LEFT JOIN tokens ON tokens.hash = mblocks.token 
+									WHERE kblocks_hash = ?
+									GROUP BY owner;`, [kblock_hash]);
+		return this.request(sql);
 	}
 
 	async get_txs_awaiting(mblock_hashes){
@@ -489,39 +526,22 @@ class DB {
 		return snapshot;
 	};
 
+	get_chain_start_macroblock(){
+	    //get ferst of chain macroblock
+        let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, reward FROM kblocks 
+                                                    LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
+        return block;
+    }
+
 	async peek_tail(timeout){
 		let now = new Date();
 		let span = now - this.last_tail;
 		if ((span > timeout) || (this.cached_tail === null) || (timeout === undefined)) {
-			let tail = await this.request(mysql.format("SELECT  sprout, n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
+			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
 			if (tail)
 				tail = tail[0];
 			else
 				return;
-			if (!tail) {
-				console.info("Initializing database...");
-				let snapshot = Utils.load_snapshot_from_file(this.app_config.snapshot_file);
-				//TODO: validation snapshot
-				if (snapshot === undefined) {
-					console.error(`Snapshot is undefined`);
-					return;
-				}
-				tail = snapshot.kblock;
-				snapshot.hash = Utils.hash_snapshot(snapshot);
-				let init_result = await this.init_snapshot(snapshot);
-				if (!init_result) {
-					console.error(`Failed initialize Database.`);
-					return;
-				}
-				delete snapshot.kblock;
-				let hash = Utils.hash_snapshot(snapshot);
-				let put_result = await this.put_snapshot(snapshot, hash);
-				if (!put_result) {
-					console.error(`Failed put snapshot.`);
-					return;
-				}
-				console.info("Database initialized");
-			}
 			this.cached_tail = tail;
 			this.last_tail = now;
 			return tail;
@@ -529,6 +549,23 @@ class DB {
 			return this.cached_tail;
 		}
 	};
+
+	async init_database() {
+        console.info("Initializing database...");
+        let snapshot = Utils.load_snapshot_from_file(this.app_config.snapshot_file);
+        //TODO: validation snapshot
+        if (snapshot === undefined) {
+            console.error(`Snapshot is undefined`);
+            return;
+        }
+        snapshot.hash = Utils.hash_snapshot(snapshot);
+        let init_result = await this.init_snapshot(snapshot, true);
+        if (!init_result) {
+            console.error(`Failed initialize Database.`);
+            return;
+        }
+        console.info("Database initialized");
+    }
 
 	peek_range(min, max) {
 		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
@@ -562,6 +599,34 @@ class DB {
 		return {txs};
 	}
 
+	async get_successful_txs_by_height(height) {
+		let error = {code: 0, msg: 'successfully'};
+		let txs = [];
+		try {
+			let status = (await this.request(mysql.format(`SELECT IFNULL(sum(IFNULL(included,0)),-1) AS included, IFNULL(sum(IFNULL(calculated,0)),-1) AS calculated FROM mblocks inner join kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE n = ?`, height)))[0];
+			if (status.included <= 0) {
+				error.code = 1;
+				error.msg = 'block not found';
+				return;
+			}
+			if (status.calculated <= 0) {
+				error.code = 2;
+				error.msg = 'block not calculated';
+				return;
+			}
+			txs = await this.request(mysql.format(`SELECT transactions.* FROM transactions 
+													LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash AND mblocks.included = 1 AND calculated = 1
+													LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash  WHERE status = 3 AND kblocks.n = ?`, height));
+		}
+		catch(e){
+			console.error(e);
+			error = {code: 3, msg: 'exaption'};
+		}
+		finally {
+			return {error, data: {txs}};
+		}
+	}
+
 	async get_tx_count_ranged(limit){
 		let res = await this.request(mysql.format(`SELECT count(*) as count FROM transactions as T
 			left join mblocks as M ON T.mblocks_hash = M.hash
@@ -577,7 +642,7 @@ class DB {
 	}
 
 	async get_poa_reward(){
-		let reward = (await this.request(mysql.format('SELECT SUM(mblocks.reward) AS reward FROM mblocks LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE mblocks.included = 1 AND kblocks.time > UNIX_TIMESTAMP() - 24*60*60')))[0];
+		let reward = (await this.request(mysql.format('SELECT SUM(mblocks.reward) AS reward FROM mblocks LEFT JOIN kblocks ON kblocks.hash = mblocks.kblocks_hash WHERE mblocks.included = 1 AND kblocks.time > UNIX_TIMESTAMP() - 24*60*60 AND mblocks.token = ?',[Utils.ENQ_TOKEN_NAME])))[0];
 		return reward;
 	}
 
@@ -836,7 +901,7 @@ class DB {
 	}
 
 	async get_tokens_count(){
-		let cnt = (await this.request(mysql.format("SELECT count(*) as count FROM tokens")))[0];
+		let cnt = (await this.request(mysql.format(`SELECT count(*) as count,  SUM(if(reissuable = 0 AND minable = 0, 1, 0)) as non_reissuable, SUM(if(reissuable = 1, 1, 0)) as reissuable, SUM(if(minable = 1, 1, 0)) as minable FROM tokens`)))[0];
 		return cnt;
 	}
 
@@ -861,9 +926,9 @@ class DB {
 
 	generate_eindex(rewards, time = null, tokens_counts){
 		let ind = [];
-		let idx_types = ['iin', 'iout', 'ik', 'im', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust'];
+		let idx_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust'];
 		let tx_types = ['iin', 'iout'];
-		let legacy_types = ['iin', 'iout', 'ik', 'im', 'iref'];
+		let legacy_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref'];
 		for(let rec of rewards){
 			rec.rectype = tx_types.includes(rec.type) ? 'itx' : 'irew';
 			if(idx_types.includes(rec.type)){
@@ -1214,7 +1279,10 @@ class DB {
 	async get_tokens_all(hashes){
 		if(!hashes.length)
 			return [];
-		let res = await this.request(mysql.format('SELECT * FROM tokens WHERE hash in (?)', [hashes]));
+		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count
+														FROM tokens
+														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash 
+														WHERE tokens.hash in (?)`, [hashes]));
 		return res;
 	}
 
@@ -1231,8 +1299,7 @@ class DB {
         let res = await this.request(mysql.format(`SELECT ledger.id,
 			ledger.amount + IF(token = '${Utils.ENQ_TOKEN_NAME}',
 				(IFNULL(sum(delegates.amount),0) +
-				IFNULL(sum(delegates.reward),0) +
-				IFNULL((SELECT sum(undelegates.amount) FROM undelegates left join transactions on undelegates.id = transactions.hash WHERE transactions.from = ledger.id AND transactions.status = 3 AND undelegates.height <= 10000),0)),
+				IFNULL(sum(delegates.reward),0)),
 				0) as amount,
 			token
 			FROM ledger 
@@ -1243,17 +1310,45 @@ class DB {
         return {total:total, accounts:res, page_count : Math.ceil(Number(count / page_size))};
     }
 
-    async get_token_info_page(page_num, page_size){
-		let count = (await this.get_tokens_count()).count;
-        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, 
-			count(ledger.amount) as token_holders_count,
-			IFNULL(txs_count, 0) as txs_count
-			FROM tokens 
-			LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
-			LEFT JOIN ledger ON tokens.hash = ledger.token 
-			WHERE tokens.hash != ?
-			GROUP BY token_hash
-			ORDER BY token_holders_count DESC LIMIT ?, ?`, [Utils.ENQ_TOKEN_NAME, page_num * page_size, page_size]));
+    async get_token_info_page(page_num, page_size, type){
+		let where = '';
+		let count_info = await this.get_tokens_count();
+		let count = count_info.count;
+
+		switch (type) {
+			case 'minable':
+				where = ` WHERE minable = 1 `;
+				count = count_info.minable;
+				break;
+			case 'reissuable':
+				where = ` WHERE reissuable = 1 `;
+				count = count_info.reissuable;
+				break;
+			case 'non_reissuable':
+				where = ` WHERE minable = 0 AND reissuable = 0 `;
+				count = count_info.non_reissuable;
+				break;
+			default:
+				break;
+		}
+
+		let owner_slots = await this.get_mining_tkn_owners(this.app_config.mblock_slots.count - this.app_config.mblock_slots.reserve.length, this.app_config.mblock_slots.reserve, this.app_config.mblock_slots.min_stake);
+		owner_slots = owner_slots.concat(this.app_config.mblock_slots.reserve.map(function(item) {
+			return {id:item};
+		}));
+		let in_slot = '0';
+		if(owner_slots.length > 0)
+			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
+
+        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals, minable, reissuable,
+														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
+														IFNULL(txs_count, 0) as txs_count,
+														${in_slot} as in_slot
+														FROM tokens 
+														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
+														${where}
+														GROUP BY tokens.hash
+														ORDER BY token_holders_count DESC, token_hash LIMIT ?, ?`, [page_num * page_size, page_size]));
         return {tokens:res, page_count : Math.ceil(Number(count) / page_size)};
     }
 
@@ -1262,17 +1357,20 @@ class DB {
         return res;
     }
 
+	async get_minable_tokens_by_owner(owner){
+		let res = await this.request(mysql.format('SELECT hash FROM tokens WHERE owner = ? and minable = true ORDER BY hash DESC ', [owner]));
+		return res;
+	}
+
 	async get_tx(hash){
-		return await this.request(mysql.format(`SELECT max(T.status) as 'status', T.from, T.to, T.amount as total_amount, 		
-			TKN.fee_min,
- 			T.ticker as token_hash, TKN.fee_value, TKN.fee_type, T.data, T.hash, M.kblocks_hash, M.hash as mblocks_hash 
-			FROM transactions T, mblocks M, tokens TKN
-			WHERE 
-			M.hash = T.mblocks_hash AND 
-			T.status IS NOT NULL AND
-			T.ticker = TKN.hash AND
-		    T.hash =? 
-			GROUP BY T.hash;`, hash));
+		return await this.request(mysql.format(`SELECT T.status, T.from, T.to, T.amount as total_amount, TKN.fee_min, T.ticker as token_hash, TKN.fee_value, TKN.fee_type, T.data, T.hash, M.kblocks_hash, M.hash as mblocks_hash
+													FROM transactions as T
+													INNER JOIN (SELECT MAX(status) AS status
+														FROM transactions
+														WHERE transactions.hash = ?
+													   GROUP BY hash) MaxStatus ON MaxStatus.status = T.status and  T.hash = ?
+													INNER JOIN tokens AS TKN ON TKN.hash = T.ticker
+													INNER JOIN mblocks AS M ON M.hash = T.mblocks_hash`, [hash,hash]));
 	}
 
 	async get_duplicates(hashes){

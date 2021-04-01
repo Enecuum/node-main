@@ -14,6 +14,7 @@
 
 const crypto = require('crypto');
 const enq = require('./Enq');
+const config = require('./config.json');
 const rsasign = require('jsrsasign');
 let rx = require('./node_modules/node-randomx/addon');
 const fs = require('fs');
@@ -80,7 +81,7 @@ function apiRequest(options){
 }
 
 let utils = {
-	ENQ_TOKEN_NAME : "0000000000000000000000000000000000000000000000000000000000000000",
+	ENQ_TOKEN_NAME : config.native_token_hash,
 	TX_STATUS : {
 		DUPLICATE : 1,
 		REJECTED  : 2,
@@ -89,9 +90,9 @@ let utils = {
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
 	MINER_INTERVAL : 1000,
-	POS_RESEND_MINER_INTERVAL : 20000,
+	POS_RESEND_MINER_INTERVAL : 30000,
 	MINER_CHECK_TARGET_INTERVAL : 100,
-	MAX_COUNT_NOT_COMPLETE_BLOCK : 5,
+	MAX_COUNT_NOT_COMPLETE_BLOCK : 20,
 	PID_TIMEOUT : 10, //sec
 	SYNC_CHUNK_SIZE : 1000000, //byte
 	SYNC_FAILURES_LIMIT : 5,

@@ -226,7 +226,9 @@ class StatService {
                                     .map(x => [x.query, x.country.replace(/[\\$'"]/g, "\\$&"),
                                         x.countryCode, x.city.replace(/[\\$'"]/g, "\\$&").substr(0,40),
                                         x.lat, x.lon]);
-                    this.db.update_iptable([values]);
+                    if(values.length > 0){
+                        this.db.update_iptable([values]);
+                    }
                 }
             }
             else {

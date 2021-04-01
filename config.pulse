@@ -20,9 +20,9 @@
   "pending_timeout": 15,
   "tail_timeout": 100,
   "max_tps": 9999,
-  "max_mblocks_per_macroblock": 2,
-  "max_txs_per_macroblock": 4,
-  "max_txs_per_microblock": 2,
+  "max_mblocks_per_macroblock": 24,
+  "max_txs_per_macroblock": 24,
+  "max_txs_per_microblock": 1,
   "min_txs_per_microblock": 1,
   "dbhost": "localhost",
   "dbname" : "trinity_fullnode",
@@ -34,6 +34,7 @@
   "transfer_lock": 8192,
   "pos_min_stake": 250010000000000,
   "top_poses_count": 100,
+  "native_token_hash" : "0000000000000000000000000000000000000000000000000000000000000000",
   "snapshot_interval": 256,
   "snapshot_file": "snapshot_pulse.json",
   "TRUNK": "ENQGENESIS",
@@ -102,5 +103,18 @@
   },
   "FORKS" : {
     "fork_block_001" : 41000
-  }
+  },
+  "mblock_slots": {
+      "size": 2,
+      "count": 12,
+      "min_stake": 500000e10,
+      "reserve": [
+          "02833f453fb8bf10cc5e8fd362d563851543559f3ea6e662ef114d8db8f72dda19",
+          "024a964f1dd1bb14762779807ed79d76290936b246c0a7087bbc153d2a42358968",
+          "random"
+      ]
+  },
+  "feader_watchdog": 12,
+  "enable_post_tx": false,
+  "sync_validation_try_count": 10
 }

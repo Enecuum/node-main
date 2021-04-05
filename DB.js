@@ -1012,7 +1012,7 @@ class DB {
 		if(substate.accounts.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [substate.accounts.map(a => [a.id, a.amount, a.token])]));
 		if(substate.pools.length > 0)
-			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pool_id`, `pair_id`, `asset_1`, `amount_1`, `asset_2`, `amount_2`, `pool_fee`) VALUES ? ON DUPLICATE KEY UPDATE `amount_1` = VALUES(amount_1), `amount_2` = VALUES(amount_2)", [substate.pools.filter(a => a.changed !== true).map(p => [p.pool_id, p.pair_id, p.asset_1, p.amount_1, p.asset_2, p.amount_2, p.pool_fee])]));
+			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pool_id`, `pair_id`, `asset_1`, `volume_1`, `asset_2`, `volume_2`, `pool_fee`) VALUES ? ON DUPLICATE KEY UPDATE `volume_1` = VALUES(volume_1), `volume_2` = VALUES(volume_2)", [substate.pools.filter(a => a.changed !== true).map(p => [p.pool_id, p.pair_id, p.asset_1, p.volume_1, p.asset_2, p.volume_2, p.pool_fee])]));
 		substate.tokens = substate.tokens.filter(a => a.changed === true);
 		if(substate.tokens.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO tokens (`hash`, `owner`, `fee_type`, `fee_value`, `fee_min`, `ticker`, `caption`, `decimals`, `total_supply`, `reissuable`, `minable`, `max_supply`, `block_reward`, `min_stake`, `referrer_stake`, `ref_share`) VALUES ? ON DUPLICATE KEY UPDATE `total_supply` = VALUES(total_supply)", [substate.tokens.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.caption, a.decimals, a.total_supply, a.reissuable, a.minable, a.max_supply, a.block_reward, a.min_stake, a.referrer_stake, a.ref_share ])]));
@@ -1943,7 +1943,12 @@ class DB {
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id IN (?)`, [ids])));
 		return res;
 	}
-
+	async dex_get_pools_by_lt(ids){
+		if(!ids.length)
+			return [];
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash IN (?)`, [ids])));
+		return res;
+	}
 	async dex_get_pools_all(){
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
 		return res;

@@ -1,7 +1,37 @@
+let schema = {
+    "root" :            "0000",
+    "custom" :          "0100",
+    "create_token" :    "0200",
+    "delegate" :        "0300",
+    "undelegate" :      "0400",
+    "signature" :       "0500",
+    "hash" :            "0600",
+    "string" :          "0700",
+    "int" :             "0800",
+    "bigint" :          "0900",
+    "float" :           "0a00",
+    "object" :          "0c00",
+    "key" :             "0d00",
+    "procedure_name" :  "0e00",
+    "parameters" :      "0f00",
+    "create_pos" :      "1000",
+    "pos_reward" :      "1100",
+    "transfer" :        "1200",
+    "mint" :            "1300",
+    "burn" :            "1400",
+    "create_pool" :     "1500",
+    "add_liquidity" :   "1600",
+    "remove_liquidity" :"1700",
+    "swap" :            "1800"
+};
+
 class ContractParser {
-    constructor(schema, pricelist) {
+    constructor(config) {
         this.schema = schema;
-        this.contract_pricelist = pricelist;
+        this.contract_pricelist = config.contract_pricelist;
+    }
+    get pricelist(){
+        return this.contract_pricelist;
     }
     toHex(d) {
         let hex = Number(d).toString(16);
@@ -29,7 +59,7 @@ class ContractParser {
             data : bin.substr(8, size - 8)
         }
     }
-// TODO: possible false-positive results because of data field format
+    // TODO: possible false-positive results because of data field format
     isContract(raw) {
         if(raw === undefined || raw === null)
             return false;

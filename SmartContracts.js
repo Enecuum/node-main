@@ -16,104 +16,33 @@ const Utils = require('./Utils');
 const {ContractError} = require('./errors');
 const {OutOfRangeError} = require('./errors');
 const ContractParser = require('./contractParser').ContractParser;
-const fs = require('fs');
-let config = {};
-try {
-    config = JSON.parse(fs.readFileSync('./config.pulse', 'utf8'));
-
-} catch (e) {
-    console.info('No configuration file found.', e)
-}
-
-let schema = {
-    "root" :            "0000",
-    "custom" :          "0100",
-    "create_token" :    "0200",
-    "delegate" :        "0300",
-    "undelegate" :      "0400",
-    "signature" :       "0500",
-    "hash" :            "0600",
-    "string" :          "0700",
-    "int" :             "0800",
-    "bigint" :          "0900",
-    "float" :           "0a00",
-    "object" :          "0c00",
-    "key" :             "0d00",
-    "procedure_name" :  "0e00",
-    "parameters" :      "0f00",
-    "create_pos" :      "1000",
-    "pos_reward" :      "1100",
-    "transfer" :        "1200",
-    "mint" :            "1300",
-    "burn" :            "1400",
-    "create_pool" :     "1500"
-};
-
-let contract_pricelist = config.contract_pricelist;
+//const fs = require('fs');
+// let config = {};
+// try {
+//     config = JSON.parse(fs.readFileSync('./config.pulse', 'utf8'));
+//
+// } catch (e) {
+//     console.info('No configuration file found.', e)
+// }
 
 //let MAX_SUPPLY = BigInt('18446744073709551615');
 let MAX_SUPPLY_LIMIT = BigInt('18446744073709551615');
 let MAX_DECIMALS = BigInt(10);
 let ENQ_INTEGER_COIN = BigInt(10000000000);
 
-let parser = new ContractParser(schema, contract_pricelist);
-
 // TODO: possible false-positive results because of data field format
-function isContract(raw) {
-    return parser.isContract(raw);
-}
 
-function parse(raw){
-    return parser.parse(raw);
-}
 
-async function processData(tx, db, kblock){
-    let contract = Contract.createContract(tx.data);
-    if(!contract)
-        return false;
-    if(tx.amount < BigInt(contract_pricelist[contract.type])){
-        throw new ContractError("Invalid amount");
-    }
-    if(tx.to !== db.ORIGIN.publisher){
-        throw new ContractError(`Invalid recipient address, expected ${db.ORIGIN.publisher} , given ${tx.to}`);
-    }
-    if(tx.ticker !== Utils.ENQ_TOKEN_NAME){
-        throw new ContractError(`Invalid token, expected ${Utils.ENQ_TOKEN_NAME} , given ${tx.ticker}`);
-    }
-    return contract.execute(tx, db, kblock);
-}
 
-function validate(data){
-    let contract = Contract.createContract(data);
-    if(!contract)
-        return false;
-    return contract.validate(data);
-}
-
-function create(tx, db){
-    let contract = Contract.createContract(tx.data);
-    if(!contract)
-        return false;
-    if(tx.amount < BigInt(contract_pricelist[contract.type])){
-        throw new ContractError("Invalid amount");
+class ContractFactory{
+    constructor(config) {
+        this.parser = new ContractParser(config);
+        this.config = config
     }
-    if(tx.to !== db.ORIGIN.publisher){
-        throw new ContractError(`Invalid recipient address, expected ${db.ORIGIN.publisher} , given ${tx.to}`);
-    }
-    if(tx.ticker !== Utils.ENQ_TOKEN_NAME){
-        throw new ContractError(`Invalid token, expected ${Utils.ENQ_TOKEN_NAME} , given ${tx.ticker}`);
-    }
-    return contract;
-}
-
-class Contract{
-    constructor() {
-        this._mysql = require('mysql');
-        this.type = null;
-    }
-    static createContract(data){
-        this.type = isContract(data);
-        switch(this.type) {
+    createContract(data){
+        let type = this.parser.isContract(data);
+        let params = this.parser.parse(data);
+        switch(type) {
             case "create_token" :   return new CreateTokenContract(data);
             case "create_pos" :     return new CreatePosContract(data);
             case "delegate" :       return new DelegateContract(data);
@@ -122,12 +51,63 @@ class Contract{
             case "pos_reward" :     return new PosRewardContract(data);
             case "mint" :           return new MintTokenContract(data);
             case "burn" :           return new BurnTokenContract(data);
-            case "create_pool" :    return new DexPoolCreateContract(data);
-            case "add_liquidity" :  return new DexLiquidityAddContract(data);
-            case "remove_liquidity" : return new DexLiquidityRemoveContract(data);
-            case "swap" :           return new DexLiquiditySwapContract(data);
+            case "create_pool" :    return new DexPoolCreateContract(params);
+            case "add_liquidity" :  return new DexLiquidityAddContract(params);
+            case "remove_liquidity":return new DexLiquidityRemoveContract(params);
+            case "swap" :           return new DexLiquiditySwapContract(params);
             default : return null;
         }
+    }
+    async processData(tx, db, kblock){
+        let contract = this.createContract(tx.data);
+        if(!contract)
+            return false;
+        if(tx.amount < BigInt(this.config.contract_pricelist[contract.type])){
+            throw new ContractError("Invalid amount");
+        }
+        if(tx.to !== db.ORIGIN.publisher){
+            throw new ContractError(`Invalid recipient address, expected ${db.ORIGIN.publisher} , given ${tx.to}`);
+        }
+        if(tx.ticker !== Utils.ENQ_TOKEN_NAME){
+            throw new ContractError(`Invalid token, expected ${Utils.ENQ_TOKEN_NAME} , given ${tx.ticker}`);
+        }
+        return contract.execute(tx, db, kblock);
+    }
+
+    validate(data){
+        let contract = this.createContract(data);
+        if(!contract)
+            return false;
+        return contract.validate(data);
+    }
+
+    create(tx, db){
+        let contract = this.createContract(tx.data);
+        if(!contract)
+            return false;
+        if(tx.amount < BigInt(this.config.contract_pricelist[contract.type])){
+            throw new ContractError("Invalid amount");
+        }
+        if(tx.to !== db.ORIGIN.publisher){
+            throw new ContractError(`Invalid recipient address, expected ${db.ORIGIN.publisher} , given ${tx.to}`);
+        }
+        if(tx.ticker !== Utils.ENQ_TOKEN_NAME){
+            throw new ContractError(`Invalid token, expected ${Utils.ENQ_TOKEN_NAME} , given ${tx.ticker}`);
+        }
+        return contract;
+    }
+    isContract(raw) {
+        return this.parser.isContract(raw);
+    }
+    parse(raw){
+        return this.parser.parse(raw);
+    }
+}
+
+class Contract{
+    constructor() {
+        this._mysql = require('mysql');
+        this.type = null;
     }
     get mysql(){
         return this._mysql;
@@ -138,21 +118,16 @@ class CreateTokenContract extends Contract {
         super();
         if(!this.validate(data))
             throw new ContractError("Incorrect contract");
-        this.data = parse(data);
+        this.data = this.parser.parse(data);
         this.type = this.data.type;
     }
     validate(raw) {
 
-        if(!isContract(raw))
+        if(!this.parser.isContract(raw))
             return false;
-        let data = parse(raw);
-        let contractType = data.type;
+        let data = this.parser.parse(raw);
         let params = data.parameters;
-        // Parse tx data - error on fail
-        // Check tx type - error on unknown type
-        if(!contract_pricelist.hasOwnProperty(contractType)){
-            throw new ContractError("Unknown contract type");
-        }
+
         let paramsModel = ["fee_type", "fee_value", "ticker", "decimals", "total_supply", "name"];
         if (paramsModel.some(key => params[key] === undefined)){
             throw new ContractError("Incorrect param structure");
@@ -822,7 +797,7 @@ class DexPoolCreateContract extends Contract {
         super();
         if(!this.validate(data))
             throw new ContractError("Incorrect contract");
-        this.data = parse(data);
+        this.data = data;
         this.type = this.data.type;
     }
     validate(raw) {
@@ -833,9 +808,9 @@ class DexPoolCreateContract extends Contract {
          * asset_2 : hex string 64 chars
          * amount_2 : 0...max_supply
          */
-        if(!isContract(raw))
-            return false;
-        let data = parse(raw);
+        // if(!this.parser.isContract(raw))
+        //     return false;
+        let data = raw;
         let params = data.parameters;
 
         let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
@@ -907,21 +882,22 @@ class DexPoolCreateContract extends Contract {
             pool_id : tx.hash,
             pair_id : pair_id,
             asset_1 : assets.asset_1,
-            amount_1 : assets.amount_1,
+            volume_1 : assets.amount_1,
             asset_2 : assets.asset_2,
-            amount_2 : assets.amount_2,
+            volume_2 : assets.amount_2,
             pool_fee : BigInt(0),
             token_hash : tx.hash
         };
         // TODO: random ticker & caption
+        let ticker = `LT_${Math.floor(Math.random() * 999)}`
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,
             fee_type : 0,
             fee_value : BigInt(0),
             fee_min : BigInt(0),
-            ticker : `LT_${crypto.randomBytes(3)}`,
-            caption : crypto.randomBytes(6),
+            ticker : ticker,
+            caption : ticker,
             decimals : BigInt(10),
             total_supply : lt_amount,
             reissuable : 1,
@@ -958,7 +934,7 @@ class DexLiquidityAddContract extends Contract {
         super();
         if(!this.validate(data))
             throw new ContractError("Incorrect contract");
-        this.data = parse(data);
+        this.data = data;
         this.type = this.data.type;
     }
     validate(raw) {
@@ -969,9 +945,9 @@ class DexLiquidityAddContract extends Contract {
          * asset_2 : hex string 64 chars
          * amount_2 : 0...max_supply
          */
-        if(!isContract(raw))
-            return false;
-        let data = parse(raw);
+            // if(!this.parser.isContract(raw))
+            //     return false;
+        let data = raw;
         let params = data.parameters;
 
         let paramsModel = ["asset_1", "amount_1", "asset_2", "amount_2"];
@@ -1013,22 +989,22 @@ class DexLiquidityAddContract extends Contract {
         assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
         assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
 
-        if((BigInt(params.amount_1) * BigInt(params.amount_2)) === BigInt(0))
+        if((BigInt(assets.amount_1) * BigInt(assets.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
 
-        let token_1_info = (await substate.get_token_info(params.asset_1));
+        let token_1_info = (await substate.get_token_info(assets.asset_1));
         if(!token_1_info)
-            throw new ContractError(`Token ${params.asset_1} not found`);
-        let token_2_info = (await substate.get_token_info(params.asset_2));
+            throw new ContractError(`Token ${assets.asset_1} not found`);
+        let token_2_info = (await substate.get_token_info(assets.asset_2));
         if(!token_2_info)
-            throw new ContractError(`Token ${params.asset_2} not found`);
+            throw new ContractError(`Token ${assets.asset_2} not found`);
 
         let pool_exist = (await substate.dex_check_pool_exist(pair_id));
         if(!pool_exist)
-            throw new ContractError(`Pool ${params.asset_1}_${params.asset_2} not exist`);
+            throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
 
         // TODO: dex_get_pool_info in substate
-        let pool_info = (await substate.dex_get_pool_info(pair_id))[0];
+        let pool_info = await substate.dex_get_pool_info(pair_id);
 
         let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
         let required_2 = pool_info.volume_2 * assets.amount_1 / pool_info.volume_1;
@@ -1044,8 +1020,8 @@ class DexLiquidityAddContract extends Contract {
             amount_2 = required_2
         }
 
-        pool_info.volume_1 += amount_1;
-        pool_info.volume_2 += amount_2;
+        //pool_info.volume_1 += amount_1;
+        //pool_info.volume_2 += amount_2;
 
         // lt = sqrt(amount_1 * amount_2)
         let lt_amount = Utils.sqrt(amount_1 * amount_2);
@@ -1060,9 +1036,9 @@ class DexLiquidityAddContract extends Contract {
         let pool_data = {
             pair_id : pair_id,
             asset_1 : assets.asset_1,
-            amount_1 : amount_1,
+            volume_1 : amount_1,
             asset_2 : assets.asset_2,
-            amount_2 : amount_2
+            volume_2 : amount_2
         };
         let tok_data = {
             hash : pool_info.token_hash,
@@ -1099,7 +1075,7 @@ class DexLiquidityRemoveContract extends Contract {
         super();
         if(!this.validate(data))
             throw new ContractError("Incorrect contract");
-        this.data = parse(data);
+        this.data = data;
         this.type = this.data.type;
     }
     validate(raw) {
@@ -1108,9 +1084,7 @@ class DexLiquidityRemoveContract extends Contract {
          * hash : hex string 64 chars
          * amount : 0...MAX_SUPPLY_LIMIT
          */
-        if(!isContract(raw))
-            return false;
-        let data = parse(raw);
+        let data = raw;
         let params = data.parameters;
 
         let paramsModel = ["hash", "amount"];
@@ -1143,7 +1117,6 @@ class DexLiquidityRemoveContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-
         // TODO: this is probably unnececcary checks
         let token_info = (await substate.get_token_info(params.hash));
         if(!token_info)
@@ -1153,8 +1126,9 @@ class DexLiquidityRemoveContract extends Contract {
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${params.hash} insufficient balance`);
 
-        // TODO:
-        let pool_info = (await substate.dex_get_pool_info_by_token(params.hash))[0];
+        // TODO: get_dex_pool_info_by_token
+        // TODO: check in DB
+        let pool_info = await substate.get_dex_pool_info_by_token(params.hash);
         //amount_1 = volume_1 * amount / lt_emission
         //amount_2 = volume_2 * amount / lt_emission
         let amount_1 = pool_info.volume_1 * params.amount / token_info.total_supply;
@@ -1165,9 +1139,9 @@ class DexLiquidityRemoveContract extends Contract {
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
             asset_1 : pool_info.asset_1,
-            amount_1 : BigInt(-1) * amount_1,
+            volume_1 : BigInt(-1) * amount_1,
             asset_2 : pool_info.asset_2,
-            amount_2 : BigInt(-1) * amount_2
+            volume_2 : BigInt(-1) * amount_2
         };
         let tok_data = {
             hash : pool_info.token_hash,
@@ -1203,7 +1177,7 @@ class DexLiquiditySwapContract extends Contract {
         super();
         if(!this.validate(data))
             throw new ContractError("Incorrect contract");
-        this.data = parse(data);
+        this.data = data;
         this.type = this.data.type;
     }
     validate(raw) {
@@ -1213,9 +1187,7 @@ class DexLiquiditySwapContract extends Contract {
          * asset_out : hex string 64 chars
          * amount_in : 0...MAX_SUPPLY_LIMIT
          */
-        if(!isContract(raw))
-            return false;
-        let data = parse(raw);
+        let data = raw;
         let params = data.parameters;
 
         let paramsModel = ["asset_in", "asset_out", "amount_in"];
@@ -1251,24 +1223,19 @@ class DexLiquiditySwapContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let pair_id = getPairId(params.asset_in, params.asset_out);
+        let assets = getPairId(params.asset_in, params.asset_out);
+        let pair_id = assets.pair_id;
+        assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
+        assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
 
-        // TODO: this is probably unnececcary checks
-        // let token_1_info = (await db.get_tokens_all(params.asset_in))[0];
-        // if(!token_1_info)
-        //     throw new ContractError(`Token ${params.asset_1} not found`);
-        // let token_2_info = (await db.get_tokens_all(params.asset_out))[0];
-        // if(!token_2_info)
-        //     throw new ContractError(`Token ${params.asset_2} not found`);
-
-        let pool_exist = (await db.dex_check_pool_exist(pair_id))[0];
+        let pool_exist = await substate.dex_check_pool_exist(pair_id);
         if(!pool_exist)
             throw new ContractError(`Pool ${pair_id} not exist`);
 
-        let pool_info = (await db.dex_get_pool_info(pair_id))[0];
+        let pool_info = await substate.dex_get_pool_info(pair_id);
         let amount_1, amount_2;
 
-        let k = pool_info.amount_1 * pool_info.amount_2;
+        let k = pool_info.volume_1 * pool_info.volume_2;
 
         // amount_out = volume_2 - k/(volume_1 + amount_in)
         let amount_out = (BigInt(k)) / params.amount_in;
@@ -1304,10 +1271,10 @@ function getPairId(asset_1, asset_2){
     };
 }
 
-module.exports.processData = processData;
-module.exports.create = create;
+//module.exports.processData = processData;
+//module.exports.create = create;
 module.exports.getPairId = getPairId;
-module.exports.isContract = isContract;
-module.exports.validate = validate;
-module.exports.contract_pricelist = contract_pricelist;
+//module.exports.isContract = isContract;
+//module.exports.validate = validate;
 module.exports.Contract = Contract;
+module.exports.ContractFactory = ContractFactory;

@@ -33,7 +33,8 @@ class Substate {
         this.poses = [];
         this.transfers = [];
         this.pools = [];
-        this.pools_ledger = [];
+        // For remove_liquidity contract
+        this.lt_hashes = [];
     }
     async loadState(){
         this.accounts = this.accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -76,8 +77,8 @@ class Substate {
             else
                 delete this.undelegates[und]
         }
-
-        this.pools = await this.db.dex_get_pools(this.pools);
+        let more_pools = await this.db.dex_get_pools(this.lt_hashes);
+        this.pools = await this.db.dex_get_pools(this.pools.join(more_pools));
     }
     setState(state){
         this.delegation_ledger = JSON.parse(JSON.stringify(state.delegation_ledger));
@@ -89,11 +90,7 @@ class Substate {
         for(let und in state.undelegates){
             this.undelegates[und] = Object.assign({}, state.undelegates[und]);
         }
-        // for (let el of Object.keys(state.delegation_ledger)) {
-        //     this.delegation_ledger[el.pos_id][el.delegator].delegated += BigInt(el.delegated);
-        //     this.delegation_ledger[el.pos_id][el.delegator].undelegated += BigInt(el.undelegated);
-        //     this.delegation_ledger[el.pos_id][el.delegator].reward += BigInt(el.reward);
-        // }
+
         this.undelegates = Object.assign({}, state.undelegates);
         this.tokens = state.tokens.map(a => Object.assign({}, a));
         this.poses = state.poses.map(a => Object.assign({}, a));
@@ -182,9 +179,9 @@ class Substate {
                 // asset_1 token info
                 // asset_2 token info
                 // asset_1asset_2 pool
-                this.tokens.push(contract.params.asset_1);
-                this.tokens.push(contract.params.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.params.asset_1, contract.params.asset_2).pair_id);
+                this.tokens.push(contract.data.parameters.hash);
+                this.lt_hashes.push(contract.data.parameters.hash);
+                //this.pools.push(ContractMachine.getPairId(contract.params.asset_1, contract.params.asset_2).pair_id);
                 break;
             case "swap" :
                 break;
@@ -236,11 +233,20 @@ class Substate {
         let index = this.pools.findIndex(pool => (pool.pair_id === pair_id));
         return (index > -1);
     }
+    get_dex_pool_info_by_token(lt_hash){
+        if(!lt_hash)
+            return null;
+        return this.pools.find(a => a.token_hash === lt_hash);
+    }
     get_balance(id, token){
         let index = this.accounts.findIndex(acc => ((acc.id === id) && (acc.token === token)));
         return (index > -1) ? this.accounts[index] : ({amount : 0, decimals : 10});
     }
-
+    dex_get_pool_info(pair_id){
+        if(!pair_id)
+            return null;
+        return this.pools.find(a => a.pair_id === pair_id);
+    }
     pools_add(changes){
         if(this.pools.find(a => a.hash === changes.pair_id))
             throw new ContractError(`Pool ${changes.pair_id} already exist`);
@@ -279,12 +285,12 @@ class Substate {
     pools_change(changes){
         let pool_idx = this.pools.findIndex(a => a.pair_id === changes.pair_id);
         if(pool_idx > -1){
-            if(this.pools[pool_idx].amount_1 + changes.amount_1 < BigInt(0))
+            if(this.pools[pool_idx].volume_1 + changes.volume_1 < BigInt(0))
                 throw new ContractError(`Negative pools state`);
-            if(this.pools[pool_idx].amount_2 + changes.amount_2 < BigInt(0))
+            if(this.pools[pool_idx].volume_2 + changes.volume_2 < BigInt(0))
                 throw new ContractError(`Negative pools state`);
-            this.pools[pool_idx].amount_1 += changes.amount_1;
-            this.pools[pool_idx].amount_2 += changes.amount_2;
+            this.pools[pool_idx].volume_1 += changes.volume_1;
+            this.pools[pool_idx].volume_2 += changes.volume_2;
             this.pools[pool_idx].changed = true;
         }
     }
@@ -342,6 +348,7 @@ class Cashier {
         this.refrewards = BigInt(0);
         this.srewards = BigInt(0);
         this.krewards = BigInt(0);
+        this.contractFactory = new ContractMachine.ContractFactory(config);
     }
     eindex_entry(arr, type, id, hash, value) {
         if(this.config.indexer_mode !== 1)
@@ -859,13 +866,13 @@ class Cashier {
         for(let i = 0; i < chunk.txs.length; i++){
             let tx = chunk.txs[i];
 
-            if (ContractMachine.isContract(tx.data)) {
+            if (this.contractFactory.isContract(tx.data)) {
                 try {
                     // Clone tx object so we can pass amount without fee
                     let _tx = Object.assign({}, tx);
                     _tx.amount -= token_enq.fee_value;
                     // Create contract to get it's params. Without execution
-                    contracts[tx.hash] = await ContractMachine.create(_tx, this.db);
+                    contracts[tx.hash] = await this.contractFactory.create(_tx, this.db);
                     // Pass contract's params to substate to add data
 
                     substate.fillByContract(contracts[tx.hash], tx);

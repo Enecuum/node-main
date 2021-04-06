@@ -889,7 +889,7 @@ class DexPoolCreateContract extends Contract {
             token_hash : tx.hash
         };
         // TODO: random ticker & caption
-        let ticker = `LT_${Math.floor(Math.random() * 999)}`
+        let ticker = `LT_${Math.floor(Math.random() * 999)}`;
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,
@@ -1225,30 +1225,36 @@ class DexLiquiditySwapContract extends Contract {
 
         let assets = getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
-        assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
-        assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
 
         let pool_exist = await substate.dex_check_pool_exist(pair_id);
         if(!pool_exist)
             throw new ContractError(`Pool ${pair_id} not exist`);
 
         let pool_info = await substate.dex_get_pool_info(pair_id);
-        let amount_1, amount_2;
-
-        let k = pool_info.volume_1 * pool_info.volume_2;
+        let volume_in =  (params.asset_in === pool_info.asset_1) ? pool_info.volume_1 : pool_info.volume_2;
+        let volume_out = (params.asset_in === pool_info.asset_2) ? pool_info.volume_1 : pool_info.volume_2;
 
         // amount_out = volume_2 - k/(volume_1 + amount_in)
-        let amount_out = (BigInt(k)) / params.amount_in;
+        let amount_out = volume_out - (volume_in * volume_out / (volume_in + params.amount_in));
 
-        if(pool_info.asset_1 === params.asset_in){
-            amount_1 = params.amount_in;
-            amount_2 = amount_out;
-        }
-        else {
-            amount_1 = amount_out;
-            amount_2 = params.amount_in;
-        }
-
+        let pool_data = {
+            pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
+            asset_1 : pool_info.asset_1,
+            volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
+            asset_2 : pool_info.asset_2,
+            volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1) * params.amount_in,
+            token : params.asset_in,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : amount_out,
+            token : params.asset_out,
+        });
+        substate.pools_change(pool_data);
         return {
             amount_changes : [],
             pos_changes : [],

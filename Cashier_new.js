@@ -108,11 +108,10 @@ class Substate {
             }
                 break;
             case "create_pos" : {
-                // pos_id as tx hash
             }
                 break;
             case "delegate" : {
-                // pos_id as tx hash
+                // create empty structure for [pos_id][delegator]
                 if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
                     this.delegation_ledger[contract.data.parameters.pos_id] = {}
                 }
@@ -122,7 +121,7 @@ class Substate {
             }
                 break;
             case "undelegate" : {
-                // pos_id as tx hash
+                // create empty structure for [pos_id][delegator]
                 if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
                     this.delegation_ledger[contract.data.parameters.pos_id] = {}
                 }
@@ -132,14 +131,14 @@ class Substate {
             }
                 break;
             case "transfer" : {
-                // pos_id as tx hash
+                // create empty undelegate structure for TX
                 if (!this.undelegates.hasOwnProperty(contract.data.parameters.undelegate_id)) {
                     this.undelegates[contract.data.parameters.undelegate_id] = {}
                 }
             }
                 break;
             case "pos_reward" : {
-                // pos_id as tx hash
+                // create empty structure for [pos_id][delegator]
                 if (!this.delegation_ledger.hasOwnProperty(contract.data.parameters.pos_id)) {
                     this.delegation_ledger[contract.data.parameters.pos_id] = {}
                 }
@@ -149,41 +148,43 @@ class Substate {
             }
                 break;
             case "mint" : {
-                // pos_id as tx hash
+                // token_hash info
                 this.tokens.push(contract.data.parameters.token_hash);
             }
                 break;
             case "burn" : {
-                // pos_id as tx hash
+                // token_hash info
                 this.tokens.push(contract.data.parameters.token_hash);
             }
                 break;
             case "create_pool" : {
                 // asset_1 token info
                 // asset_2 token info
+                // 1_2 pool info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id)
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
             case "add_liquidity" : {
                 // asset_1 token info
                 // asset_2 token info
-                // asset_1asset_2 pool
+                // 1_2 pool info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id)
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
             case "remove_liquidity" :
-                // asset_1 token info
-                // asset_2 token info
-                // asset_1asset_2 pool
+                // l_token token info
+                // pool of l_token info
                 this.tokens.push(contract.data.parameters.hash);
                 this.lt_hashes.push(contract.data.parameters.hash);
-                //this.pools.push(ContractMachine.getPairId(contract.params.asset_1, contract.params.asset_2).pair_id);
                 break;
             case "swap" :
+                this.tokens.push(contract.data.parameters.asset_in);
+                this.tokens.push(contract.data.parameters.asset_out);
+                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
                 break;
             default : return false;
         }

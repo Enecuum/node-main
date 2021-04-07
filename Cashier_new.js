@@ -96,7 +96,6 @@ class Substate {
         this.poses = state.poses.map(a => Object.assign({}, a));
         this.transfers = state.transfers.map(a => Object.assign({}, a));
         this.pools = state.pools.map(a => Object.assign({}, a));
-        this.pools_ledger = state.pools_ledger.map(a => Object.assign({}, a));
         this.accounts = state.accounts.map(a => Object.assign({}, a));
     }
     fillByContract(contract, tx){
@@ -273,7 +272,6 @@ class Substate {
         if (!this.delegation_ledger[changes.pos_id].hasOwnProperty(changes.delegator)) {
             this.delegation_ledger[changes.pos_id][changes.delegator] = {
                 delegated: BigInt(0),
-                undelegated: BigInt(0),
                 reward: BigInt(0)
             }
         }
@@ -407,10 +405,6 @@ class Cashier {
         }
         else
             throw new ContractError("Negative ledger state");
-    }
-
-    processContract(tx, substate){
-
     }
 
     status_entry(status, tx) {

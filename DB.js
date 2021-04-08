@@ -990,7 +990,7 @@ class DB {
 		return this.transaction([sql_i, sw].join(';'));
 	}
 
-	process_ledger_mblocks(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts, substate){
+	process_ledger_mblocks_002(txs, mblocks, rewards, kblock, tokens_counts, substate){
 		let sts = [];
 		let pnd = [];
 		let ind = [];
@@ -1002,7 +1002,7 @@ class DB {
 			txs.forEach(function (s) {
 				sts.push(mysql.format("UPDATE transactions SET `status` = ? WHERE `hash` = ? AND `mblocks_hash` = ?", [s.status, s.hash, s.mblocks_hash]));
 				// TODO: DELETE FROM pending WHERE `hash` in (?)
-				//pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
+				pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
 			});
 		}
 
@@ -1048,7 +1048,27 @@ class DB {
 		//return;
 		return this.transaction(sql);
 	}
+	process_ledger_mblocks_000(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts){
+		let sts = [];
+		let pnd = [];
+		let ind = [];
 
+		let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
+		let mb = mysql.format('UPDATE mblocks SET calculated = 1 WHERE `hash` in (?)', [mblocks.map(m => m.hash)]);
+
+		if (txs.length) {
+			txs.forEach(function (s) {
+				sts.push(mysql.format("UPDATE transactions SET `status` = ? WHERE `hash` = ? AND `mblocks_hash` = ?", [s.status, s.hash, s.mblocks_hash]));
+				// TODO: DELETE FROM pending WHERE `hash` in (?)
+				pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
+			});
+		}
+
+		ind = this.generate_eindex(rewards, kblock.time, tokens_counts);
+
+		let sql = [ins, sts.join(';'), pnd.join(';'), ind.join(';'), mb, post_action.join(';')].join(';');
+		return this.transaction(sql);
+	}
 	process_indexer_sblocks(sblocks, time){
 		let index = [];
 		let sb = mysql.format('UPDATE sblocks SET indexed = 1 WHERE `hash` in (?)', [sblocks.map(s => s.hash)]);

@@ -67,15 +67,15 @@ CREATE TABLE `delegates` (
 
 DROP TABLE IF EXISTS `dex_pools`;
 CREATE TABLE `dex_pools` (
-  `pool_id` VARCHAR(64) NOT NULL,
   `pair_id` VARCHAR(128) NOT NULL,
   `asset_1` VARCHAR(64) NOT NULL,
-  `amount_1` BIGINT(20) UNSIGNED NULL,
+  `volume_1` BIGINT(20) UNSIGNED NULL,
   `asset_2` VARCHAR(64) NOT NULL,
-  `amount_2` BIGINT(20) UNSIGNED NULL,
+  `volume_2` BIGINT(20) UNSIGNED NULL,
   `pool_fee` BIGINT(20) UNSIGNED NULL,
-  PRIMARY KEY (`pool_id`),
-  UNIQUE INDEX `pair_id_UNIQUE` (`pair_id` ASC));
+  `token_hash` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`pair_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
 --

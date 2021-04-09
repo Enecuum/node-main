@@ -731,7 +731,7 @@ class DexPoolCreateContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let assets = getPairId(params.asset_1, params.asset_2);
+        let assets = Utils.getPairId(params.asset_1, params.asset_2);
         let pair_id = assets.pair_id;
         assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
         assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
@@ -761,7 +761,6 @@ class DexPoolCreateContract extends Contract {
         let lt_amount = Utils.sqrt(assets.amount_1 * assets.amount_2);
         // TODO: take pool_fee from params
         let pool_data = {
-            pool_id : tx.hash,
             pair_id : pair_id,
             asset_1 : assets.asset_1,
             volume_1 : assets.amount_1,
@@ -770,8 +769,8 @@ class DexPoolCreateContract extends Contract {
             pool_fee : BigInt(0),
             token_hash : tx.hash
         };
-        // TODO: random ticker & caption
-        let ticker = `LT_${Math.floor(Math.random() * 999)}`;
+
+        let ticker = `LT_${tx.hash.substring(0, 3).toUpperCase()}`;
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,
@@ -863,7 +862,7 @@ class DexLiquidityAddContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let assets = getPairId(params.asset_1, params.asset_2);
+        let assets = Utils.getPairId(params.asset_1, params.asset_2);
         let pair_id = assets.pair_id;
         assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
         assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
@@ -1004,9 +1003,10 @@ class DexLiquidityRemoveContract extends Contract {
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${params.hash} insufficient balance`);
 
-        // TODO: get_dex_pool_info_by_token
         // TODO: check in DB
         let pool_info = await substate.get_dex_pool_info_by_token(params.hash);
+        let pool_info_db = await substate.db.get_dex_pool_info_by_token(params.hash);
+
         //amount_1 = volume_1 * amount / lt_emission
         //amount_2 = volume_2 * amount / lt_emission
         let amount_1 = pool_info.volume_1 * params.amount / token_info.total_supply;
@@ -1099,7 +1099,7 @@ class DexLiquiditySwapContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let assets = getPairId(params.asset_in, params.asset_out);
+        let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
 
         let pool_exist = await substate.dex_check_pool_exist(pair_id);
@@ -1119,9 +1119,7 @@ class DexLiquiditySwapContract extends Contract {
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
-            asset_1 : pool_info.asset_1,
             volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
-            asset_2 : pool_info.asset_2,
             volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
         };
         substate.accounts_change({
@@ -1143,21 +1141,6 @@ class DexLiquiditySwapContract extends Contract {
     }
 }
 
-function getPairId(asset_1, asset_2){
-    if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
-        return {
-            pair_id : `${asset_1}${asset_2}`,
-            asset_1 : asset_1,
-            asset_2 : asset_2
-        };
-    else return {
-        pair_id : `${asset_2}${asset_1}`,
-        asset_1 : asset_2,
-        asset_2 : asset_1
-    };
-}
-
-module.exports.getPairId = getPairId;
 module.exports.Contract = Contract;
 module.exports.CreateTokenContract = CreateTokenContract;
 module.exports.CreatePosContract = CreatePosContract;

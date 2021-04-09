@@ -916,11 +916,13 @@ class DB {
 	}
 
 	async get_total_supply(){
-		let amount = (await this.request(mysql.format(`select (L.led + D.del + R.rew + U.und) as amount from
-			(select ifnull(sum(amount), 0) as led from ledger where token = ?) as L,
-			(select ifnull(sum(amount), 0) as del from delegates) as D,
-			(select ifnull(sum(reward), 0) as rew from delegates) as R,
-			(select ifnull(sum(amount), 0) as und from undelegates) as U`, [Utils.ENQ_TOKEN_NAME])))[0];
+		let amount = (await this.request(mysql.format(`SELECT (L.led + D.del + R.rew + U.und + P_1.p1 + P_2.p2) AS amount FROM
+			(SELECT ifnull(sum(amount), 0) AS led FROM ledger WHERE token = ?) AS L,
+			(SELECT ifnull(sum(amount), 0) AS del FROM delegates) AS D,
+			(SELECT ifnull(sum(reward), 0) AS rew FROM delegates) AS R,
+			(SELECT ifnull(sum(amount), 0) AS und FROM undelegates) AS U,
+			(SELECT ifnull(sum(volume_1), 0) AS p1 FROM dex_pools WHERE asset_1 = ?) AS P_1,
+			(SELECT ifnull(sum(volume_2), 0) AS p2 FROM dex_pools WHERE asset_2 = ?) AS P_2`, [Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME])))[0];
 		return amount;
 	}
 
@@ -1012,7 +1014,7 @@ class DB {
 		if(substate.accounts.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [substate.accounts.map(a => [a.id, a.amount, a.token])]));
 		if(substate.pools.length > 0)
-			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pool_id`, `pair_id`, `asset_1`, `volume_1`, `asset_2`, `volume_2`, `pool_fee`) VALUES ? ON DUPLICATE KEY UPDATE `volume_1` = VALUES(volume_1), `volume_2` = VALUES(volume_2)", [substate.pools.filter(a => a.changed !== true).map(p => [p.pool_id, p.pair_id, p.asset_1, p.volume_1, p.asset_2, p.volume_2, p.pool_fee])]));
+			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pair_id`, `asset_1`, `volume_1`, `asset_2`, `volume_2`, `pool_fee`, `token_hash`) VALUES ? ON DUPLICATE KEY UPDATE `volume_1` = VALUES(volume_1), `volume_2` = VALUES(volume_2)", [substate.pools.map(p => [p.pair_id, p.asset_1, p.volume_1, p.asset_2, p.volume_2, p.pool_fee, p.token_hash])]));
 		substate.tokens = substate.tokens.filter(a => a.changed === true);
 		if(substate.tokens.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO tokens (`hash`, `owner`, `fee_type`, `fee_value`, `fee_min`, `ticker`, `caption`, `decimals`, `total_supply`, `reissuable`, `minable`, `max_supply`, `block_reward`, `min_stake`, `referrer_stake`, `ref_share`) VALUES ? ON DUPLICATE KEY UPDATE `total_supply` = VALUES(total_supply)", [substate.tokens.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.caption, a.decimals, a.total_supply, a.reissuable, a.minable, a.max_supply, a.block_reward, a.min_stake, a.referrer_stake, a.ref_share ])]));
@@ -1979,6 +1981,12 @@ class DB {
 		return res.length !== 0;
 	}
 
+	async get_dex_pool_info_by_token(hash){
+		if(!hash)
+			return {};
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash = ?`, [hash])));
+		return res;
+	}
 	async dex_delete_pool(pair_id){
 	}
 }

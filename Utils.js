@@ -599,15 +599,26 @@ let utils = {
 		}
 		else return '';
 	},
+	getPairId : function(asset_1, asset_2){
+		if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
+			return {
+				pair_id : `${asset_1}${asset_2}`,
+				asset_1 : asset_1,
+				asset_2 : asset_2
+			};
+		else return {
+			pair_id : `${asset_2}${asset_1}`,
+			asset_1 : asset_2,
+			asset_2 : asset_1
+		};
+	},
 	sqrt : function(value) {
 		if (value < 0n) {
 			throw 'square root of negative numbers is not supported'
 		}
-
 		if (value < BigInt(2)) {
 			return value;
 		}
-
 		function newtonIteration(n, x0) {
 			const x1 = ((n / x0) + x0) >> 1n;
 			if (x0 === x1 || x0 === (x1 - 1n)) {
@@ -615,7 +626,6 @@ let utils = {
 			}
 			return newtonIteration(n, x1);
 		}
-
 		return newtonIteration(value, 1n);
 	}
 };

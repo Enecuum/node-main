@@ -162,7 +162,7 @@ class Substate {
                 // 1_2 pool info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
+                this.pools.push(Utils.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
             case "add_liquidity" : {
@@ -171,7 +171,7 @@ class Substate {
                 // 1_2 pool info
                 this.tokens.push(contract.data.parameters.asset_1);
                 this.tokens.push(contract.data.parameters.asset_2);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
+                this.pools.push(Utils.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
             case "remove_liquidity" :
@@ -183,7 +183,7 @@ class Substate {
             case "swap" :
                 this.tokens.push(contract.data.parameters.asset_in);
                 this.tokens.push(contract.data.parameters.asset_out);
-                this.pools.push(ContractMachine.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
+                this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
                 break;
             default : return false;
         }
@@ -814,7 +814,6 @@ class Cashier {
             console.log(`Diff:    ${formula - ledger} \r\n`);
             if(formula - ledger !== 0n)
                 throw new ContractError(``);
-
             return;
         }
 
@@ -1531,7 +1530,7 @@ class Cashier {
                             if ((BigInt(token_changes[contract.token_info.hash].db_supply) + BigInt(token_changes[contract.token_info.hash].supply_change)) < BigInt(0)) {
                                 statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
 
-                                console.silly(`rejected tx `, Utils.JSON_stringify(tx));
+                                console.debug(`rejected tx `, Utils.JSON_stringify(tx));
                                 continue;
                             }
                         }
@@ -1600,7 +1599,6 @@ class Cashier {
                 }
             }
         }
-        //return;
         await this.db.process_ledger_mblocks_000(accounts, statuses, chunk.mblocks, post_action, rewards, kblock, tokens_counts);
 
         time = process.hrtime(time);

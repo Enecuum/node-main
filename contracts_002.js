@@ -1005,7 +1005,6 @@ class DexLiquidityRemoveContract extends Contract {
 
         // TODO: check in DB
         let pool_info = await substate.get_dex_pool_info_by_token(params.hash);
-        let pool_info_db = await substate.db.get_dex_pool_info_by_token(params.hash);
 
         //amount_1 = volume_1 * amount / lt_emission
         //amount_2 = volume_2 * amount / lt_emission

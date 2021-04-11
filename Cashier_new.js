@@ -41,6 +41,16 @@ class Substate {
         this.accounts = this.accounts.filter(v => v !== null);
         this.accounts = await this.db.get_accounts_all(this.accounts);
 
+        this.pools = await this.db.dex_get_pools(this.pools);
+        let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
+
+        if(more_pools.length > 0)
+            this.pools = this.pools.concat(more_pools);
+        this.pools = this.pools.filter((v, i, a) => a.indexOf(v) === i);
+        this.pools = this.pools.filter(v => v !== null);
+        this.lt_hashes = this.pools.map(h => h.token_hash);
+        if(this.lt_hashes.length > 0)
+            this.tokens = this.tokens.concat(this.lt_hashes);
         this.tokens = this.tokens.filter((v, i, a) => a.indexOf(v) === i);
         this.tokens = this.tokens.filter(v => v !== null);
         this.tokens = this.tokens.map(function (hash) {
@@ -77,8 +87,6 @@ class Substate {
             else
                 delete this.undelegates[und]
         }
-        let more_pools = await this.db.dex_get_pools(this.lt_hashes);
-        this.pools = await this.db.dex_get_pools(this.pools.join(more_pools));
     }
     setState(state){
         this.delegation_ledger = JSON.parse(JSON.stringify(state.delegation_ledger));
@@ -915,7 +923,7 @@ class Cashier {
                 console.debug(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
             }
         }
-
+        //return;
         time = process.hrtime(time);
         console.debug(`cashier_timing: mblocks chunk ${hash} prepared in`, Utils.format_time(time));
 

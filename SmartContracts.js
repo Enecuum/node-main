@@ -27,7 +27,6 @@ class ContractFactory{
     createContract(raw, n = Utils.MAX_SUPPLY_LIMIT){
         let type = this.parser.isContract(raw);
         let data = this.parser.parse(raw);
-        //let fork = this.config.FORKS
         let Contracts = [c0, c1, c2];
         let fork_keys = Object.keys(this.config.FORKS);
         let idx = fork_keys.length - 1;

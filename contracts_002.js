@@ -191,18 +191,18 @@ class CreateTokenContract extends Contract {
 class CreatePosContract extends Contract {
     constructor(data) {
         super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
         this.data = data;
         this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
     }
-    validate(data) {
+    validate() {
         /**
          * parameters:
          * fee : 0..10000, required
          * (opt) name : 0..40 length, any chars
          */
-        let params = data.parameters;
+        let params = this.data.parameters;
 
         let paramsModel = ["fee"];
         if (paramsModel.some(key => params[key] === undefined)){
@@ -250,18 +250,18 @@ class CreatePosContract extends Contract {
 class DelegateContract extends Contract {
     constructor(data) {
         super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
         this.data = data;
         this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
     }
-    validate(data) {
+    validate() {
         /**
          * parameters:
          * pos_id : hex string 64 chars
          * amount : 0...max_supply, integer
          */
-        let params = data.parameters;
+        let params = this.data.parameters;
 
         let paramsModel = ["pos_id", "amount"];
         if (paramsModel.some(key => params[key] === undefined)){
@@ -317,18 +317,18 @@ class DelegateContract extends Contract {
 class UndelegateContract extends Contract {
     constructor(data) {
         super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
         this.data = data;
         this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
     }
-    validate(data) {
+    validate() {
         /**
          * parameters:
          * pos_id : hex string 64 chars
          * amount : 0...max_supply, integer
          */
-        let params = data.parameters;
+        let params = this.data.parameters;
 
         let paramsModel = ["pos_id", "amount"];
         if (paramsModel.some(key => params[key] === undefined)){
@@ -391,17 +391,17 @@ class UndelegateContract extends Contract {
 class TransferContract extends Contract {
     constructor(data) {
         super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
         this.data = data;
         this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
     }
-    validate(data) {
+    validate() {
         /**
          * parameters:
          * undelegate_id : hex string 64 chars
          */
-        let params = data.parameters;
+        let params = this.data.parameters;
 
         let paramsModel = ["undelegate_id"];
         if (paramsModel.some(key => params[key] === undefined)){
@@ -471,17 +471,17 @@ class TransferContract extends Contract {
 class PosRewardContract extends Contract {
     constructor(data) {
         super();
-        if(!this.validate(data))
-            throw new ContractError("Incorrect contract");
         this.data = data;
         this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
     }
-    validate(data) {
+    validate() {
         /**
          * parameters:
          * pos_id : hex string 64 chars
          */
-        let params = data.parameters;
+        let params = this.data.parameters;
 
         let paramsModel = ["pos_id"];
         if (paramsModel.some(key => params[key] === undefined)){
@@ -509,9 +509,10 @@ class PosRewardContract extends Contract {
             throw new ContractError(`Delegator ${tx.from} has no reward on contract ${params.pos_id}`);
 
         let data = {
+            hash : tx.hash,
             pos_id : params.pos_id,
             delegator : tx.from,
-            amount : BigInt(-1) * BigInt(leased.reward)
+            amount : BigInt(leased.reward)
         };
 
         substate.accounts_change({
@@ -898,9 +899,6 @@ class DexLiquidityAddContract extends Contract {
             amount_2 = required_2
         }
 
-        //pool_info.volume_1 += amount_1;
-        //pool_info.volume_2 += amount_2;
-
         // lt = sqrt(amount_1 * amount_2)
         let lt_amount = Utils.sqrt(amount_1 * amount_2);
 
@@ -1003,7 +1001,6 @@ class DexLiquidityRemoveContract extends Contract {
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${params.hash} insufficient balance`);
 
-        // TODO: check in DB
         let pool_info = await substate.get_dex_pool_info_by_token(params.hash);
 
         //amount_1 = volume_1 * amount / lt_emission

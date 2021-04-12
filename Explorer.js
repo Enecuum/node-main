@@ -14,7 +14,6 @@
 
 const express = require('express');
 const cors = require('cors');
-const Contracts = require('./SmartContracts');
 const {ContractError} = require('./errors');
 const {ExplorerService, ExplorerServicePlain} = require('./explorer.service');
 const NodeapiService = require('./nodeapi.service').NodeapiService;
@@ -29,6 +28,7 @@ class Explorer {
 		this.app = express();
 		this.app.use(cors());
 		this.db = db;
+		this.config = config;
 		this.pending = pending;
 		this.stake_limits = stake_limits;
 		this.service = new ExplorerService(db);
@@ -488,7 +488,7 @@ class Explorer {
 
 		this.app.get('/api/v1/contract_pricelist', async (req, res) => {
 			console.trace('contract_pricelist');
-			res.send(Contracts.contract_pricelist);
+			res.send(this.config.contract_pricelist);
 		});
 
 		this.app.get('/api/v1/difficulty', async (req, res) => {

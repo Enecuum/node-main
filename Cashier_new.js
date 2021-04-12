@@ -35,6 +35,7 @@ class Substate {
         this.pools = [];
         // For remove_liquidity contract
         this.lt_hashes = [];
+        this.claims = {};
     }
     async loadState(){
         this.accounts = this.accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -344,6 +345,11 @@ class Substate {
     claim_reward(changes){
         this.delegation_ledger[changes.pos_id][changes.delegator].reward = BigInt(0);
         this.delegation_ledger[changes.pos_id][changes.delegator].changed = true;
+        // needs for indexing
+        this.claims[changes.hash] = {
+            delegator : changes.delegator,
+            reward : changes.amount
+        }
     }
 }
 
@@ -825,7 +831,6 @@ class Cashier {
             return;
         }
 
-        //let CFactory = new CMachine.ContractFactory(this.config);
         let substate = new Substate(this.config, this.db);
 
         substate.accounts.push(this.db.ORIGIN.publisher);
@@ -878,7 +883,6 @@ class Cashier {
                     // Create contract to get it's params. Without execution
                     contracts[tx.hash] = await CFactory.create(_tx, this.db);
                     // Pass contract's params to substate to add data
-
                     substate.fillByContract(contracts[tx.hash], tx);
 
                 } catch (err) {
@@ -886,7 +890,7 @@ class Cashier {
                     // TODO: logger-style errors
                     console.log(err);
                     statuses.push(this.status_entry(Utils.TX_STATUS.REJECTED, tx));
-                    console.silly(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
+                    console.debug(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
                     // remove this tx from array
                     chunk.txs.splice(i, 1);
                     i--;
@@ -912,7 +916,8 @@ class Cashier {
                 if (contract) {
                     await contract.execute(tx, substate_copy, kblock);
                     // add eindex entry for claims
-                    //this.eindex_entry(rewards, 'ic', rec.delegator, tx.hash, BigInt(-1) * rec.reward);
+                    if(contract.type === 'pos_reward')
+                        this.eindex_entry(rewards, 'ic', substate_copy.claims[tx.hash].delegator, tx.hash, substate_copy.claims[tx.hash].reward);
                 }
                 statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
                 console.silly(`approved tx `, Utils.JSON_stringify(tx));
@@ -923,12 +928,10 @@ class Cashier {
                 console.debug(`rejected tx ${JSON.stringify(tx)}. Reason: ${err}`);
             }
         }
-        //return;
+
         time = process.hrtime(time);
         console.debug(`cashier_timing: mblocks chunk ${hash} prepared in`, Utils.format_time(time));
 
-        time = process.hrtime();
-        // TODO: if cashier mode is verbose
         let tokens_counts = {};
         if(this.config.indexer_mode === 1){
             for(let st of statuses){
@@ -944,6 +947,8 @@ class Cashier {
             }
         }
         //return;
+        time = process.hrtime();
+
         await this.db.process_ledger_mblocks_002(statuses, chunk.mblocks, rewards, kblock, tokens_counts, substate);
 
         time = process.hrtime(time);
@@ -969,7 +974,6 @@ class Cashier {
         let chunk = await this.db.get_new_microblocks(hash, limit);
         let CMachine = ContractMachine.getContractMachine(this.config.FORKS, kblock.n);
         let CFactory = new ContractMachine.ContractFactory(this.config);
-        //let CFactory = new CMachine.ContractFactory(this.config);
 
         console.silly('cashier chunk = ', JSON.stringify(chunk));
         console.debug(`cashier is processing chunk ${hash} of ${chunk.mblocks.length} mblocks with ${chunk.txs ? chunk.txs.length : "NaN"} txs`);

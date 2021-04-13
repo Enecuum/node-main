@@ -760,7 +760,7 @@ class DexPoolCreateContract extends Contract {
 
         // lt = sqrt(amount_1 * amount_2)
         let lt_amount = Utils.sqrt(assets.amount_1 * assets.amount_2);
-        // TODO: take pool_fee from params
+
         let pool_data = {
             pair_id : pair_id,
             asset_1 : assets.asset_1,
@@ -882,7 +882,6 @@ class DexLiquidityAddContract extends Contract {
         if(!pool_exist)
             throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
 
-        // TODO: dex_get_pool_info in substate
         let pool_info = await substate.dex_get_pool_info(pair_id);
 
         let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
@@ -1008,8 +1007,6 @@ class DexLiquidityRemoveContract extends Contract {
         let amount_1 = pool_info.volume_1 * params.amount / token_info.total_supply;
         let amount_2 = pool_info.volume_2 * params.amount / token_info.total_supply;
 
-        // TODO: check negative volume
-        // TODO: check negative token supply
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
             asset_1 : pool_info.asset_1,

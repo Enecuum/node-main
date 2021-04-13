@@ -214,12 +214,20 @@ let utils = {
 		let poses_hash = crypto.createHash('sha256').update(snapshot.poses.map(pos => this.hash_pos(pos)).sort().join("")).digest('hex');
 		let delegates_hash = crypto.createHash('sha256').update(snapshot.delegates.map(delegate => this.hash_delegated(delegate)).sort().join("")).digest('hex');
 		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate)).sort().join("")).digest('hex');
+		let dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
 		return crypto.createHash('sha256').update(snapshot.kblocks_hash.toLowerCase() +
 			ledger_accounts_hash.toLowerCase() +
 			tokens_hash.toLowerCase() +
 			poses_hash.toLowerCase() +
 			delegates_hash.toLowerCase() +
-			undelegates_hash.toLowerCase()).digest('hex');
+			undelegates_hash.toLowerCase() +
+			dex_pools_hash.toLowerCase()).digest('hex');
+	},
+	hash_dex_pool : function(dex_pool){
+		if (!dex_pool)
+			return undefined;
+		let str = ['pair_id','asset_1','volume_1','asset_2','volume_2','pool_fee','token_hash'].map(v => crypto.createHash('sha256').update(dex_pool[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_token : function(token){
 		if (!token)

@@ -822,12 +822,12 @@ class Cashier {
             let ledger = BigInt((await this.db.get_total_supply()).amount);
             let formula = BigInt(this.config.ORIGIN.reward) + (BigInt(token_enq.block_reward) * BigInt(kblock.n + 1));
             console.log(`n: ${kblock.n}`);
-            //console.log(`Ledger:  ${ledger}`);
-            //console.log(`Formula: ${formula}`);
-            //console.log(`Dust:    ${dust_block + dust_fees}`);
+            console.log(`Ledger:  ${ledger}`);
+            console.log(`Formula: ${formula}`);
+            console.log(`Dust:    ${dust_block + dust_fees}`);
             console.log(`Diff:    ${formula - ledger} \r\n`);
             if(formula - ledger !== 0n)
-                throw new ContractError(``);
+                throw new Error(`There is a diff after block calculation, cashier stopped`);
             return;
         }
 
@@ -1345,10 +1345,12 @@ class Cashier {
             let ledger = BigInt((await this.db.get_total_supply()).amount);
             let formula = BigInt(this.config.ORIGIN.reward) + (BigInt(token_enq.block_reward) * BigInt(kblock.n + 1));
             console.log(`n: ${kblock.n}`);
-            //console.log(`Ledger:  ${ledger}`);
-            //console.log(`Formula: ${formula}`);
-            //console.log(`Dust:    ${dust_block + dust_fees}`);
+            console.log(`Ledger:  ${ledger}`);
+            console.log(`Formula: ${formula}`);
+            console.log(`Dust:    ${dust_block + dust_fees}`);
             console.log(`Diff:    ${formula - ledger} \r\n`);
+            if(formula - ledger !== 0n)
+                throw new Error(`There is a diff after block calculation, cashier stopped`);
             return;
         }
 

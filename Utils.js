@@ -90,6 +90,7 @@ let utils = {
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
 	MINER_INTERVAL : 1000,
+	M_ROOT_INTERVAL : 10,
 	POS_RESEND_MINER_INTERVAL : 30000,
 	MINER_CHECK_TARGET_INTERVAL : 100,
 	MAX_COUNT_NOT_COMPLETE_BLOCK : 20,
@@ -258,7 +259,7 @@ let utils = {
 		let str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	merkle_root : function (mblocks, sblocks, snapshot_hash) {
+	merkle_root_000 : function (mblocks, sblocks, snapshot_hash) {
 		let acc = "";
 		mblocks.sort(this.compareBlocksByHash);
 		mblocks.forEach((mblock) => {
@@ -285,6 +286,39 @@ let utils = {
 				.toString('hex');
 		return acc;
 	},
+	merkle_root : function (mblocks, sblocks, snapshot_hash) {
+		mblocks.sort(this.compareBlocksByHash);
+		sblocks.sort(this.compareBlocksByHash);
+		let m_root = this.merkle_tree(mblocks.map(m=> m.hash));
+		let s_root = this.merkle_tree(sblocks.map(s=> s.hash));
+		if(!snapshot_hash)
+			snapshot_hash = '';
+		return crypto.createHmac('sha256', '')
+			.update(m_root)
+			.update(s_root)
+			.update(snapshot_hash)
+			.digest()
+			.toString('hex');
+	},
+	merkle_tree : function(array) {
+		console.log(JSON.stringify(array));
+		if (array.length === 1)
+			return array[0];
+		else {
+			let new_arr = [];
+			let j = 0;
+			for (let i = 0; i < array.length; i=i+2) {
+				new_arr[j] = this.merkle_node(array[i], ((i + 1) < array.length) ? array[i+1] : array[i]);
+				j++;
+			}
+			return this.merkle_tree(new_arr);
+		}
+	},
+	merkle_node : function(hash_a, hash_b) {
+		return crypto.createHash('sha256').update(
+			hash_a + hash_b
+		).digest('hex');
+	},
 	get_txhash : function(tx){
 		if (!tx)
 			return undefined;
@@ -302,6 +336,21 @@ let utils = {
 		}
 		return crypto.createHash('sha256').update(str).digest('hex');
     },
+	valid_merkle_root(m_root, mblocks, sblocks, snapshot_hash, leader_sign){
+		let isValid = false;
+		try{
+			if(ecc_mode === "short"){
+				let MPK = enq.Point(enq.BigNumber(cfg_ecc[ecc_mode].MPK.x), enq.BigNumber(cfg_ecc[ecc_mode].MPK.y), ECC.curve);
+				isValid = enq.verify(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G, ECC.G0, MPK, LPoSID, ECC.p, ECC.curve);
+			}
+			else{
+				isValid = enq.verify_tate(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
+			}
+		}
+		catch(e){
+			console.error(e);
+		}
+	},
 	// TODO: unnecessary function
 	valid_sign_microblocks(mblocks){
 		mblocks = mblocks.filter((mblock)=>{
@@ -310,7 +359,7 @@ let utils = {
 		});
 		return mblocks;
 	},
-	valid_leader_sign(mblocks, LPoSID, ECC, cfg_ecc){
+	valid_leader_sign_000(mblocks, LPoSID, ECC, cfg_ecc){
 		mblocks = mblocks.sort(this.compareBlocksByHash);
 		let ecc_mode = cfg_ecc.ecc_mode;
 		let mblock_data = mblocks[0];
@@ -323,6 +372,24 @@ let utils = {
 			}
 			else{
 				isValid = enq.verify_tate(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
+			}
+		}
+		catch(e){
+			console.error(e);
+		}
+		return isValid;
+	},
+	valid_leader_sign(kblocks_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
+		let ecc_mode = cfg_ecc.ecc_mode;
+		let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+		let isValid = false;
+		try{
+			if(ecc_mode === "short"){
+				let MPK = enq.Point(enq.BigNumber(cfg_ecc[ecc_mode].MPK.x), enq.BigNumber(cfg_ecc[ecc_mode].MPK.y), ECC.curve);
+				isValid = enq.verify(leader_sign, m_root, PK_LPoS, ECC.G, ECC.G0, MPK, LPoSID, ECC.p, ECC.curve);
+			}
+			else{
+				isValid = enq.verify_tate(leader_sign, m_root, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
 			}
 		}
 		catch(e){

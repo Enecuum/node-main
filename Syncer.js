@@ -50,6 +50,7 @@ class Syncer {
 		}
 		if(!(await this.check_database())){
 			console.warn(`Database validation error. Syncer stopped`);
+			return;
 		}
 		this.init_transport(this.config.load);
 	}
@@ -232,15 +233,17 @@ class Syncer {
 			console.info(`loading snapshot ${remote_snapshot.hash}`);
 			for (let i = 0; i < Math.ceil(remote_snapshot.size / Utils.SYNC_CHUNK_SIZE); i++) {
 				let remote_chunk = undefined;
-				for (let j = 0; j < this.config.sync_validation_try_count; j++) {
+				for (let j = 0; j < this.config.downloading_try_count; j++) {
 					console.info(`loading snapshot chunk ${i + 1}/${Math.ceil(remote_snapshot.size / Utils.SYNC_CHUNK_SIZE)}`);
-					remote_chunk = await this.transport.unicast(socket, "snapshot_chunk", {
-						hash: remote_snapshot.hash,
-						chunk_no: i,
-						chunk_size_bytes: Utils.SYNC_CHUNK_SIZE
-					});
-					if(remote_chunk !== undefined && remote_chunk.hash === remote_snapshot.hash)
-						break;
+					try {
+						remote_chunk = await this.transport.unicast(socket, "snapshot_chunk", {
+							hash: remote_snapshot.hash,
+							chunk_no: i,
+							chunk_size_bytes: Utils.SYNC_CHUNK_SIZE
+						});
+						if (remote_chunk !== undefined && remote_chunk.hash === remote_snapshot.hash)
+							break;
+					}catch(e){};
 				}
 				if (remote_chunk !== undefined && remote_chunk.hash === remote_snapshot.hash) {
 					snapshot = snapshot.concat(remote_chunk.chunk.data);
@@ -258,6 +261,7 @@ class Syncer {
 			//putting kblocks with undelegate transactions
             let i = 0;
             let undelegates = snapshot_json.undelegates.filter(item => item.amount > 0);
+			undelegates.sort((a,b) => (a.height > b.height) ? 1 : ((b.height > a.height) ? -1 : 0));
 			for (let und of undelegates) {
 				i++;
 			    console.info(`loading und: ${i}/${undelegates.length}`);
@@ -265,7 +269,7 @@ class Syncer {
 				if (!und.delegator) {
 					//get macroblock
 					let res = false;
-					for (let j = 0; j < this.config.sync_validation_try_count; j++) {
+					for (let j = 0; j < this.config.downloading_try_count; j++) {
 						if (await this.add_looped_macroblock(socket, und_height)){
 							res = true;
 							break;
@@ -672,15 +676,15 @@ class Syncer {
 			return false;
 		}
 		// waiting for the cashier to calculate the previous block
-		for (let i = 0; i < this.config.sync_validation_try_count; i++) {
+		for (let i = 0; i < this.config.validation_try_count; i++) {
 			let cashier_ptr = await this.db.get_cashier_pointer();
 			if (candidate.link === cashier_ptr) {
 				break;
-			} else if (i === (this.config.sync_validation_try_count - 1)) {
+			} else if (i === (this.config.validation_try_count - 1)) {
 				console.warn(`Cashier lags behind. Validation could not be performed`);
 				return false;
 			} else {
-				console.debug(`Validation wait cashier. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				console.debug(`Validation wait cashier. step - ${i + 1}/${this.config.validation_try_count}`);
 				await new Promise(r => setTimeout(r, 100));
 			}
 		}
@@ -701,11 +705,6 @@ class Syncer {
 			console.warn(`Valid mblock count change: before ${mblocks.length}, after ${valid_mblocks.length}`);
 			return false;
 		}
-		let isValid_leader_sign = Utils.valid_leader_sign(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-		if (!isValid_leader_sign) {
-			console.warn(`Invalid leader sign on mblocks`);
-			return false;
-		}
 		if (Utils.exist_native_token_count(valid_mblocks) < this.native_mblocks_count) {
 			console.warn(`wrong candidte ${candidate.hash} , no native token mblocks found`);
 			return false;
@@ -723,15 +722,28 @@ class Syncer {
 
 		let snapshot_hash = undefined;
 		//waiting for the cashier to generate a snapshot
-		for (let i = 0; i < this.config.sync_validation_try_count; i++) {
+		for (let i = 0; i < this.config.validation_try_count; i++) {
 			snapshot_hash = await this.db.get_snapshot_hash(candidate.link);
 			if (snapshot_hash === undefined && (n % this.config.snapshot_interval) === 0) {
-				console.debug(`Validation missing snapshot on block ${candidate.hash}. step - ${i + 1}/${this.config.sync_validation_try_count}`);
+				console.debug(`Validation missing snapshot on block ${candidate.hash}. step - ${i + 1}/${this.config.validation_try_count}`);
 				await new Promise(r => setTimeout(r, 100));
 			} else
 				break;
 		}
-		let recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
+		let isValid_leader_sign = false;
+		let recalc_m_root = undefined;
+		if(this.config.FORKS.fork_block_002 > n) {
+			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
+			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+		} else {
+			recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
+			isValid_leader_sign = Utils.valid_leader_sign(candidate.hash, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+		}
+		if (!isValid_leader_sign) {
+			console.warn(`Invalid leader sign`);
+			return false;
+		}
+
 		if (candidate.m_root !== recalc_m_root) {
 			console.warn(`After recalc block, changed m_root: before ${candidate.m_root}, after ${recalc_m_root}`);
 			return false;
@@ -769,7 +781,7 @@ class Syncer {
 			return false;
 		}
 		mblocks = Utils.valid_sign_microblocks(mblocks);
-		candidate.m_root = Utils.merkle_root(mblocks);
+		candidate.m_root = Utils.merkle_root_000(mblocks);
 		candidate.hash = Utils.hash_kblock(candidate, this.vm).toString('hex');
 		//calc difficulty target
 		//let candidate_diff = await Utils.calc_difficulty(candidate, this.config.difficulty);

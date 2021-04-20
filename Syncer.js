@@ -734,7 +734,7 @@ class Syncer {
 		let recalc_m_root = undefined;
 		if(n >= this.config.FORKS.fork_block_002) {
 			recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
-			isValid_leader_sign = Utils.valid_leader_sign(candidate.hash, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+			isValid_leader_sign = Utils.valid_leader_sign(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
 		} else {
 			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);

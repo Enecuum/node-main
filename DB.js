@@ -539,7 +539,7 @@ class DB {
 		let span = now - this.last_tail;
 		if ((span > timeout) || (this.cached_tail === null) || (timeout === undefined)) {
 			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
-			if (tail)
+			if (tail.length === 1)
 				tail = tail[0];
 			else
 				return;

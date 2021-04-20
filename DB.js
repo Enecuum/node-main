@@ -332,6 +332,22 @@ class DB {
 		return this.request(mysql.format('SELECT * FROM sblocks WHERE ?', [{kblocks_hash}]));
 	}
 
+	async get_microblocks_full(hash, token){
+		let mblocks = [];
+		if(token)
+			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=? and `token`=?", [hash, token]));
+		else
+			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=?", hash));
+
+		for (let i = 0; i < mblocks.length; i++) {
+			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
+			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
+			//TODO: удалять хеш (чтобы не забыть пересчитать при получении)
+			//delete mblocks[i].hash;
+		}
+		return mblocks;
+	}
+
 	async get_avg_diff_kblock(kblock_hash, target){
 		let sql = mysql.format(`SELECT 
 			FLOOR(AVG(target_diff)) AS avg_diff
@@ -382,22 +398,6 @@ class DB {
 
 	async get_txs_awaiting(mblock_hashes){
 		return (await this.request(mysql.format('SELECT COUNT(*) as txs_awaiting FROM transactions LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash WHERE mblocks.hash in (?);', [mblock_hashes])))[0];
-	}
-
-	async get_microblocks_full(hash, token){
-		let mblocks = [];
-		if(token)
-			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=? and `token`=?", [hash, token]));
-		else
-			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=?", hash));
-
-		for (let i = 0; i < mblocks.length; i++) {
-			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
-			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
-			//TODO: удалять хеш (чтобы не забыть пересчитать при получении)
-			//delete mblocks[i].hash;
-		}
-		return mblocks;
 	}
 
 	async get_new_microblocks(kblocks_hash, limit){
@@ -501,7 +501,7 @@ class DB {
 			});
 		}
 
-		let sql_k = mysql.format(`INSERT INTO kblocks (hash, link, n, sprout, time, publisher, reward, nonce, m_root, target_diff) SELECT ?, ?, n + 1, sprout, ?, ?, ?, ?, ?,? FROM kblocks WHERE hash = ?`, [kblock.hash, kblock.link, kblock.time, kblock.publisher, kblock.reward, kblock.nonce, kblock.m_root, kblock.target_diff, kblock.link]);
+		let sql_k = mysql.format(`INSERT INTO kblocks (hash, link, n, sprout, time, publisher, reward, nonce, m_root, leader_sign, target_diff) SELECT ?, ?, n + 1, sprout, ?, ?, ?, ?, ?, ?, ? FROM kblocks WHERE hash = ?`, [kblock.hash, kblock.link, kblock.time, kblock.publisher, kblock.reward, kblock.nonce, kblock.m_root, JSON.stringify(kblock.leader_sign), kblock.target_diff, kblock.link]);
 		console.debug(`try insert new kblock ${sql_k}`);
 		return this.transaction([sql_s.join(";"), sql_m.join(";"), sql_k].join(";"));
 	}
@@ -528,8 +528,9 @@ class DB {
 
 	get_chain_start_macroblock(){
 	    //get ferst of chain macroblock
-        let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, reward FROM kblocks 
+        let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks 
                                                     LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
+		block[0].leader_sign = JSON.parse(block[0].leader_sign);
         return block;
     }
 
@@ -537,11 +538,12 @@ class DB {
 		let now = new Date();
 		let span = now - this.last_tail;
 		if ((span > timeout) || (this.cached_tail === null) || (timeout === undefined)) {
-			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
+			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
 			if (tail)
 				tail = tail[0];
 			else
 				return;
+			tail.leader_sign = JSON.parse(tail.leader_sign);
 			this.cached_tail = tail;
 			this.last_tail = now;
 			return tail;
@@ -568,7 +570,7 @@ class DB {
     }
 
 	peek_range(min, max) {
-		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
+		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
 		return this.request(sql);
 	};
 
@@ -713,10 +715,10 @@ class DB {
 	async get_macroblock(hash){
 		console.trace(`get_macroblock ${hash}`);
 		//TODO разнести функции получения макроблока для эксплорера и для синка. В версии синка не получать реварды и хеши
-		let kblock = (await this.request(mysql.format("SELECT `publisher`, `time`, `nonce`, `link`, `n`, `m_root` FROM kblocks WHERE `hash`=?", hash)))[0];
+		let kblock = (await this.request(mysql.format("SELECT `publisher`, `time`, `nonce`, `link`, `n`, `m_root`, `leader_sign` FROM kblocks WHERE `hash`=?", hash)))[0];
 		let mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `nonce`, `token` FROM mblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
 		let sblocks = await this.request(mysql.format("SELECT `publisher`, `sign`, `hash`, `kblocks_hash`, `bulletin` FROM sblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
-
+		kblock.leader_sign = JSON.parse(kblock.leader_sign);
 		for (let i = 0; i < mblocks.length; i++) {
 			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
 			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
@@ -1369,7 +1371,7 @@ class DB {
 														FROM transactions
 														WHERE transactions.hash = ?
 													   GROUP BY hash) MaxStatus ON MaxStatus.status = T.status and  T.hash = ?
-													INNER JOIN tokens AS TKN ON TKN.hash = T.ticker
+													LEFT JOIN tokens AS TKN ON TKN.hash = T.ticker
 													INNER JOIN mblocks AS M ON M.hash = T.mblocks_hash`, [hash,hash]));
 	}
 

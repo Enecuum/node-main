@@ -582,7 +582,7 @@ class Syncer {
 				this.on_microblock_busy = false;
 				return;
 			}
-			let isValid_leader_sign = Utils.valid_leader_sign(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+			let isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 			if (!isValid_leader_sign) {
 				console.warn(`on_microblocks: Invalid leader sign on mblocks`);
 				this.on_microblock_busy = false;
@@ -732,12 +732,12 @@ class Syncer {
 		}
 		let isValid_leader_sign = false;
 		let recalc_m_root = undefined;
-		if(this.config.FORKS.fork_block_002 > n) {
-			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
-			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-		} else {
+		if(n >= this.config.FORKS.fork_block_002) {
 			recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign(candidate.hash, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+		} else {
+			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
+			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 		}
 		if (!isValid_leader_sign) {
 			console.warn(`Invalid leader sign`);

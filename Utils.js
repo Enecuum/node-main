@@ -90,7 +90,7 @@ let utils = {
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
 	MINER_INTERVAL : 1000,
-	M_ROOT_INTERVAL : 10,
+	M_ROOT_INTERVAL : 2000,
 	POS_RESEND_MINER_INTERVAL : 30000,
 	MINER_CHECK_TARGET_INTERVAL : 100,
 	MAX_COUNT_NOT_COMPLETE_BLOCK : 20,
@@ -301,7 +301,6 @@ let utils = {
 			.toString('hex');
 	},
 	merkle_tree : function(array) {
-		console.log(JSON.stringify(array));
 		if (array.length === 1)
 			return array[0];
 		else {
@@ -336,21 +335,6 @@ let utils = {
 		}
 		return crypto.createHash('sha256').update(str).digest('hex');
     },
-	valid_merkle_root(m_root, mblocks, sblocks, snapshot_hash, leader_sign){
-		let isValid = false;
-		try{
-			if(ecc_mode === "short"){
-				let MPK = enq.Point(enq.BigNumber(cfg_ecc[ecc_mode].MPK.x), enq.BigNumber(cfg_ecc[ecc_mode].MPK.y), ECC.curve);
-				isValid = enq.verify(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G, ECC.G0, MPK, LPoSID, ECC.p, ECC.curve);
-			}
-			else{
-				isValid = enq.verify_tate(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
-			}
-		}
-		catch(e){
-			console.error(e);
-		}
-	},
 	// TODO: unnecessary function
 	valid_sign_microblocks(mblocks){
 		mblocks = mblocks.filter((mblock)=>{
@@ -379,9 +363,9 @@ let utils = {
 		}
 		return isValid;
 	},
-	valid_leader_sign(kblocks_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
+	valid_leader_sign(kblock_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
 		let ecc_mode = cfg_ecc.ecc_mode;
-		let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+		let PK_LPoS = enq.getHash(kblock_hash.toString() + LPoSID.toString());
 		let isValid = false;
 		try{
 			if(ecc_mode === "short"){

@@ -284,7 +284,7 @@ class Explorer {
 		this.app.get('/api/v1/tx', async (req, res) => {
 			console.trace(`requested tx ${JSON.stringify(req.query)}`);
 			let tx = (await this.db.get_tx(req.query.hash))[0];
-			if(tx !== undefined) {
+			if(tx !== undefined && tx.fee_type !== null) {
 				let tokendata = { fee_type: tx.fee_type, fee_value: tx.fee_value, fee_min: tx.fee_min};
 				tx.fee = (Utils.calc_fee(tokendata, tx.total_amount));
 				tx.amount = (BigInt(tx.total_amount) - tx.fee).toString();

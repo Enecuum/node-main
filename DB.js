@@ -1971,6 +1971,10 @@ class DB {
 		return res.length !== 0;
 	}
 
+	async dex_get_pools_all(){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
+		return res;
+	}
 	async dex_get_pools(ids){
 		if(!ids.length)
 			return [];

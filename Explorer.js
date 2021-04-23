@@ -814,6 +814,12 @@ class Explorer {
             res.send(data);
 		});
 
+		this.app.get('/api/v1/get_dex_pools', async (req, res) => {
+			console.trace('get_dex_pools', req.query);
+			let data = await this.db.dex_get_pools_all();
+			res.send(data);
+		});
+
 		// TODO: Move to separate route
 		this.app.get('/api/v1/ext/plain/circ_supply', async (req, res) => {
 			console.trace('circ_supply_plain', req.query);

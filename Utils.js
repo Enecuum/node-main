@@ -515,6 +515,9 @@ let utils = {
 				return BigInt(tokendata.fee_min);
 			return fee;
 		}
+		if(tokendata.fee_type === 2){
+			return BigInt(0);
+		}
 	},
 	understandable_difficulty : function(int32){
 		let ceil = (int32 >> 24);

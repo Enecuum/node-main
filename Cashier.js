@@ -398,14 +398,34 @@ class Cashier {
                 }
             );
 
-            // Give token fee to token owner
-            substate.accounts_change(
-                {
-                    id : token.owner,
-                    token : tx.ticker,
-                    amount : token_fee
-                }
-            );
+            if(token.fee_type === 2){
+                // Take token fee as native from `from`
+                substate.accounts_change(
+                    {
+                        id : tx.from,
+                        token : Utils.ENQ_TOKEN_NAME,
+                        amount : BigInt(-1) * token.fee_value
+                    }
+                );
+                // Give token fee as native to token owner
+                substate.accounts_change(
+                    {
+                        id : token.owner,
+                        token : Utils.ENQ_TOKEN_NAME,
+                        amount : token.fee_value
+                    }
+                );
+            }
+            else{
+                // Give token fee to token owner
+                substate.accounts_change(
+                    {
+                        id : token.owner,
+                        token : tx.ticker,
+                        amount : token_fee
+                    }
+                );
+            }
 
             // Give amount to `to`
             substate.accounts_change(

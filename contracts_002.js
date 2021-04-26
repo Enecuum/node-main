@@ -131,6 +131,11 @@ class CreateTokenContract extends Contract {
                 }
                 break;
             }
+            case 2 : {
+                if(params.fee_value < 0 || params.fee_value > MAX_SUPPLY_LIMIT)
+                    throw new ContractError("Incorrect fee params");
+                break;
+            }
             default : {
                 throw new ContractError("Incorrect fee params");
             }

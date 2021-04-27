@@ -351,7 +351,7 @@ class Syncer {
 				return;
 			}
 
-			let local_chain_start = (await this.db.get_chain_start_macroblock())[0];
+			let local_chain_start = await this.db.get_chain_start_macroblock();
 			let remote_chain_start = await this.transport.unicast(socket, "get_chain_start");
 			let min = local_chain_start.n;
 			let max = remote.n;
@@ -372,14 +372,14 @@ class Syncer {
 					}
 				}
 			} else {
-				if(tail.n <= remote_chain_start.n){
-					console.warn(`Trying to synchronize with a 'fastsync' node with an invalid chain fragment. Syncronization aborted.`);
-					this.peers[peer_index].failures++;
-					return;
-				} else {
-					min = remote_chain_start.n;
-				}
-			}
+                if (tail.n < remote_chain_start.n) {
+                    console.warn(`Trying to synchronize with a 'fastsync' node with an invalid chain fragment. Syncronization aborted.`);
+                    this.peers[peer_index].failures++;
+                    return;
+                } else {
+                    min = remote_chain_start.n;
+                }
+            }
 			//find fork
 			while (min !== max) {
 				let guess = ~~((min + max) * 0.5);

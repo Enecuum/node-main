@@ -526,12 +526,12 @@ class DB {
 		return snapshot;
 	};
 
-	get_chain_start_macroblock(){
-	    //get ferst of chain macroblock
-        let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks 
+	async get_chain_start_macroblock(){
+	    //get first macroblock of the chain
+        let block = await this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks 
                                                     LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
-		block[0].leader_sign = JSON.parse(block[0].leader_sign);
-        return block;
+        block[0].leader_sign = JSON.parse(block[0].leader_sign);
+        return block[0];
     }
 
 	async peek_tail(timeout){
@@ -1411,7 +1411,9 @@ class DB {
 
 	//TODO возвращать блоки из нужной ветки
 	async get_kblock(hash){
-		return this.request(mysql.format('SELECT * FROM kblocks WHERE `hash` = ?', hash));
+		let res = await this.request(mysql.format('SELECT * FROM kblocks WHERE `hash` = ?', hash));
+		res[0].leader_sign = JSON.parse(res[0].leader_sign);
+		return res;
 	}
 
 	async get_next_block(hash) {

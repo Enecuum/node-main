@@ -745,6 +745,7 @@ class DexPoolCreateContract extends Contract {
         if((BigInt(assets.amount_1) * BigInt(assets.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
 
+        let native_info = await substate.get_token_info(Utils.ENQ_TOKEN_NAME);
         let token_1_info = await substate.get_token_info(assets.asset_1);
         if(!token_1_info)
             throw new ContractError(`Token ${assets.asset_1} not found`);
@@ -780,9 +781,9 @@ class DexPoolCreateContract extends Contract {
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,
-            fee_type : 0,
-            fee_value : BigInt(0),
-            fee_min : BigInt(0),
+            fee_type : 2,
+            fee_value : native_info.fee_value,
+            fee_min : native_info.fee_min,
             ticker : ticker,
             caption : ticker,
             decimals : BigInt(10),

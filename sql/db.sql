@@ -183,7 +183,7 @@ DROP TABLE IF EXISTS `ledger`;
 CREATE TABLE `ledger` (
   `id` varchar(130) CHARACTER SET latin1 NOT NULL,
   `amount` bigint(20) unsigned DEFAULT NULL,
-  `token` varchar(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `token` varchar(64) NOT NULL,
   PRIMARY KEY (`id`,`token`),
   KEY `i_amount` (`amount`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -204,7 +204,7 @@ CREATE TABLE `mblocks` (
   `nonce` bigint(20) NOT NULL,
   `sign` varchar(150) NOT NULL,
   `leader_sign` BLOB NOT NULL,
-  `token` varchar(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `token` varchar(64) NOT NULL,
   `included` tinyint(4) DEFAULT '0',
   `calculated` tinyint(4) DEFAULT '0',
   `indexed` tinyint(4) DEFAULT '0',
@@ -367,8 +367,7 @@ CREATE TABLE `tokens` (
   `min_stake` bigint(20) unsigned DEFAULT NULL,
   `referrer_stake` bigint(20) unsigned DEFAULT NULL,
   `ref_share` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`hash`),
-  UNIQUE KEY `ticker_UNIQUE` (`ticker`)
+  PRIMARY KEY (`hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -402,7 +401,7 @@ CREATE TABLE `transactions` (
   `nonce` bigint(20) NOT NULL,
   `status` int(11) DEFAULT NULL,
   `sign` varchar(150) DEFAULT NULL,
-  `ticker` varchar(64) DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `ticker` varchar(64) NOT NULL,
   `data` varchar(512) DEFAULT NULL,
   PRIMARY KEY (`hash`,`mblocks_hash`),
   KEY `fk_transactions_mblocks1_idx` (`mblocks_hash`),

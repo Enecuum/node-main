@@ -143,13 +143,6 @@ class CreateTokenContract extends Contract {
 
         let params = this.data.parameters;
 
-        // Check token exist
-        let existing = await substate.get_tickers_all();
-        let existing_db = await substate.db.get_tickers_all();
-        if (existing.some(d => d.ticker === params.ticker))
-            throw new ContractError(`Ticker ${params.ticker} already exist`);
-        if (existing_db.some(d => d.ticker === params.ticker))
-            throw new ContractError(`Ticker ${params.ticker} already exist`);
         let tok_data = {
             hash : tx.hash,
             owner : tx.from,
@@ -771,7 +764,7 @@ class DexPoolCreateContract extends Contract {
             token_hash : tx.hash
         };
 
-        let ticker = `LT_${tx.hash.substring(0, 3).toUpperCase()}`;
+        let ticker = `LP_TKN`;
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,

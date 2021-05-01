@@ -764,7 +764,7 @@ class DexPoolCreateContract extends Contract {
             token_hash : tx.hash
         };
 
-        let ticker = `LT_${tx.hash.substring(0, 3).toUpperCase()}`;
+        let ticker = `LP_TKN`;
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,

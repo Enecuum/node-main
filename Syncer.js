@@ -550,54 +550,52 @@ class Syncer {
 	}*/
 
 	async on_microblocks(msg) {
-		if (this.sync_running) {
-			console.trace('ignore on_microblocks event during synchronization');
-			return;
-		}
-		if (this.on_microblock_busy) {
-			console.trace('ignore on_microblocks event during the processing of the previous event');
-			return;
-		}
-		this.on_microblock_busy = true;
-		try {
-			let time = process.hrtime();
-			let mblocks = msg.data;
-			console.silly('on_microblocks ', JSON.stringify(mblocks));
-			if (!mblocks || mblocks.length === 0) {
-				console.warn(`on_microblocks resive empty 'mblocks' object`);
-				this.on_microblock_busy = false;
-				return;
-			}
-			mblocks = await this.filter_new_mblocks(mblocks);
-			if (mblocks.length === 0) {
-				console.debug(`on_microblocks: all microblocks already exist.`);
-				this.on_microblock_busy = false;
-				return;
-			}
-			let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
-			let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
-			mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
-			if (mblocks.length === 0) {
-				console.warn(`on_microblocks: no valid microblocks found`);
-				this.on_microblock_busy = false;
-				return;
-			}
-			let isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-			if (!isValid_leader_sign) {
-				console.warn(`on_microblocks: Invalid leader sign on mblocks`);
-				this.on_microblock_busy = false;
-				return;
-			}
-			let validation_time = process.hrtime(time);
-			time = process.hrtime();
-			let result = await this.db.put_microblocks(mblocks);
-			let put_time = process.hrtime(time);
-			console.debug(`putting mblocks(${mblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
-		} catch (e) {
-			console.error(e);
-		}
-		this.on_microblock_busy = false;
-	}
+        if (this.sync_running) {
+            console.trace('ignore on_microblocks event during synchronization');
+            return;
+        }
+        if (this.on_microblock_busy) {
+            console.trace('ignore on_microblocks event during the processing of the previous event');
+            return;
+        }
+        this.on_microblock_busy = true;
+        try {
+            let time = process.hrtime();
+            let mblocks = msg.data;
+            console.silly('on_microblocks ', JSON.stringify(mblocks));
+            if (!mblocks || mblocks.length === 0) {
+                console.warn(`on_microblocks resive empty 'mblocks' object`);
+                return;
+            }
+            mblocks = await this.filter_new_mblocks(mblocks);
+            if (mblocks.length === 0) {
+                console.debug(`on_microblocks: all microblocks already exist.`);
+                return;
+            }
+            let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
+            let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
+            mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
+            if (mblocks.length === 0) {
+                console.warn(`on_microblocks: no valid microblocks found`);
+                return;
+            }
+            let isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+            if (!isValid_leader_sign) {
+                console.warn(`on_microblocks: Invalid leader sign on mblocks`);
+                return;
+            }
+            let validation_time = process.hrtime(time);
+            time = process.hrtime();
+            let result = await this.db.put_microblocks(mblocks);
+            let put_time = process.hrtime(time);
+            console.debug(`putting mblocks(${mblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
+            await this.transport.selfcast("emit_m_root");
+        } catch (e) {
+            console.error(e);
+        } finally {
+            this.on_microblock_busy = false;
+        }
+    }
 
 	async filter_new_mblocks(mblocks) {
 		let exists_microblocks = await this.db.get_exist_microblocks(mblocks.map(m => m.hash));
@@ -614,45 +612,50 @@ class Syncer {
 	}
 
 	async on_statblocks(msg) {
-		if (this.sync_running) {
-			console.trace('ignore on_statblocks event during synchronization');
-			return;
-		}
-		if (this.on_statblock_busy) {
-			console.trace('ignore on_statblocks event during the processing of the previous event');
-			return;
-		}
-		this.on_statblock_busy = true;
-		try {
-			let time = process.hrtime();
-			let sblocks = msg.data;
-			console.silly('on_statblocks ', JSON.stringify(sblocks));
-			if (!sblocks || sblocks.length === 0) {
-				console.warn(`on_statblocks resive empty 'sblocks' object`);
-				this.on_statblock_busy = false;
-				return;
-			}
-			sblocks = await this.filter_new_sblocks(sblocks);
-			if (sblocks.length === 0) {
-				console.debug(`on_statblocks: all sblocks already exist.`);
-				this.on_statblock_busy = false;
-				return;
-			}
-			// Validation sblocks
-			let pos_stakes = await this.db.get_pos_info(sblocks.map(s => s.publisher));
-			let pos_min_stake = this.config.pos_min_stake;
-			let top_poses = await this.db.get_top_poses(this.config.top_poses_count);
-			sblocks = Utils.valid_full_statblocks(sblocks, pos_stakes, pos_min_stake, top_poses);
-			let validation_time = process.hrtime(time);
-			time = process.hrtime();
-			let result = await this.db.put_statblocks(sblocks);
-			let put_time = process.hrtime(time);
-			console.debug(`putting sblocks(${sblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
-		} catch (e) {
-			console.error(e);
-		}
-		this.on_statblock_busy = false;
-	}
+        if (this.sync_running) {
+            console.trace('ignore on_statblocks event during synchronization');
+            return;
+        }
+        if (this.on_statblock_busy) {
+            console.trace('ignore on_statblocks event during the processing of the previous event');
+            return;
+        }
+        this.on_statblock_busy = true;
+        try {
+            let time = process.hrtime();
+            let sblocks = msg.data;
+            console.silly('on_statblocks ', JSON.stringify(sblocks));
+            if (!sblocks || sblocks.length === 0) {
+                console.warn(`on_statblocks resive empty 'sblocks' object`);
+                return;
+            }
+            sblocks = await this.filter_new_sblocks(sblocks);
+            if (sblocks.length === 0) {
+                console.debug(`on_statblocks: all sblocks already exist.`);
+                return;
+            }
+            // Validation sblocks
+            let pos_stakes = await this.db.get_pos_info(sblocks.map(s => s.publisher));
+            let pos_min_stake = this.config.pos_min_stake;
+            let top_poses = await this.db.get_top_poses(this.config.top_poses_count);
+            sblocks = Utils.valid_full_statblocks(sblocks, pos_stakes, pos_min_stake, top_poses);
+            if (mblocks.length === 0) {
+                console.warn(`on_statblocks: no valid statblocks found`);
+                return;
+            }
+            let validation_time = process.hrtime(time);
+            time = process.hrtime();
+            let result = await this.db.put_statblocks(sblocks);
+            let put_time = process.hrtime(time);
+            console.debug(`putting sblocks(${sblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
+            await this.transport.selfcast("emit_m_root");
+        } catch (e) {
+            console.error(e);
+        }
+        finally {
+            this.on_statblock_busy = false;
+        }
+    }
 
 	async on_tail(msg) {
 		console.silly(`on_tail msg = ${JSON.stringify(msg)}`);
@@ -733,7 +736,7 @@ class Syncer {
 		let isValid_leader_sign = false;
 		let recalc_m_root = undefined;
 		if(n >= this.config.FORKS.fork_block_002) {
-			recalc_m_root = Utils.merkle_root(valid_mblocks, valid_sblocks, snapshot_hash);
+			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
 		} else {
 			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);

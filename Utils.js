@@ -90,8 +90,8 @@ let utils = {
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
 	MINER_INTERVAL : 1000,
-	M_ROOT_INTERVAL : 5000,
-	POS_RESEND_MINER_INTERVAL : 30000,
+	M_ROOT_RESEND_INTERVAL : 5000,
+	POS_MINER_RESEND_INTERVAL : 30000,
 	MINER_CHECK_TARGET_INTERVAL : 100,
 	MAX_COUNT_NOT_COMPLETE_BLOCK : 20,
 	PID_TIMEOUT : 10, //sec
@@ -286,7 +286,7 @@ let utils = {
 				.toString('hex');
 		return acc;
 	},
-	merkle_root : function (mblocks, sblocks, snapshot_hash) {
+	merkle_root_002 : function (mblocks, sblocks, snapshot_hash) {
 		mblocks.sort(this.compareBlocksByHash);
 		sblocks.sort(this.compareBlocksByHash);
 		let m_root = this.merkle_tree(mblocks.map(m=> m.hash));
@@ -342,6 +342,54 @@ let utils = {
 			return this.ecdsa_verify(mblock.publisher, mblock.sign, signed_msg);
 		});
 		return mblocks;
+	},
+	leader_sign(leader_id, leader_msk, kblocks_hash, merkle_root, ECC, cfg_ecc, need_fail) {
+		let LPoSID = leader_id;
+
+		let msk = enq.BigNumber(leader_msk);
+
+		let H, Q, m_hash;
+		let secret, leader_sign;
+		let weil_err = false;
+		let verified = true;
+		// mblock_data.nonce = 0;
+
+		if (cfg_ecc.ecc_mode === "short") {
+			do {
+				//mblock_data.nonce = mblock_data.nonce + 1;
+				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
+				//m_hash = Utils.hash_mblock(mblock_data);
+				//console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+
+				let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+				let H_hash = enq.getHash(merkle_root.toString() + LPoSID.toString());
+				H = enq.toPoint(parseInt(H_hash.slice(0, 5), 16), ECC.G, ECC.curve);
+				Q = enq.toPoint(parseInt(PK_LPoS.slice(0, 5), 16), ECC.G, ECC.curve);
+				if (!H.isInfinity(ECC.curve) && !Q.isInfinity(ECC.curve)) {
+					secret = enq.mul(msk, Q, ECC.curve);
+					leader_sign = enq.sign(merkle_root, LPoSID, ECC.G, ECC.G0, secret, ECC.curve);
+					weil_err = ((parseInt(H_hash.slice(0, 5), 16) % 13) === 7) && (leader_sign.r.x === 41) && (leader_sign.r.y === 164);
+				}
+			} while (need_fail ^ (H.isInfinity(ECC.curve) || Q.isInfinity(ECC.curve) || weil_err));
+
+		} else {
+			do {
+				//m_hash = Utils.hash_mblock(mblock_data);
+				//console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+				let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+				//Q = enq.toPoint(PK_LPoS, G, curve);
+				let bnPK_LPoS = enq.BigNumber(PK_LPoS);
+				let Q = enq.getQ(bnPK_LPoS, ECC.curve, ECC.e_fq);
+				secret = enq.mul(msk, Q, ECC.curve);
+				try {
+					leader_sign = enq.sign_tate(merkle_root, LPoSID, ECC.G0_fq, secret, ECC.curve, ECC.e_fq);
+					//verified = enq.verify_tate(leader_sign, m_hash, PK_LPoS, G0_fq, MPK_fq, LPoSID, curve, e_fq);
+				} catch (e) {
+					console.error(e)
+				}
+			} while (need_fail ^ !verified);
+		}
+		return leader_sign;
 	},
 	valid_leader_sign_000(mblocks, LPoSID, ECC, cfg_ecc){
 		mblocks = mblocks.sort(this.compareBlocksByHash);

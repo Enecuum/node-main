@@ -530,7 +530,8 @@ class DB {
 	    //get first macroblock of the chain
         let block = await this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks 
                                                     LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
-        block[0].leader_sign = JSON.parse(block[0].leader_sign);
+        if(block[0] !== undefined)
+            block[0].leader_sign = JSON.parse(block[0].leader_sign);
         return block[0];
     }
 
@@ -718,7 +719,8 @@ class DB {
 		let kblock = (await this.request(mysql.format("SELECT `publisher`, `time`, `nonce`, `link`, `n`, `m_root`, `leader_sign` FROM kblocks WHERE `hash`=?", hash)))[0];
 		let mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `nonce`, `token` FROM mblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
 		let sblocks = await this.request(mysql.format("SELECT `publisher`, `sign`, `hash`, `kblocks_hash`, `bulletin` FROM sblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
-		kblock.leader_sign = JSON.parse(kblock.leader_sign);
+        if(kblock !== undefined)
+		    kblock.leader_sign = JSON.parse(kblock.leader_sign);
 		for (let i = 0; i < mblocks.length; i++) {
 			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
 			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
@@ -1412,7 +1414,8 @@ class DB {
 	//TODO возвращать блоки из нужной ветки
 	async get_kblock(hash){
 		let res = await this.request(mysql.format('SELECT * FROM kblocks WHERE `hash` = ?', hash));
-		res[0].leader_sign = JSON.parse(res[0].leader_sign);
+		if(res[0] !== undefined)
+		    res[0].leader_sign = JSON.parse(res[0].leader_sign);
 		return res;
 	}
 

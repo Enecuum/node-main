@@ -639,7 +639,7 @@ class Syncer {
             let pos_min_stake = this.config.pos_min_stake;
             let top_poses = await this.db.get_top_poses(this.config.top_poses_count);
             sblocks = Utils.valid_full_statblocks(sblocks, pos_stakes, pos_min_stake, top_poses);
-            if (mblocks.length === 0) {
+            if (sblocks.length === 0) {
                 console.warn(`on_statblocks: no valid statblocks found`);
                 return;
             }

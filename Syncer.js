@@ -166,50 +166,54 @@ class Syncer {
 	}
 
 	async add_looped_macroblock(socket, n) {
-		n = Number(n);
-		console.debug(`load looped macroblock ${n}`);
-		let exist = (await this.db.peek_range(n, n))[0];
-		if (exist)
-			return true;
-		console.debug(`unicast 'peek' min: ${n} max: ${n + 1}`);
-		let kblock_hash;
-		let kblock = (await this.transport.unicast(socket, "peek", {min: n, max: n + 1}));
-		if (kblock.length > 0 && kblock[0].hash === kblock[0].link) {
-			kblock_hash = kblock[0].hash;
-		} else if (kblock.length > 1 && kblock[0].hash === kblock[1].link) {
-			kblock_hash = kblock[1].hash;
-		} else {
-			console.warn(`Incorrect response 'peek' min: ${n}, max: ${n + 1}). Sync aborted`);
-			console.silly(`peek response: ${JSON.stringify(kblock)}`);
-			return false;
-		}
-		let {candidate, macroblock} = await this.transport.unicast(socket, "get_macroblock", {hash: kblock_hash});
-		let isValid_leader_sign = Utils.valid_leader_sign(macroblock.mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-		if (!isValid_leader_sign) {
-			console.warn(`Invalid leader sign on mblocks`);
-			return false;
-		}
-		try {
-			macroblock.kblock.sprout = this.config.TRUNK;
-			macroblock.kblock.hash = candidate.link;
-			macroblock.kblock.link = candidate.link;
-			let put_macroblock_result = await this.db.put_kblock(macroblock.kblock);
-			if (!put_macroblock_result) {
-				console.warn('Macroblock is not inserted. Sync aborted');
-				return false;
-			}
-			let mblocks = await this.filter_new_mblocks(macroblock.mblocks);
-			let result = await this.db.put_microblocks(mblocks);
-			if (!result) {
-				console.warn('Mblocks is not inserted');
-				return false;
-			}
-		} catch (e) {
-			console.warn(`Failed to put single macroblock in sync_chain (e) = ${e}`);
-			return false;
-		}
-		return true;
-	}
+        n = Number(n);
+        console.debug(`load looped macroblock ${n}`);
+        let exist = (await this.db.peek_range(n, n))[0];
+        if (exist)
+            return true;
+        console.debug(`unicast 'peek' min: ${n} max: ${n + 1}`);
+        let kblock_hash;
+        let kblock = (await this.transport.unicast(socket, "peek", {min: n, max: n + 1}));
+        if (kblock.length > 0 && kblock[0].hash === kblock[0].link) {
+            kblock_hash = kblock[0].hash;
+        } else if (kblock.length > 1 && kblock[0].hash === kblock[1].link) {
+            kblock_hash = kblock[1].hash;
+        } else {
+            console.warn(`Incorrect response 'peek' min: ${n}, max: ${n + 1}). Sync aborted`);
+            console.silly(`peek response: ${JSON.stringify(kblock)}`);
+            return false;
+        }
+        let {candidate, macroblock} = await this.transport.unicast(socket, "get_macroblock", {hash: kblock_hash});
+        let isValid_leader_sign = false;
+        if (n >= this.config.FORKS.fork_block_002)
+            isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, candidate.m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+        else
+            isValid_leader_sign = Utils.valid_leader_sign_000(macroblock.mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+        if (!isValid_leader_sign) {
+            console.warn(`Invalid leader sign`);
+            return false;
+        }
+        try {
+            macroblock.kblock.sprout = this.config.TRUNK;
+            macroblock.kblock.hash = candidate.link;
+            macroblock.kblock.link = candidate.link;
+            let put_macroblock_result = await this.db.put_kblock(macroblock.kblock);
+            if (!put_macroblock_result) {
+                console.warn('Macroblock is not inserted. Sync aborted');
+                return false;
+            }
+            let mblocks = await this.filter_new_mblocks(macroblock.mblocks);
+            let result = await this.db.put_microblocks(mblocks);
+            if (!result) {
+                console.warn('Mblocks is not inserted');
+                return false;
+            }
+        } catch (e) {
+            console.warn(`Failed to put single macroblock in sync_chain (e) = ${e}`);
+            return false;
+        }
+        return true;
+    }
 
 	async fastsync(tail, remote, socket) {
 		let result = {status: false, tail: tail};
@@ -437,9 +441,13 @@ class Syncer {
 					this.peers[peer_index].failures++;
 					return;
 				}
-				let isValid_leader_sign = Utils.valid_leader_sign(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+				let isValid_leader_sign = false;
+				if(fork >= this.config.FORKS.fork_block_002)
+                    isValid_leader_sign = Utils.valid_leader_sign_002(kblock.link, kblock.m_root, kblock.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+                else
+                    isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 				if (!isValid_leader_sign) {
-					console.warn(`Sync aborted. Invalid leader sign on mblocks`);
+					console.warn(`Sync aborted. Invalid leader sign`);
 					this.peers[peer_index].failures++;
 					return;
 				}
@@ -737,7 +745,7 @@ class Syncer {
 		let recalc_m_root = undefined;
 		if(n >= this.config.FORKS.fork_block_002) {
 			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
-			isValid_leader_sign = Utils.valid_leader_sign(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+			isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
 		} else {
 			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);

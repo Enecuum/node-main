@@ -411,7 +411,7 @@ let utils = {
 		}
 		return isValid;
 	},
-	valid_leader_sign(kblock_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
+	valid_leader_sign_002(kblock_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
 		let ecc_mode = cfg_ecc.ecc_mode;
 		let PK_LPoS = enq.getHash(kblock_hash.toString() + LPoSID.toString());
 		let isValid = false;

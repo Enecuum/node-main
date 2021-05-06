@@ -846,7 +846,7 @@ class Cashier {
             console.log(`Formula: ${formula}`);
             console.log(`Dust:    ${dust_block + dust_fees}`);
             console.log(`Diff:    ${formula - ledger} \r\n`);
-            if(formula - ledger !== 0n)
+            if(formula - ledger !== BigInt(0))
                 throw new Error(`There is a diff after block calculation, cashier stopped`);
             return;
         }
@@ -1369,7 +1369,7 @@ class Cashier {
             console.log(`Formula: ${formula}`);
             console.log(`Dust:    ${dust_block + dust_fees}`);
             console.log(`Diff:    ${formula - ledger} \r\n`);
-            if(formula - ledger !== 0n)
+            if(formula - ledger !== BigInt(0))
                 throw new Error(`There is a diff after block calculation, cashier stopped`);
             return;
         }

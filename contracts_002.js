@@ -714,6 +714,9 @@ class DexPoolCreateContract extends Contract {
         if(params.amount_2 <= BigInt(0) || params.amount_2 > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_2");
         }
+        if(params.asset_1 === params.asset_2){
+            throw new ContractError("asset_1 & asset_2 can not be the same");
+        }
         return true;
     }
     async execute(tx, substate) {
@@ -771,6 +774,7 @@ class DexPoolCreateContract extends Contract {
         };
 
         let ticker = `LP_TKN`;
+        let caption = `${token_1_info.ticker}_${token_2_info.ticker}`;
         let tok_data = {
             hash : tx.hash,
             owner : `03${Utils.ENQ_TOKEN_NAME}`,
@@ -778,7 +782,7 @@ class DexPoolCreateContract extends Contract {
             fee_value : native_info.fee_value,
             fee_min : native_info.fee_min,
             ticker : ticker,
-            caption : ticker,
+            caption : caption,
             decimals : BigInt(10),
             total_supply : lt_amount,
             reissuable : 1,
@@ -955,18 +959,18 @@ class DexLiquidityRemoveContract extends Contract {
     validate() {
         /**
          * parameters:
-         * hash : hex string 64 chars
+         * lt : hex string 64 chars
          * amount : 0...MAX_SUPPLY_LIMIT
          */
         let params = this.data.parameters;
 
-        let paramsModel = ["hash", "amount"];
+        let paramsModel = ["lt", "amount"];
         if (paramsModel.some(key => params[key] === undefined)){
             throw new ContractError("Incorrect param structure");
         }
         let hash_regexp = /^[0-9a-fA-F]{64}$/i;
-        if(!hash_regexp.test(params.hash))
-            throw new ContractError("Incorrect hash format");
+        if(!hash_regexp.test(params.lt))
+            throw new ContractError("Incorrect lt format");
 
         let bigintModel = ["amount"];
         if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
@@ -979,11 +983,11 @@ class DexLiquidityRemoveContract extends Contract {
     }
     async execute(tx, substate) {
         /**
-         * check hash exist
+         * check lt exist
          * check pool exist
-         * check pubkey hash balance
+         * check pubkey lt balance
          * decrease pool liquidity
-         * decrease hash balance
+         * decrease lt balance
          * increase pubkey balances
          */
         if(this.data.type === undefined)
@@ -991,15 +995,15 @@ class DexLiquidityRemoveContract extends Contract {
         let params = this.data.parameters;
 
         // TODO: this is probably unnececcary checks
-        let token_info = (await substate.get_token_info(params.hash));
+        let token_info = (await substate.get_token_info(params.lt));
         if(!token_info)
-            throw new ContractError(`Token ${params.hash} not found`);
+            throw new ContractError(`Token ${params.lt} not found`);
 
-        let balance = (await substate.get_balance(tx.from, params.hash));
+        let balance = (await substate.get_balance(tx.from, params.lt));
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
-            throw new ContractError(`Token ${params.hash} insufficient balance`);
+            throw new ContractError(`Token ${params.lt} insufficient balance`);
 
-        let pool_info = await substate.get_dex_pool_info_by_token(params.hash);
+        let pool_info = await substate.get_dex_pool_info_by_token(params.lt);
 
         //amount_1 = volume_1 * amount / lt_emission
         //amount_2 = volume_2 * amount / lt_emission

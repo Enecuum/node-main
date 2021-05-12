@@ -71,7 +71,7 @@ let Validator = {
 	hash_regexp : /^[0-9a-fA-F]{64}$/i,
 	digit_regexp : /^\d+$/,
 	hex_regexp : /^[A-Fa-f0-9]+$/,
-	name_regexp : /^[0-9a-zA-Z _]{0,512}$/,
+	name_regexp : /^[0-9a-zA-Z _\-/.]{0,512}$/,
 	tx : function(tx){
 
 		if(Array.isArray(tx))

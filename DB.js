@@ -894,9 +894,11 @@ class DB {
 	}
 
 	async get_accounts_count(token_hash){
+		let cnt = undefined;
 		if(token_hash === undefined)
-			token_hash =Utils.ENQ_TOKEN_NAME;
-		let cnt = (await this.request(mysql.format("SELECT count(*) as count FROM ledger WHERE `token` = ?", token_hash)))[0];
+			cnt = (await this.request(mysql.format("SELECT count(distinct(id)) as count FROM ledger")))[0];
+		else
+			cnt = (await this.request(mysql.format("SELECT count(*) as count FROM ledger WHERE `token` = ?", token_hash)))[0];
 		return cnt;
 	}
 

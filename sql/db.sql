@@ -101,7 +101,7 @@ CREATE TABLE `eindex` (
   `irew` bigint(20) DEFAULT NULL,
   `itx` bigint(20) DEFAULT NULL,
   `rectype` varchar(30) DEFAULT NULL,
-  `value` bigint(20) DEFAULT NULL,
+  `value` bigint(20) unsigned DEFAULT NULL,
   KEY `i_id` (`id`),
   KEY `i_i` (`id`,`i`),
   KEY `i_in` (`id`,`iin`),

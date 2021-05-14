@@ -412,10 +412,11 @@ class Explorer {
 		});
 		this.app.get('/api/v1/height', async (req, res) => {
 			console.trace('requested height');
-			let data = await this.db.get_stats(["height"]);
+			let data = await this.db.get_mblocks_height();
 			let result = {};
-			if(data.length > 0){
-				result.height = parseInt(data[0].value);
+			console.warn(data)
+			if(data.height){
+				result.height = parseInt(data.height);
 			}
 			res.send(result);
 		});

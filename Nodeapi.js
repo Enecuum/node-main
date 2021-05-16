@@ -67,7 +67,7 @@ class NodeAPI {
     //return start of chain macroblock (actual for fastsync nodes)
     async on_get_chain_start(){
         console.debug(`on get_start_chain`);
-        let res = (await this.db.get_chain_start_macroblock())[0];
+        let res = await this.db.get_chain_start_macroblock();
         return res;
     };
 

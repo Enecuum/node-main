@@ -36,7 +36,9 @@ let config = {
 		pow: 1000,
 		ref: 1000,
 	},
-	mode:'verify'
+	mode:'verify',
+	validation_try_count: 10,
+	downloading_try_count: 10
 };
 
 console.trace = function (...msg) {

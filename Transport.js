@@ -174,103 +174,97 @@ class Transport {
 				request += chunk;
 			});
 
-			let req_timeout = setTimeout(()=> {
+			let req_timeout = setTimeout(() => {
 				response.error = {
-					code : 1,
-					message : "Request time exceeded"
+					code: 1,
+					message: "Request time exceeded"
 				};
 				res.write(JSON.stringify(response));
 				res.end();
-			} , 20000);
+			}, 20000);
 
 			let callback = (async function () {
 				call_count++;
 				console.debug(`call_count = ${call_count}`);
 				try {
 					request = JSON.parse(request);
-				} catch (e) {
-					console.warn(e.message);
-					res.end();
-					return;
-				}
-				// TODO: заменить по коду data на params
-				request.data = request.params;
-				delete(request.params);
+					// TODO: заменить по коду data на params
+					request.data = request.params;
+					delete (request.params);
 
-				if(call_list[request.method])
-                    call_list[request.method]++;
-				else
-                    call_list[request.method]=1;
+					if (call_list[request.method])
+						call_list[request.method]++;
+					else
+						call_list[request.method] = 1;
 
-                console.debug(`call_list ${JSON.stringify(call_list)}`);
+					console.debug(`call_list ${JSON.stringify(call_list)}`);
 
-				request.host = req.socket.remoteAddress;
-				if (request.host.substr(0, 7) === "::ffff:") {
-					request.host = request.host.substr(7);
-				}
-
-				if(host_list[request.host])
-					host_list[request.host]++;
-				else
-					host_list[request.host]=1;
-				console.debug(`host_list ${JSON.stringify(host_list)}`);
-
-				res.writeHead(200, "OK", {'Content-Type': 'application/json'});
-
-				if(request.ver !== this.PROTOCOL_VERSION) {
-					console.warn("Ignore request, incorrect protocol version", request.ver);
-					response.error = {
-						code : 1,
-						message : `Protocol version mismatch, ${this.PROTOCOL_VERSION} requiered`
-					};
-					res.write(JSON.stringify(response));
-				}
-				else if (request.data === undefined) {
-					console.debug(`Ignore request, no params field provided. method ${request.method}, from ${request.host}:${request.port}`);
-					response.error = {
-						code : 1,
-						message : `No 'params' field provided`
-					};
-					res.write(JSON.stringify(response));
-				}
-				else if (this.events_map[request.method]) {
-					console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
-					let result = '';
-					try {
-						result = await this.events_map[request.method](request);
-					} catch (e) {
-						result = e;
+					request.host = req.socket.remoteAddress;
+					if (request.host.substr(0, 7) === "::ffff:") {
+						request.host = request.host.substr(7);
 					}
-					response.result = result;
-					res.write(JSON.stringify(response));
+
+					if (host_list[request.host])
+						host_list[request.host]++;
+					else
+						host_list[request.host] = 1;
+					console.debug(`host_list ${JSON.stringify(host_list)}`);
+
+					res.writeHead(200, "OK", {'Content-Type': 'application/json'});
+
+					if (request.ver !== this.PROTOCOL_VERSION) {
+						console.warn("Ignore request, incorrect protocol version", request.ver);
+						response.error = {
+							code: 1,
+							message: `Protocol version mismatch, ${this.PROTOCOL_VERSION} requiered`
+						};
+						res.write(JSON.stringify(response));
+					} else if (request.data === undefined) {
+						console.debug(`Ignore request, no params field provided. method ${request.method}, from ${request.host}:${request.port}`);
+						response.error = {
+							code: 1,
+							message: `No 'params' field provided`
+						};
+						res.write(JSON.stringify(response));
+					} else if (this.events_map[request.method]) {
+						console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
+						let result = '';
+						try {
+							result = await this.events_map[request.method](request);
+						} catch (e) {
+							result = e;
+						}
+						response.result = result;
+						res.write(JSON.stringify(response));
+					} else if (this.methods_map[request.method]) {
+						console.silly('method called', request.method);
+						let result = this[this.methods_map[request.method]](request);
+						response.result = result;
+						res.write(JSON.stringify(response));
+					} else {
+						console.trace("Method not implemented", request.method);
+						response.error = {
+							code: 1,
+							message: "Method not implemented"
+						};
+						res.write(JSON.stringify(response));
+					}
+				} catch (e) {
+					console.error(`Callback error: ${e.message}`);
+				} finally {
+					clearTimeout(req_timeout);
+					call_list[request.method]--;
+					host_list[request.host]--;
+					call_count--;
+					res.end();
 				}
-				else if (this.methods_map[request.method]) {
-					console.silly('method called', request.method);
-					let result = this[this.methods_map[request.method]](request);
-					response.result = result;
-					res.write(JSON.stringify(response));
-				}
-				else {
-					console.trace("Method not implemented", request.method);
-					response.error = {
-						code : 1,
-						message : "Method not implemented"
-					};
-					res.write(JSON.stringify(response));
-				}
-				clearTimeout(req_timeout);
-                call_list[request.method]--;
-				host_list[request.host]--;
-				call_count--;
-				res.end();
 			}).bind(this);
 
 			req.on('end', callback);
-		}
-		else{
+		} else {
 			response.error = {
-				code : 1,
-				message : "Only post requests are supported"
+				code: 1,
+				message: "Only post requests are supported"
 			};
 			res.write(JSON.stringify(response));
 			res.end();

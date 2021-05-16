@@ -98,12 +98,12 @@
             }
         }
     },
-    "FORKS" : {
+	  "FORKS" : {
         "fork_block_000" : 0,
         "fork_block_001" : 0,
         "fork_block_002" : 0
     },
-	"mblock_slots": {
+	  "mblock_slots": {
         "size": 2,
         "count": 10,
         "min_stake": 500000e10,
@@ -114,5 +114,6 @@
     },
     "feader_watchdog": 12,
     "enable_post_tx": false,
-    "sync_validation_try_count": 10
+    "validation_try_count": 10,
+    "downloading_try_count": 10
 }

@@ -215,12 +215,20 @@ let utils = {
 		let poses_hash = crypto.createHash('sha256').update(snapshot.poses.map(pos => this.hash_pos(pos)).sort().join("")).digest('hex');
 		let delegates_hash = crypto.createHash('sha256').update(snapshot.delegates.map(delegate => this.hash_delegated(delegate)).sort().join("")).digest('hex');
 		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate)).sort().join("")).digest('hex');
+		let dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
 		return crypto.createHash('sha256').update(snapshot.kblocks_hash.toLowerCase() +
 			ledger_accounts_hash.toLowerCase() +
 			tokens_hash.toLowerCase() +
 			poses_hash.toLowerCase() +
 			delegates_hash.toLowerCase() +
-			undelegates_hash.toLowerCase()).digest('hex');
+			undelegates_hash.toLowerCase() +
+			dex_pools_hash.toLowerCase()).digest('hex');
+	},
+	hash_dex_pool : function(dex_pool){
+		if (!dex_pool)
+			return undefined;
+		let str = ['pair_id','asset_1','volume_1','asset_2','volume_2','pool_fee','token_hash'].map(v => crypto.createHash('sha256').update(dex_pool[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_token : function(token){
 		if (!token)
@@ -606,6 +614,9 @@ let utils = {
 				return BigInt(tokendata.fee_min);
 			return fee;
 		}
+		if(tokendata.fee_type === 2){
+			return BigInt(0);
+		}
 	},
 	understandable_difficulty : function(int32){
 		let ceil = (int32 >> 24);
@@ -697,10 +708,37 @@ let utils = {
 			return integerPart + delimiter + fractionalPart.substring(0, fixed);
 		}
 		else return '';
+	},
+	getPairId : function(asset_1, asset_2){
+		if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
+			return {
+				pair_id : `${asset_1}${asset_2}`,
+				asset_1 : asset_1,
+				asset_2 : asset_2
+			};
+		else return {
+			pair_id : `${asset_2}${asset_1}`,
+			asset_1 : asset_2,
+			asset_2 : asset_1
+		};
+	},
+	sqrt : function(value) {
+		if (value < BigInt(0)) {
+			throw 'square root of negative numbers is not supported'
+		}
+		if (value < BigInt(2)) {
+			return value;
+		}
+		function newtonIteration(n, x0) {
+			const x1 = ((n / x0) + x0) >> BigInt(1);
+			if (x0 === x1 || x0 === (x1 - BigInt(1))) {
+				return x0;
+			}
+			return newtonIteration(n, x1);
+		}
+		return newtonIteration(value, BigInt(1));
 	}
 };
-
-
 
 module.exports = utils;
 module.exports.ECC = ECC;

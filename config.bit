@@ -72,7 +72,11 @@
     "pos_reward" :      0,
     "mint" :            0,
     "burn" :            0,
-    "custom" :          20000000000
+    "custom" :          20000000000,
+    "create_pool" :     0,
+    "add_liquidity" :   0,
+    "remove_liquidity" :0,
+    "swap" :            0
   },
   "first_message_always_probe" : false,
   "karma" : {
@@ -99,6 +103,7 @@
     }
   },
   "FORKS" : {
+    "fork_block_000" : 0,
     "fork_block_001" : 0,
     "fork_block_002" : 0
   },

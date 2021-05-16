@@ -597,7 +597,7 @@ class Syncer {
             let result = await this.db.put_microblocks(mblocks);
             let put_time = process.hrtime(time);
             console.debug(`putting mblocks(${mblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
-            await this.transport.selfcast("emit_m_root");
+            await this.transport.selfcast("emit_m_root", "on_microblocks");
         } catch (e) {
             console.error(e);
         } finally {
@@ -656,7 +656,7 @@ class Syncer {
             let result = await this.db.put_statblocks(sblocks);
             let put_time = process.hrtime(time);
             console.debug(`putting sblocks(${sblocks.length}) valid_time = ${Utils.format_time(validation_time)} | put_time = ${Utils.format_time(put_time)} | result = ${result}`);
-            await this.transport.selfcast("emit_m_root");
+            await this.transport.selfcast("emit_m_root", "on_statblocks");
         } catch (e) {
             console.error(e);
         }

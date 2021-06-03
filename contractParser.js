@@ -22,7 +22,10 @@ let schema = {
     "create_pool" :     "1500",
     "add_liquidity" :   "1600",
     "remove_liquidity" :"1700",
-    "swap" :            "1800"
+    "swap" :            "1800",
+    "create_farm" :     "1900",
+    "add_funds" :       "2000",
+    "put_stake" :       "2100"
 };
 
 class ContractParser {

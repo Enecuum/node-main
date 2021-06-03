@@ -1,7 +1,9 @@
 const Utils = require('./Utils');
 const ContractMachine = require('./SmartContracts');
+const Substate = require('./Substate').Substate;
 const {ContractError} = require('./errors');
 
+/*
 class Substate {
     constructor(config, db){
         this.config = config;
@@ -352,7 +354,7 @@ class Substate {
         }
     }
 }
-
+*/
 class Cashier {
     constructor(config, db){
         this.config = config;
@@ -1691,4 +1693,3 @@ class Cashier {
 }
 
 module.exports.Cashier = Cashier;
-module.exports.Substate = Substate;

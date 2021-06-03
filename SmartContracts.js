@@ -48,6 +48,9 @@ class ContractFactory{
             case "add_liquidity" :  return new Contracts[idx].DexLiquidityAddContract(data);
             case "remove_liquidity":return new Contracts[idx].DexLiquidityRemoveContract(data);
             case "swap" :           return new Contracts[idx].DexLiquiditySwapContract(data);
+            case "create_farm" :    return new Contracts[idx].FarmsCreateFarmContract(data);
+            case "add_funds" :      return new Contracts[idx].FarmsAddFundsContract(data);
+            case "put_stake" :      return new Contracts[idx].FarmsPutStakeContract(data);
             default :               return null;
         }
     }

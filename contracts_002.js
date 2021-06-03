@@ -1161,7 +1161,6 @@ class FarmsCreateFarmContract extends Contract {
         if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
             throw new ContractError("Incorrect field format, BigInteger expected");
         }
-        // TODO: zero reward ?
         if(params.block_reward <= BigInt(0) || params.block_reward > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect block_reward");
         }
@@ -1192,17 +1191,23 @@ class FarmsCreateFarmContract extends Contract {
         //     throw new ContractError(`Token ${params.reward_token} insufficient balance`);
 
         let farm_data = {
-
+            farm_id : tx.hash,
+            stake_token : params.stake_token,
+            reward_token : params.reward_token,
+            emission : BigInt(0),
+            block_reward : params.block_reward,
+            level : BigInt(0),
+            total_stake : BigInt(0),
+            last_block : BigInt(0)
         };
 
-        substate.farms_add(tok_data);
+        substate.farms_add(farm_data);
 
         return {
             amount_changes : [],
             pos_changes : [],
             post_action : []
         };
-
     }
 }
 class FarmsAddFundsContract extends Contract {
@@ -1261,13 +1266,13 @@ class FarmsAddFundsContract extends Contract {
             throw new ContractError(`Token ${params.reward_token} insufficient balance`);
 
         let farm_data = {
-            farm_id : farm.reward_token,
-            emission_change : params.amount
+            farm_id : farm.farm_id,
+            emission : params.amount
         };
         substate.accounts_change({
             id : tx.from,
             amount : BigInt(-1 ) * params.amount,
-            token : params.reward_token,
+            token : farm.reward_token,
         });
         substate.farms_change(farm_data);
 
@@ -1333,31 +1338,38 @@ class FarmsPutStakeContract extends Contract {
             throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
         // TODO
         let farmer = await substate.get_farmer(params.farm_id, tx.from);
-        if(!farmer)
+        if(!farmer){
             farmer = {
-
+                farm_id : params.farm_id,
+                farmer_id : tx.from,
+                stake : BigInt(0),
+                level : BigInt(0)
             };
+        }
 
-        let balance = (await substate.get_balance(tx.from, farm.stake_token));
+        let balance = await substate.get_balance(tx.from, farm.stake_token);
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${params.stake_token} insufficient balance`);
 
-        let distributed = BigInt(0);
+        let distributed;
         if (farm.total_stake > BigInt(0))
             distributed = (kblock.n - farm.last_block) * farm.block_reward;
         else
             distributed = BigInt(0);
-
+        // TODO zero division
         let new_level = farmer.level + distributed / farm.total_stake;
         let farm_data = {
             farm_id : farm.reward_token,
-            total_stake_change : params.amount
+            total_stake : params.amount,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : kblock.n
         };
         let farmer_data = {
             farm_id : farm.farm_id,
+            farmer : tx.from,
             level : new_level,
-            stake : params.amount,
-            farmer : tx.from
+            stake : params.amount
         };
         substate.accounts_change({
             id : tx.from,
@@ -1375,6 +1387,7 @@ class FarmsPutStakeContract extends Contract {
 }
 
 module.exports.Contract = Contract;
+
 module.exports.CreateTokenContract = CreateTokenContract;
 module.exports.CreatePosContract = CreatePosContract;
 module.exports.DelegateContract = DelegateContract;
@@ -1383,7 +1396,12 @@ module.exports.TransferContract = TransferContract;
 module.exports.PosRewardContract = PosRewardContract;
 module.exports.MintTokenContract = MintTokenContract;
 module.exports.BurnTokenContract = BurnTokenContract;
+
 module.exports.DexPoolCreateContract = DexPoolCreateContract;
 module.exports.DexLiquidityAddContract = DexLiquidityAddContract;
 module.exports.DexLiquidityRemoveContract = DexLiquidityRemoveContract;
 module.exports.DexLiquiditySwapContract = DexLiquiditySwapContract;
+
+module.exports.FarmsCreateFarmContract = FarmsCreateFarmContract;
+module.exports.FarmsAddFundsContract = FarmsAddFundsContract;
+module.exports.FarmsPutStakeContract = FarmsPutStakeContract;

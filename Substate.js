@@ -1,5 +1,5 @@
 const {ContractError} = require('./errors');
-
+const Utils = require('./Utils');
 class Substate {
     constructor(config, db){
         this.config = config;
@@ -89,7 +89,14 @@ class Substate {
                 delete this.undelegates[und]
         }
         // TODO farms
+        this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
+        this.farms = this.farms.filter(v => v !== null);
+        this.farms = await this.db.get_farms(this.farms);
+
         // TODO farmers
+        this.farmers = this.farmers.filter((v, i, a) => a.indexOf(v) === i);
+        this.farmers = this.farmers.filter(v => v !== null);
+        this.farmers = await this.db.get_farmers_by_farmer(this.farmers);
     }
     setState(state){
         this.delegation_ledger = JSON.parse(JSON.stringify(state.delegation_ledger));
@@ -108,6 +115,8 @@ class Substate {
         this.transfers = state.transfers.map(a => Object.assign({}, a));
         this.pools = state.pools.map(a => Object.assign({}, a));
         this.accounts = state.accounts.map(a => Object.assign({}, a));
+        this.farms = state.farms.map(a => Object.assign({}, a));
+        this.farmers = state.farmers.map(a => Object.assign({}, a));
     }
     fillByContract(contract, tx){
         let type = contract.type;
@@ -212,6 +221,13 @@ class Substate {
             }
                 break;
             case "put_stake" : {
+                // stake_token token info
+                // reward_token token info
+                this.farms.push(contract.data.parameters.farm_id);
+                this.farmers.push(tx.from);
+            }
+                break;
+            case "close_stake" : {
                 // stake_token token info
                 // reward_token token info
                 this.farms.push(contract.data.parameters.farm_id);
@@ -404,6 +420,12 @@ class Substate {
         else{
             changes.changed = true;
             this.farmers.push(changes);
+        }
+    }
+    farmers_delete(changes){
+        let farmer_idx = this.farmers.findIndex(a => ((a.farm_id === changes.farm_id) && (a.farmer_id === changes.farmer_id)));
+        if(farmer_idx > -1) {
+            this.farmers[farmer_idx].delete = true;
         }
     }
     accounts_change(changes){

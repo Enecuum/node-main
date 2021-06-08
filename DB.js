@@ -1034,14 +1034,29 @@ class DB {
 		let state_sql = [];
 		if(substate.accounts.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [substate.accounts.map(a => [a.id, a.amount, a.token])]));
+
 		if(substate.pools.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pair_id`, `asset_1`, `volume_1`, `asset_2`, `volume_2`, `pool_fee`, `token_hash`) VALUES ? ON DUPLICATE KEY UPDATE `volume_1` = VALUES(volume_1), `volume_2` = VALUES(volume_2)", [substate.pools.map(p => [p.pair_id, p.asset_1, p.volume_1, p.asset_2, p.volume_2, p.pool_fee, p.token_hash])]));
+
 		substate.tokens = substate.tokens.filter(a => a.changed === true);
 		if(substate.tokens.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO tokens (`hash`, `owner`, `fee_type`, `fee_value`, `fee_min`, `ticker`, `caption`, `decimals`, `total_supply`, `reissuable`, `minable`, `max_supply`, `block_reward`, `min_stake`, `referrer_stake`, `ref_share`) VALUES ? ON DUPLICATE KEY UPDATE `total_supply` = VALUES(total_supply)", [substate.tokens.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.caption, a.decimals, a.total_supply, a.reissuable, a.minable, a.max_supply, a.block_reward, a.min_stake, a.referrer_stake, a.ref_share ])]));
+
 		substate.poses = substate.poses.filter(a => a.changed === true);
 		if(substate.poses.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO poses (`id`, `owner`, `fee`, `name`) VALUES ? ", [substate.poses.map(a => [a.id, a.owner, a.fee, a.name])]));
+
+		substate.farms = substate.farms.filter(a => a.changed === true);
+		if(substate.farms.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO farms (`farm_id`, `stake_token`, `reward_token`, `emission`, `block_reward`, `level`, `total_stake`, `last_block`) VALUES ? ON DUPLICATE KEY UPDATE `emission` = VALUES(emission), `level` = VALUES(level), `total_stake` = VALUES(total_stake), `last_block` = VALUES(last_block)",
+				[substate.farms.map(a => [a.farm_id, a.stake_token, a.reward_token, a.emission, a.block_reward, a.level, a.total_stake, a.last_block])]));
+
+		let farmers_delete = substate.farmers.filter(a => a.delete === true);
+		substate.farmers = substate.farmers.filter(a => (a.changed === true) && (a.delete !== true));
+		if(substate.farmers.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level])]));
+		if(farmers_delete.length > 0)
+			state_sql.push(	mysql.format("DELETE FROM farmers WHERE farm_id IN ? ", [substate.farmers.map(a => [a.farm_id])]));
 
 		for( let pos in substate.delegation_ledger){
 			for( let del in substate.delegation_ledger[pos]){
@@ -1357,6 +1372,18 @@ class DB {
 		return res;
 	}
 
+	async get_farms(ids){
+		if(!ids.length)
+			return [];
+		let res = await this.request(mysql.format('SELECT * FROM farms WHERE farm_id in (?)', [ids]));
+		return res;
+	}
+	async get_farmers_by_farmer(ids){
+		if(!ids.length)
+			return [];
+		let res = await this.request(mysql.format('SELECT * FROM farmers WHERE farmer_id in (?)', [ids]));
+		return res;
+	}
 	async get_tokens_all(hashes){
 		if(!hashes.length)
 			return [];

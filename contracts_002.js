@@ -1208,6 +1208,11 @@ class FarmsCreateFarmContract extends Contract {
             last_block : BigInt(0)
         };
 
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1 ) * params.emission,
+            token : params.reward_token,
+        });
         substate.farms_add(farm_data);
 
         return {
@@ -1364,7 +1369,7 @@ class FarmsPutStakeContract extends Contract {
         let new_level;
         if (farm.total_stake > BigInt(0)){
             distributed = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
-            new_level = farmer.level + distributed / farm.total_stake;
+            new_level = farm.level + distributed / farm.total_stake;
         }
         else{
             distributed = BigInt(0);

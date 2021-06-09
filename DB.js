@@ -943,7 +943,8 @@ class DB {
 			(SELECT ifnull(sum(reward), 0) AS rew FROM delegates) AS R,
 			(SELECT ifnull(sum(amount), 0) AS und FROM undelegates) AS U,
 			(SELECT ifnull(sum(volume_1), 0) AS p1 FROM dex_pools WHERE asset_1 = ?) AS P_1,
-			(SELECT ifnull(sum(volume_2), 0) AS p2 FROM dex_pools WHERE asset_2 = ?) AS P_2`, [Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME])))[0];
+			(SELECT ifnull(sum(volume_2), 0) AS p2 FROM dex_pools WHERE asset_2 = ?) AS P_2`,
+			[Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME])))[0];
 		return amount;
 	}
 
@@ -1055,8 +1056,11 @@ class DB {
 		substate.farmers = substate.farmers.filter(a => (a.changed === true) && (a.delete !== true));
 		if(substate.farmers.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level])]));
-		if(farmers_delete.length > 0)
-			state_sql.push(	mysql.format("DELETE FROM farmers WHERE farm_id IN ? ", [substate.farmers.map(a => [a.farm_id])]));
+		if(farmers_delete.length > 0){
+			for (let farmer of farmers_delete){
+				state_sql.push(	mysql.format("DELETE FROM farmers WHERE farm_id = ? AND farmer_id = ?", [farmer.farm_id, farmer.farmer_id]));
+			}
+		}
 
 		for( let pos in substate.delegation_ledger){
 			for( let del in substate.delegation_ledger[pos]){

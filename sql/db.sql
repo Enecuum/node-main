@@ -437,6 +437,7 @@ DROP TABLE IF EXISTS `undelegates`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `undelegates` (
   `id` varchar(64) NOT NULL,
+  `delegator` varchar(66) DEFAULT NULL,
   `pos_id` varchar(64) DEFAULT NULL,
   `amount` bigint(20) unsigned DEFAULT NULL,
   `height` bigint(20) DEFAULT NULL,

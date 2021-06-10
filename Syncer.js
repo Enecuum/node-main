@@ -247,7 +247,9 @@ class Syncer {
 						});
 						if (remote_chunk !== undefined && remote_chunk.hash === remote_snapshot.hash)
 							break;
-					}catch(e){};
+					}catch(e){
+						console.error(e);
+					}
 				}
 				if (remote_chunk !== undefined && remote_chunk.hash === remote_snapshot.hash) {
 					snapshot = snapshot.concat(remote_chunk.chunk.data);
@@ -262,6 +264,7 @@ class Syncer {
 			//parse snapshot
 			let snapshot_json = JSON.parse(str);
 			snapshot_json.hash = remote_snapshot.hash;
+			/*
 			//putting kblocks with undelegate transactions
             let i = 0;
             let undelegates = snapshot_json.undelegates.filter(item => item.amount > 0);
@@ -283,7 +286,7 @@ class Syncer {
 						return result;
 					await this.db.set_status_undelegated_tx(und.id);
 				}
-			}
+			}*/
 			//put macroblock
 			let put_kblock_result = await this.add_looped_macroblock(socket, remote_snapshot.n);
 			if (!put_kblock_result) {
@@ -830,6 +833,7 @@ class Syncer {
 			let is_valid = await this.valid_candidate(candidate, mblocks, sblocks, kblock.n, tail);
 			if (is_valid) {
 				console.silly('Appending block', JSON.stringify({candidate, mblocks, sblocks}));
+				console.info('Appending block', kblock.n);
 				try {
 					let result = await this.put_macroblock(candidate, mblocks, sblocks);
 					if (!result) {

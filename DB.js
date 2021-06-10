@@ -180,7 +180,7 @@ class DB {
 			if (snapshot.undelegates && snapshot.undelegates.length > 0) {
 				let undelegates_chunks = snapshot.undelegates.chunk(INSERT_CHUNK_SIZE);
 				undelegates_chunks.forEach(chunk => {
-					undelegates.push(mysql.format("INSERT INTO undelegates (id, pos_id, amount, height) VALUES ? ", [chunk.map(undel => [undel.id, undel.pos_id, undel.amount, undel.height])]));
+					undelegates.push(mysql.format("INSERT INTO undelegates (id, delegator, pos_id, amount, height) VALUES ? ", [chunk.map(undel => [undel.id, undel.delegator, undel.pos_id, undel.amount, undel.height])]));
 				});
 			}
 			let dex_pools = [];
@@ -530,11 +530,14 @@ class DB {
 		snapshot.tokens = await this.request(mysql.format("SELECT * FROM tokens ORDER BY hash"));
 		snapshot.poses = await this.request(mysql.format("SELECT id, owner, fee, name FROM poses ORDER BY id"));
 		snapshot.delegates = await this.request(mysql.format("SELECT pos_id, delegator, amount, reward FROM delegates ORDER BY pos_id, delegator"));
-		snapshot.undelegates = await this.request(mysql.format("SELECT id, pos_id, amount, height FROM undelegates ORDER BY id"));
 		snapshot.dex_pools = [];
 		let kblock = await this.get_kblock(hash);
-		if(kblock && kblock.length > 0 && kblock[0].n >= this.app_config.FORKS.fork_block_002)
+		if(kblock && kblock.length > 0 && kblock[0].n >= this.app_config.FORKS.fork_block_002) {
 			snapshot.dex_pools = await this.request(mysql.format("SELECT pair_id, asset_1, volume_1, asset_2, volume_2, pool_fee, token_hash FROM dex_pools ORDER BY pair_id"));
+			snapshot.undelegates = await this.request(mysql.format("SELECT id, delegator, pos_id, amount, height FROM undelegates WHERE amount > 0 ORDER BY id"));
+		}else{
+			snapshot.undelegates = await this.request(mysql.format("SELECT id, pos_id, amount, height FROM undelegates ORDER BY id"));
+		}
 		return snapshot;
 	};
 
@@ -1057,6 +1060,7 @@ class DB {
 			if(substate.undelegates[und].changed === true){
 				state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
 					id : substate.undelegates[und].id,
+					delegator : substate.undelegates[und].delegator,
 					pos_id : substate.undelegates[und].pos_id,
 					amount : substate.undelegates[und].amount,
 					height : substate.undelegates[und].height

@@ -264,7 +264,7 @@ let utils = {
 	hash_undelegated : function(undelegate){
 		if (!undelegate)
 			return undefined;
-		let str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v].toString().toLowerCase()).digest('hex')).join("");
+		let str = ['id','delegator','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	merkle_root_000 : function (mblocks, sblocks, snapshot_hash) {
@@ -351,7 +351,7 @@ let utils = {
 		});
 		return mblocks;
 	},
-	leader_sign(leader_id, leader_msk, kblocks_hash, merkle_root, ECC, cfg_ecc, need_fail) {
+	leader_sign(leader_id, leader_msk, kblocks_hash, merkle_root, ECC, cfg_ecc, debug_short, need_fail) {
 		let LPoSID = leader_id;
 
 		let msk = enq.BigNumber(leader_msk);
@@ -363,6 +363,9 @@ let utils = {
 		// mblock_data.nonce = 0;
 
 		if (cfg_ecc.ecc_mode === "short") {
+			if(debug_short){
+				return leader_sign
+			}
 			do {
 				//mblock_data.nonce = mblock_data.nonce + 1;
 				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;

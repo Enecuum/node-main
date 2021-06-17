@@ -423,14 +423,7 @@ class TransferContract extends Contract {
         let params = this.data.parameters;
 
         let transfer = await substate.get_pos_undelegates(params.undelegate_id);
-        let und_tx = (await substate.db.get_tx(params.undelegate_id))[0];
-        if(und_tx === undefined) {
-            throw new ContractError("Undelegate TX not found");
-        }
-        if(und_tx.status !== 3) {
-            throw new ContractError("Invalid undelegate TX status");
-        }
-        if(und_tx.from !== tx.from) {
+        if(transfer.delegator !== tx.from) {
             throw new ContractError("Undelegate TX sender and transfer TX sender doesn't match");
         }
         if(!transfer)

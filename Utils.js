@@ -363,9 +363,6 @@ let utils = {
 		// mblock_data.nonce = 0;
 
 		if (cfg_ecc.ecc_mode === "short") {
-			if(debug_short){
-				return leader_sign
-			}
 			do {
 				//mblock_data.nonce = mblock_data.nonce + 1;
 				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;

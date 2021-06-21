@@ -1,0 +1,44 @@
+module.exports = {
+  apps: [
+    {
+      "name": "pos_cashier",
+      "script": "icashier.js",
+      "watch": false,
+      "args": "--cashier_interval_ms 10  --dbname trinity_pos",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-cashier.log"
+    }, {
+      "name": "pos_miner",
+      "script": "ilpos.js",
+      "watch": false,
+      "args": "--pos_share 'pos_miner' --id <you pos id>  --dbname trinity_pos",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-miner.log"
+    }, {
+      "name": "pos_syncer",
+      "script": "isyncer.js",
+      "watch": false,
+      "args": "--id <you pos id> --fastsync.lag_interval_b=300 --fastsync.sync_interval_b=258 --dbname trinity_pos",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-syncer.log"
+    }, {
+      "name": "pos_nodeapi",
+      "script": "inodeapi.js",
+      "args": "--id <you pos id> --dbname trinity_pos",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-nodeapi.log"
+    }, {
+      "name": "pos_transport",
+      "script": "itransport.js",
+      "args": "--port 8000 --peer 95.216.68.221:8000 --id <you pos id>  --dbname trinity_pos",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-transport.log"
+    }]
+};

@@ -1,6 +1,6 @@
 {
   "leader_id" : "14532",
-  "loglevel": "silly",
+  "loglevel": "info",
   "target_speed": 15,
   "auto_id": true,
   "explorer": 0,

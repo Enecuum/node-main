@@ -131,7 +131,8 @@ class DB {
 			TRUNCATE TABLE poses;
 			TRUNCATE TABLE delegates;
 			TRUNCATE TABLE undelegates;
-			TRUNCATE TABLE tokens_index`);
+			TRUNCATE TABLE tokens_index;
+			TRUNCATE TABLE dex_pools`);
 
             let sprouts = '';
 			let kblock = '';
@@ -155,31 +156,38 @@ class DB {
 				tokens.push(mysql.format("INSERT INTO tokens (hash, owner, fee_type, fee_value, fee_min, ticker, decimals, total_supply, max_supply, block_reward, min_stake, caption, referrer_stake, ref_share, reissuable, minable) VALUES ? ", [chunk.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.decimals, a.total_supply, a.max_supply, a.block_reward, a.min_stake, a.caption, a.referrer_stake, a.ref_share, a.reissuable, a.minable])]));
 			});
 			let tokens_index = [];
-			if(snapshot.tokens_index) {
+			if(snapshot.tokens_index && snapshot.tokens_index.length > 0) {
 				let tokens_index_chunks = snapshot.tokens_index.chunk(INSERT_CHUNK_SIZE);
 				tokens_index_chunks.forEach(chunk => {
 					tokens_index.push(mysql.format("INSERT INTO tokens_index (hash, txs_count) VALUES ? ", [chunk.map(a => [a.hash, a.txs_count])]));
 				});
 			}
 			let poses = [];
-			if (snapshot.poses.length > 0) {
+			if (snapshot.poses && snapshot.poses.length > 0) {
 				let poses_chunks = snapshot.poses.chunk(INSERT_CHUNK_SIZE);
 				poses_chunks.forEach(chunk => {
 					poses.push(mysql.format("INSERT INTO poses (id, owner, fee, name) VALUES ? ", [chunk.map(pos => [pos.id, pos.owner, pos.fee, pos.name])]));
 				});
 			}
 			let delegates = [];
-			if (snapshot.delegates.length > 0) {
+			if (snapshot.delegates && snapshot.delegates.length > 0) {
 				let delegates_chunks = snapshot.delegates.chunk(INSERT_CHUNK_SIZE);
 				delegates_chunks.forEach(chunk => {
 					delegates.push(mysql.format("INSERT INTO delegates (pos_id, delegator, amount, reward) VALUES ? ", [chunk.map(del => [del.pos_id, del.delegator, del.amount, del.reward])]));
 				});
 			}
 			let undelegates = [];
-			if (snapshot.undelegates.length > 0) {
+			if (snapshot.undelegates && snapshot.undelegates.length > 0) {
 				let undelegates_chunks = snapshot.undelegates.chunk(INSERT_CHUNK_SIZE);
 				undelegates_chunks.forEach(chunk => {
-					undelegates.push(mysql.format("INSERT INTO undelegates (id, pos_id, amount, height) VALUES ? ", [chunk.map(undel => [undel.id, undel.pos_id, undel.amount, undel.height])]));
+					undelegates.push(mysql.format("INSERT INTO undelegates (id, delegator, pos_id, amount, height) VALUES ? ", [chunk.map(undel => [undel.id, undel.delegator, undel.pos_id, undel.amount, undel.height])]));
+				});
+			}
+			let dex_pools = [];
+			if (snapshot.dex_pools && snapshot.dex_pools.length > 0) {
+				let dex_pools_chunks = snapshot.dex_pools.chunk(INSERT_CHUNK_SIZE);
+				dex_pools_chunks.forEach(chunk => {
+					dex_pools.push(mysql.format("INSERT INTO dex_pools (pair_id, asset_1, volume_1, asset_2, volume_2, pool_fee, token_hash) VALUES ? ", [chunk.map(dex_pool => [dex_pool.pair_id, dex_pool.asset_1, dex_pool.volume_1, dex_pool.asset_2, dex_pool.volume_2 , dex_pool.pool_fee , dex_pool.token_hash])]));
 				});
 			}
 			let cashier_ptr = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", snapshot.kblocks_hash);
@@ -189,7 +197,7 @@ class DB {
 				sql_put_snapshot = mysql.format("INSERT INTO snapshots SET ?", [{hash:snapshot.hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
 			}
 
-			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), cashier_ptr].join(';'));
+			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), dex_pools.join(';'), cashier_ptr].join(';'));
         }catch (e) {
             console.error(e);
             return false;
@@ -332,6 +340,22 @@ class DB {
 		return this.request(mysql.format('SELECT * FROM sblocks WHERE ?', [{kblocks_hash}]));
 	}
 
+	async get_microblocks_full(hash, token){
+		let mblocks = [];
+		if(token)
+			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=? and `token`=?", [hash, token]));
+		else
+			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=?", hash));
+
+		for (let i = 0; i < mblocks.length; i++) {
+			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
+			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
+			//TODO: удалять хеш (чтобы не забыть пересчитать при получении)
+			//delete mblocks[i].hash;
+		}
+		return mblocks;
+	}
+
 	async get_avg_diff_kblock(kblock_hash, target){
 		let sql = mysql.format(`SELECT 
 			FLOOR(AVG(target_diff)) AS avg_diff
@@ -382,22 +406,6 @@ class DB {
 
 	async get_txs_awaiting(mblock_hashes){
 		return (await this.request(mysql.format('SELECT COUNT(*) as txs_awaiting FROM transactions LEFT JOIN mblocks ON mblocks.hash = transactions.mblocks_hash WHERE mblocks.hash in (?);', [mblock_hashes])))[0];
-	}
-
-	async get_microblocks_full(hash, token){
-		let mblocks = [];
-		if(token)
-			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=? and `token`=?", [hash, token]));
-		else
-			mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `reward`, `nonce`, `token` FROM mblocks WHERE `kblocks_hash`=?", hash));
-
-		for (let i = 0; i < mblocks.length; i++) {
-			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
-			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
-			//TODO: удалять хеш (чтобы не забыть пересчитать при получении)
-			//delete mblocks[i].hash;
-		}
-		return mblocks;
 	}
 
 	async get_new_microblocks(kblocks_hash, limit){
@@ -501,7 +509,7 @@ class DB {
 			});
 		}
 
-		let sql_k = mysql.format(`INSERT INTO kblocks (hash, link, n, sprout, time, publisher, reward, nonce, m_root, target_diff) SELECT ?, ?, n + 1, sprout, ?, ?, ?, ?, ?,? FROM kblocks WHERE hash = ?`, [kblock.hash, kblock.link, kblock.time, kblock.publisher, kblock.reward, kblock.nonce, kblock.m_root, kblock.target_diff, kblock.link]);
+		let sql_k = mysql.format(`INSERT INTO kblocks (hash, link, n, sprout, time, publisher, reward, nonce, m_root, leader_sign, target_diff) SELECT ?, ?, n + 1, sprout, ?, ?, ?, ?, ?, ?, ? FROM kblocks WHERE hash = ?`, [kblock.hash, kblock.link, kblock.time, kblock.publisher, kblock.reward, kblock.nonce, kblock.m_root, JSON.stringify(kblock.leader_sign), kblock.target_diff, kblock.link]);
 		console.debug(`try insert new kblock ${sql_k}`);
 		return this.transaction([sql_s.join(";"), sql_m.join(";"), sql_k].join(";"));
 	}
@@ -522,26 +530,36 @@ class DB {
 		snapshot.tokens = await this.request(mysql.format("SELECT * FROM tokens ORDER BY hash"));
 		snapshot.poses = await this.request(mysql.format("SELECT id, owner, fee, name FROM poses ORDER BY id"));
 		snapshot.delegates = await this.request(mysql.format("SELECT pos_id, delegator, amount, reward FROM delegates ORDER BY pos_id, delegator"));
-		snapshot.undelegates = await this.request(mysql.format("SELECT id, pos_id, amount, height FROM undelegates ORDER BY id"));
+		snapshot.dex_pools = [];
+		let kblock = await this.get_kblock(hash);
+		if(kblock && kblock.length > 0 && kblock[0].n >= this.app_config.FORKS.fork_block_002) {
+			snapshot.dex_pools = await this.request(mysql.format("SELECT pair_id, asset_1, volume_1, asset_2, volume_2, pool_fee, token_hash FROM dex_pools ORDER BY pair_id"));
+			snapshot.undelegates = await this.request(mysql.format("SELECT id, delegator, pos_id, amount, height FROM undelegates WHERE amount > 0 ORDER BY id"));
+		}else{
+			snapshot.undelegates = await this.request(mysql.format("SELECT id, pos_id, amount, height FROM undelegates ORDER BY id"));
+		}
 		return snapshot;
 	};
 
-	get_chain_start_macroblock(){
-	    //get ferst of chain macroblock
-        let block = this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, reward FROM kblocks 
+	async get_chain_start_macroblock(){
+	    //get first macroblock of the chain
+        let block = await this.request(mysql.format(`SELECT sprout, n, kblocks.hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks 
                                                     LEFT JOIN snapshots ON kblocks.hash = snapshots.kblocks_hash WHERE kblocks.hash = link AND snapshots.hash IS NOT NULL ORDER BY n DESC LIMIT 1;`));
-        return block;
+        if(block[0] !== undefined)
+            block[0].leader_sign = JSON.parse(block[0].leader_sign);
+        return block[0];
     }
 
 	async peek_tail(timeout){
 		let now = new Date();
 		let span = now - this.last_tail;
 		if ((span > timeout) || (this.cached_tail === null) || (timeout === undefined)) {
-			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
-			if (tail)
+			let tail = await this.request(mysql.format("SELECT sprout, n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE hash != link or n = 0 ORDER BY n DESC LIMIT 1"));
+			if (tail.length === 1)
 				tail = tail[0];
 			else
 				return;
+			tail.leader_sign = JSON.parse(tail.leader_sign);
 			this.cached_tail = tail;
 			this.last_tail = now;
 			return tail;
@@ -568,7 +586,7 @@ class DB {
     }
 
 	peek_range(min, max) {
-		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
+		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
 		return this.request(sql);
 	};
 
@@ -713,10 +731,11 @@ class DB {
 	async get_macroblock(hash){
 		console.trace(`get_macroblock ${hash}`);
 		//TODO разнести функции получения макроблока для эксплорера и для синка. В версии синка не получать реварды и хеши
-		let kblock = (await this.request(mysql.format("SELECT `publisher`, `time`, `nonce`, `link`, `n`, `m_root` FROM kblocks WHERE `hash`=?", hash)))[0];
+		let kblock = (await this.request(mysql.format("SELECT `publisher`, `time`, `nonce`, `link`, `n`, `m_root`, `leader_sign` FROM kblocks WHERE `hash`=?", hash)))[0];
 		let mblocks = await this.request(mysql.format("SELECT `publisher`, `referrer`, `sign`, `leader_sign`, `hash`, `kblocks_hash`, `nonce`, `token` FROM mblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
 		let sblocks = await this.request(mysql.format("SELECT `publisher`, `sign`, `hash`, `kblocks_hash`, `bulletin` FROM sblocks WHERE `included` = 1 AND `kblocks_hash`=?", hash));
-
+        if(kblock !== undefined)
+		    kblock.leader_sign = JSON.parse(kblock.leader_sign);
 		for (let i = 0; i < mblocks.length; i++) {
 			mblocks[i].leader_sign = JSON.parse(mblocks[i].leader_sign);
 			mblocks[i].txs = await this.request(mysql.format('SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM transactions WHERE mblocks_hash = ? ORDER BY transactions.hash;', mblocks[i].hash));
@@ -894,9 +913,11 @@ class DB {
 	}
 
 	async get_accounts_count(token_hash){
+		let cnt = undefined;
 		if(token_hash === undefined)
-			token_hash =Utils.ENQ_TOKEN_NAME;
-		let cnt = (await this.request(mysql.format("SELECT count(*) as count FROM ledger WHERE `token` = ?", token_hash)))[0];
+			cnt = (await this.request(mysql.format("SELECT count(distinct(id)) as count FROM ledger")))[0];
+		else
+			cnt = (await this.request(mysql.format("SELECT count(*) as count FROM ledger WHERE `token` = ?", token_hash)))[0];
 		return cnt;
 	}
 
@@ -916,11 +937,13 @@ class DB {
 	}
 
 	async get_total_supply(){
-		let amount = (await this.request(mysql.format(`select (L.led + D.del + R.rew + U.und) as amount from
-			(select ifnull(sum(amount), 0) as led from ledger where token = ?) as L,
-			(select ifnull(sum(amount), 0) as del from delegates) as D,
-			(select ifnull(sum(reward), 0) as rew from delegates) as R,
-			(select ifnull(sum(amount), 0) as und from undelegates) as U`, [Utils.ENQ_TOKEN_NAME])))[0];
+		let amount = (await this.request(mysql.format(`SELECT (L.led + D.del + R.rew + U.und + P_1.p1 + P_2.p2) AS amount FROM
+			(SELECT ifnull(sum(amount), 0) AS led FROM ledger WHERE token = ?) AS L,
+			(SELECT ifnull(sum(amount), 0) AS del FROM delegates) AS D,
+			(SELECT ifnull(sum(reward), 0) AS rew FROM delegates) AS R,
+			(SELECT ifnull(sum(amount), 0) AS und FROM undelegates) AS U,
+			(SELECT ifnull(sum(volume_1), 0) AS p1 FROM dex_pools WHERE asset_1 = ?) AS P_1,
+			(SELECT ifnull(sum(volume_2), 0) AS p2 FROM dex_pools WHERE asset_2 = ?) AS P_2`, [Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME, Utils.ENQ_TOKEN_NAME])))[0];
 		return amount;
 	}
 
@@ -990,7 +1013,66 @@ class DB {
 		return this.transaction([sql_i, sw].join(';'));
 	}
 
-	process_ledger_mblocks(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts){
+	process_ledger_mblocks_002(txs, mblocks, rewards, kblock, tokens_counts, substate){
+		let sts = [];
+		let pnd = [];
+		let ind = [];
+
+		//let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
+		let mb = mysql.format('UPDATE mblocks SET calculated = 1 WHERE `hash` in (?)', [mblocks.map(m => m.hash)]);
+
+		if (txs.length) {
+			txs.forEach(function (s) {
+				sts.push(mysql.format("UPDATE transactions SET `status` = ? WHERE `hash` = ? AND `mblocks_hash` = ?", [s.status, s.hash, s.mblocks_hash]));
+				// TODO: DELETE FROM pending WHERE `hash` in (?)
+				pnd.push(mysql.format("DELETE FROM pending WHERE `hash` = ?", s.hash));
+			});
+		}
+
+		ind = this.generate_eindex(rewards, kblock.time, tokens_counts);
+		// substate part
+		let state_sql = [];
+		if(substate.accounts.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [substate.accounts.map(a => [a.id, a.amount, a.token])]));
+		if(substate.pools.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO dex_pools (`pair_id`, `asset_1`, `volume_1`, `asset_2`, `volume_2`, `pool_fee`, `token_hash`) VALUES ? ON DUPLICATE KEY UPDATE `volume_1` = VALUES(volume_1), `volume_2` = VALUES(volume_2)", [substate.pools.map(p => [p.pair_id, p.asset_1, p.volume_1, p.asset_2, p.volume_2, p.pool_fee, p.token_hash])]));
+		substate.tokens = substate.tokens.filter(a => a.changed === true);
+		if(substate.tokens.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO tokens (`hash`, `owner`, `fee_type`, `fee_value`, `fee_min`, `ticker`, `caption`, `decimals`, `total_supply`, `reissuable`, `minable`, `max_supply`, `block_reward`, `min_stake`, `referrer_stake`, `ref_share`) VALUES ? ON DUPLICATE KEY UPDATE `total_supply` = VALUES(total_supply)", [substate.tokens.map(a => [a.hash, a.owner, a.fee_type, a.fee_value, a.fee_min, a.ticker, a.caption, a.decimals, a.total_supply, a.reissuable, a.minable, a.max_supply, a.block_reward, a.min_stake, a.referrer_stake, a.ref_share ])]));
+		substate.poses = substate.poses.filter(a => a.changed === true);
+		if(substate.poses.length > 0)
+			state_sql.push(	mysql.format("INSERT INTO poses (`id`, `owner`, `fee`, `name`) VALUES ? ", [substate.poses.map(a => [a.id, a.owner, a.fee, a.name])]));
+
+		for( let pos in substate.delegation_ledger){
+			for( let del in substate.delegation_ledger[pos]){
+				if(substate.delegation_ledger[pos][del].changed === true){
+					state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
+						pos_id : pos,
+						delegator : del,
+						amount : substate.delegation_ledger[pos][del].delegated,
+						reward : substate.delegation_ledger[pos][del].reward
+					}]));
+				}
+			}
+		}
+
+		for( let und in substate.undelegates){
+			if(substate.undelegates[und].changed === true){
+				state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
+					id : substate.undelegates[und].id,
+					delegator : substate.undelegates[und].delegator,
+					pos_id : substate.undelegates[und].pos_id,
+					amount : substate.undelegates[und].amount,
+					height : substate.undelegates[und].height
+				}]));
+			}
+		}
+
+		let sql = [sts.join(';'), pnd.join(';'), ind.join(';'), mb, state_sql.join(';')].join(';');
+		//return;
+		return this.transaction(sql);
+	}
+	process_ledger_mblocks_000(accounts, txs, mblocks, post_action, rewards, kblock, tokens_counts){
 		let sts = [];
 		let pnd = [];
 		let ind = [];
@@ -1011,7 +1093,6 @@ class DB {
 		let sql = [ins, sts.join(';'), pnd.join(';'), ind.join(';'), mb, post_action.join(';')].join(';');
 		return this.transaction(sql);
 	}
-
 	process_indexer_sblocks(sblocks, time){
 		let index = [];
 		let sb = mysql.format('UPDATE sblocks SET indexed = 1 WHERE `hash` in (?)', [sblocks.map(s => s.hash)]);
@@ -1369,7 +1450,7 @@ class DB {
 														FROM transactions
 														WHERE transactions.hash = ?
 													   GROUP BY hash) MaxStatus ON MaxStatus.status = T.status and  T.hash = ?
-													INNER JOIN tokens AS TKN ON TKN.hash = T.ticker
+													LEFT JOIN tokens AS TKN ON TKN.hash = T.ticker
 													INNER JOIN mblocks AS M ON M.hash = T.mblocks_hash`, [hash,hash]));
 	}
 
@@ -1409,7 +1490,10 @@ class DB {
 
 	//TODO возвращать блоки из нужной ветки
 	async get_kblock(hash){
-		return this.request(mysql.format('SELECT * FROM kblocks WHERE `hash` = ?', hash));
+		let res = await this.request(mysql.format('SELECT * FROM kblocks WHERE `hash` = ?', hash));
+		if(res[0] !== undefined)
+		    res[0].leader_sign = JSON.parse(res[0].leader_sign);
+		return res;
 	}
 
 	async get_next_block(hash) {
@@ -1501,7 +1585,7 @@ class DB {
 	pending_peek(count, timeout_sec) {
 		let uid = Math.floor(Math.random() * 1e15);
 		console.silly(`pending uid = ${uid}`);
-		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter`, `lastrequested` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
+		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter` DESC, `lastrequested` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
 			.then((rows) => {
 				if (rows.affectedRows > 0){
 					return this.request(mysql.format("SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM pending WHERE `uid`=?", uid));
@@ -1812,7 +1896,7 @@ class DB {
 	}
 
 	async get_pos_undelegates(id){
-		let res = this.request(mysql.format("SELECT * FROM undelegates WHERE id = ?", [id]));
+		let res = await this.request(mysql.format("SELECT * FROM undelegates WHERE id = ?", [id]));
 		return res;
 	}
 
@@ -1892,6 +1976,40 @@ class DB {
 
 	async update_roi(token, rois, rois_sim){
 		let res = this.request(mysql.format("UPDATE rois SET calc_rois = ?, calc_rois_sim = ? WHERE token = ?", [rois, rois_sim, token]));
+		return res;
+	}
+
+	async dex_get_pool_info(pair_id){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id = ?`, pair_id)));
+		return res.length !== 0;
+	}
+
+	async dex_get_pools_all(){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
+		return res;
+	}
+	async dex_get_pools(ids){
+		if(!ids.length)
+			return [];
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE pair_id IN (?)`, [ids])));
+		return res;
+	}
+	async dex_get_pools_by_lt(ids){
+		if(!ids.length)
+			return [];
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash IN (?)`, [ids])));
+		return res;
+	}
+
+	async dex_check_pool_exist(pair_id){
+		let res = (await this.request(mysql.format(`SELECT 1 FROM dex_pools WHERE pair_id = ? LIMIT 1`, [pair_id])));
+		return res.length !== 0;
+	}
+
+	async get_dex_pool_info_by_token(hash){
+		if(!hash)
+			return {};
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash = ?`, [hash])));
 		return res;
 	}
 }

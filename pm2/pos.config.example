@@ -1,0 +1,44 @@
+module.exports = {
+  apps: [
+    {
+      "name": "pos_cashier",
+      "script": "icashier.js",
+      "watch": false,
+      "args": "--cashier_interval_ms 10",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-cashier.log"
+    }, {
+      "name": "pos_miner",
+      "script": "ilpos.js",
+      "watch": false,
+      "args": "--pos_share 'pos_miner' --id <your pos id>",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-miner.log"
+    }, {
+      "name": "pos_syncer",
+      "script": "isyncer.js",
+      "watch": false,
+      "args": "--id <your pos id> --fastsync.lag_interval_b=300 --fastsync.sync_interval_b=258",
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-syncer.log"
+    }, {
+      "name": "pos_nodeapi",
+      "script": "inodeapi.js",
+      "args": "--id <your pos id>",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-nodeapi.log"
+    }, {
+      "name": "pos_transport",
+      "script": "itransport.js",
+      "args": "--port 7000 --peer 95.216.246.116:7000 --id <your pos id>",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pos",
+      "log_file": "log/pm2-pos-transport.log"
+    }]
+};

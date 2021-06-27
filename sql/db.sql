@@ -94,7 +94,7 @@ CREATE TABLE `farms` (
 DROP TABLE IF EXISTS `farmers`;
 CREATE TABLE `farmers` (
   `farm_id` VARCHAR(64) NOT NULL,
-  `farmer_id` VARCHAR(64) NOT NULL,
+  `farmer_id` VARCHAR(66) NOT NULL,
   `stake` BIGINT(20) NULL,
   `level` BIGINT(20) NULL,
   PRIMARY KEY (`farm_id`, `farmer_id`)

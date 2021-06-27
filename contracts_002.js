@@ -19,6 +19,7 @@ const {ContractError} = require('./errors');
 
 //let MAX_SUPPLY = BigInt('18446744073709551615');
 let MAX_SUPPLY_LIMIT = BigInt('18446744073709551615');
+let LEVEL_DECIMALS =   BigInt('10000000000000000000');
 let MAX_DECIMALS = BigInt(10);
 let ENQ_INTEGER_COIN = BigInt(10000000000);
 
@@ -1350,30 +1351,16 @@ class FarmsPutStakeContract extends Contract {
         let farm = await substate.get_farm(params.farm_id);
         if(!farm)
             throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
-        // TODO
-        //let farmer = await substate.get_farmer(params.farm_id, tx.from);
-        //if(!farmer){
-            let farmer = {
-                farm_id : params.farm_id,
-                farmer_id : tx.from,
-                stake : BigInt(0),
-                level : BigInt(0)
-            };
-        //}
 
         let balance = await substate.get_balance(tx.from, farm.stake_token);
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${farm.stake_token} insufficient balance`);
 
-        let distributed;
-        let new_level;
+        let distributed = BigInt(0);
+        let new_level = BigInt(0);
         if (farm.total_stake > BigInt(0)){
             distributed = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
-            new_level = farm.level + distributed / farm.total_stake;
-        }
-        else{
-            distributed = BigInt(0);
-            new_level = BigInt(0);
+            new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
         }
 
         let farm_data = {
@@ -1468,8 +1455,8 @@ class FarmsCloseStakeContract extends Contract {
         farmer_reward = stake * (new_level - entry_level)
          */
         let distributed = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
-        let new_level = farm.level + distributed / farm.total_stake;
-        let farmer_reward = farmer.stake * (new_level - farmer.level);
+        let new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
 
         let farm_data = {
             farm_id : params.farm_id,

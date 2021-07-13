@@ -52,6 +52,7 @@ class ContractFactory{
             //case "add_funds" :      return new Contracts[idx].FarmsAddFundsContract(data);
             case "put_stake" :      return new Contracts[idx].FarmsPutStakeContract(data);
             case "close_stake" :    return new Contracts[idx].FarmsCloseStakeContract(data);
+            case "get_reward" :    return new Contracts[idx].FarmsCloseStakeContract(data);
             default :               return null;
         }
     }

@@ -26,7 +26,8 @@ let schema = {
     "create_farm" :     "1900",
     "add_funds" :       "1a00",
     "put_stake" :       "1b00",
-    "close_stake" :     "1c00"
+    "close_stake" :     "1c00",
+    "get_reward" :      "1d00"
 };
 
 class ContractParser {

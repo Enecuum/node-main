@@ -1505,6 +1505,88 @@ class FarmsCloseStakeContract extends Contract {
     }
 }
 
+class FarmsGetRewardContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.stake_token balance
+         *
+         * change farmer level
+         * change farm emission, level
+         * add reward to account
+         *
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        // let reward_token_info = await substate.get_token_info(params.reward_token);
+        // if(!reward_token_info)
+        //     throw new ContractError(`Token ${params.reward_token} not found`);
+        // TODO
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+        // TODO
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            throw new ContractError(`Farm_farmer ${params.farm_id}_${tx.from} not found`);
+        }
+
+        let distributed = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+        let new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+
+        let farm_data = {
+            farm_id : params.farm_id,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : BigInt(kblock.n)
+        };
+        let farmer_data = {
+            farm_id : farm.farm_id,
+            farmer_id : tx.from,
+            level : new_level
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : farmer_reward,
+            token : farm.reward_token,
+        });
+        substate.farms_change(farm_data);
+        substate.farmers_change(farmer_data);
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
+    }
+}
+
 module.exports.Contract = Contract;
 
 module.exports.CreateTokenContract = CreateTokenContract;
@@ -1522,6 +1604,6 @@ module.exports.DexLiquidityRemoveContract = DexLiquidityRemoveContract;
 module.exports.DexLiquiditySwapContract = DexLiquiditySwapContract;
 
 module.exports.FarmsCreateFarmContract = FarmsCreateFarmContract;
-//module.exports.FarmsAddFundsContract = FarmsAddFundsContract;
 module.exports.FarmsPutStakeContract = FarmsPutStakeContract;
 module.exports.FarmsCloseStakeContract = FarmsCloseStakeContract;
+module.exports.FarmsGetRewardContract = FarmsGetRewardContract;

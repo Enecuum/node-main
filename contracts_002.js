@@ -1299,7 +1299,7 @@ class FarmsAddFundsContract extends Contract {
     }
 }
 
-class FarmsPutStakeContract extends Contract {
+class FarmsAddStakeContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1604,6 +1604,6 @@ module.exports.DexLiquidityRemoveContract = DexLiquidityRemoveContract;
 module.exports.DexLiquiditySwapContract = DexLiquiditySwapContract;
 
 module.exports.FarmsCreateFarmContract = FarmsCreateFarmContract;
-module.exports.FarmsPutStakeContract = FarmsPutStakeContract;
+module.exports.FarmsAddStakeContract = FarmsAddStakeContract;
 module.exports.FarmsCloseStakeContract = FarmsCloseStakeContract;
 module.exports.FarmsGetRewardContract = FarmsGetRewardContract;

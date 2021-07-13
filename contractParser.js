@@ -24,10 +24,9 @@ let schema = {
     "remove_liquidity" :"1700",
     "swap" :            "1800",
     "create_farm" :     "1900",
-    "add_funds" :       "1a00",
-    "put_stake" :       "1b00",
-    "close_stake" :     "1c00",
-    "get_reward" :      "1d00"
+    "farm_reward" :     "1a00",
+    "add_stake" :       "1b00",
+    "close_stake" :     "1c00"
 };
 
 class ContractParser {

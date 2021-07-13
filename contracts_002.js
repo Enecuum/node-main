@@ -1145,6 +1145,7 @@ class FarmsCreateFarmContract extends Contract {
          * stake_token : hex string 64 chars
          * reward_token : hex string 64 chars
          * block_reward : 0...MAX_SUPPLY_LIMIT
+         * emission : 0...MAX_SUPPLY_LIMIT
          */
         let params = this.data.parameters;
 
@@ -1351,7 +1352,15 @@ class FarmsPutStakeContract extends Contract {
         let farm = await substate.get_farm(params.farm_id);
         if(!farm)
             throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
-
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            farmer = {
+                farm_id : params.farm_id,
+                farmer_id : tx.from,
+                stake : BigInt(0),
+                level : BigInt(0)
+            }
+        }
         let balance = await substate.get_balance(tx.from, farm.stake_token);
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${farm.stake_token} insufficient balance`);
@@ -1361,6 +1370,13 @@ class FarmsPutStakeContract extends Contract {
         if (farm.total_stake > BigInt(0)){
             distributed = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
             new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        }
+
+        let farmer_level = new_level;
+        if(farmer.stake > BigInt(0)){
+            let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+            let farmer_stake = farmer.stake + params.amount;
+            farmer_level = (farmer_reward * LEVEL_DECIMALS) / farmer_stake;
         }
 
         let farm_data = {
@@ -1373,7 +1389,7 @@ class FarmsPutStakeContract extends Contract {
         let farmer_data = {
             farm_id : farm.farm_id,
             farmer_id : tx.from,
-            level : new_level,
+            level : farmer_level,
             stake : params.amount
         };
         substate.accounts_change({

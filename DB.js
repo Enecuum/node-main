@@ -1059,7 +1059,7 @@ class DB {
 		let farmers_delete = substate.farmers.filter(a => a.delete === true);
 		substate.farmers = substate.farmers.filter(a => (a.changed === true) && (a.delete !== true));
 		if(substate.farmers.length > 0)
-			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level])]));
+			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ON DUPLICATE KEY UPDATE `stake` = VALUES(stake), `level` = VALUES(level)", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level])]));
 		if(farmers_delete.length > 0){
 			for (let farmer of farmers_delete){
 				state_sql.push(	mysql.format("DELETE FROM farmers WHERE farm_id = ? AND farmer_id = ?", [farmer.farm_id, farmer.farmer_id]));

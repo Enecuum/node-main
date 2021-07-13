@@ -406,8 +406,8 @@ class Substate {
     farmers_change(changes){
         let farmer_idx = this.farmers.findIndex(a => ((a.farm_id === changes.farm_id) && (a.farmer_id === changes.farmer_id)));
         if(farmer_idx > -1){
-            throw new ContractError(`Can't put stake again`);
-            /*
+            //throw new ContractError(`Can't put stake again`);
+
             if(this.farmers[farmer_idx].stake + changes.stake < BigInt(0))
                 throw new ContractError(`Negative farmers state`);
             if(this.farmers[farmer_idx].level > changes.level)
@@ -415,7 +415,7 @@ class Substate {
             this.farmers[farmer_idx].stake += changes.stake;
             this.farmers[farmer_idx].level = changes.level;
             this.farmers[farmer_idx].changed = true;
-             */
+
         }
         else{
             changes.changed = true;

@@ -19,14 +19,14 @@ let schema = {
     "transfer" :        "1200",
     "mint" :            "1300",
     "burn" :            "1400",
-    "create_pool" :     "1500",
-    "add_liquidity" :   "1600",
-    "remove_liquidity" :"1700",
-    "swap" :            "1800",
-    "create_farm" :     "1900",
-    "farm_reward" :     "1a00",
-    "add_stake" :       "1b00",
-    "close_stake" :     "1c00"
+    "pool_create" :     "1500",
+    "pool_add_liquidity" :      "1600",
+    "pool_remove_liquidity" :   "1700",
+    "pool_swap" :               "1800",
+    "farm_create" :             "1900",
+    "farm_get_reward" :         "1a00",
+    "farm_increase_stake" :     "1b00",
+    "farm_close_stake" :        "1c00"
 };
 
 class ContractParser {

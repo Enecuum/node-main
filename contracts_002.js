@@ -32,7 +32,7 @@ class Contract{
         return this._mysql;
     }
 }
-class CreateTokenContract extends Contract {
+class TokenCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -187,7 +187,7 @@ class CreateTokenContract extends Contract {
         };
     }
 }
-class CreatePosContract extends Contract {
+class PosCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -246,7 +246,7 @@ class CreatePosContract extends Contract {
         };
     }
 }
-class DelegateContract extends Contract {
+class PosDelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -313,7 +313,7 @@ class DelegateContract extends Contract {
         };
     }
 }
-class UndelegateContract extends Contract {
+class PosUndelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -387,7 +387,7 @@ class UndelegateContract extends Contract {
         };
     }
 }
-class TransferContract extends Contract {
+class PosTransferContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -460,7 +460,7 @@ class TransferContract extends Contract {
         return (BigInt(kblock.n) - BigInt(transfer.height)) >= BigInt(transfer_lock);
     }
 }
-class PosRewardContract extends Contract {
+class PosGetRewardContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -520,7 +520,7 @@ class PosRewardContract extends Contract {
         };
     }
 }
-class MintTokenContract extends Contract {
+class TokenMintContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -594,7 +594,7 @@ class MintTokenContract extends Contract {
         };
     }
 }
-class BurnTokenContract extends Contract {
+class TokenBurnContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -670,7 +670,7 @@ class BurnTokenContract extends Contract {
         };
     }
 }
-class DexPoolCreateContract extends Contract {
+class PoolCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -808,7 +808,7 @@ class DexPoolCreateContract extends Contract {
         };
     }
 }
-class DexLiquidityAddContract extends Contract {
+class PoolLiquidityAddContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -942,7 +942,7 @@ class DexLiquidityAddContract extends Contract {
         };
     }
 }
-class DexLiquidityRemoveContract extends Contract {
+class PoolLiquidityRemoveContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1040,7 +1040,7 @@ class DexLiquidityRemoveContract extends Contract {
         };
     }
 }
-class DexLiquiditySwapContract extends Contract {
+class PoolLiquiditySwapContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1131,7 +1131,7 @@ class DexLiquiditySwapContract extends Contract {
     }
 }
 
-class FarmsCreateFarmContract extends Contract {
+class FarmCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1299,7 +1299,7 @@ class FarmsAddFundsContract extends Contract {
     }
 }
 
-class FarmsAddStakeContract extends Contract {
+class FarmIncreaseStakeContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1407,7 +1407,7 @@ class FarmsAddStakeContract extends Contract {
     }
 }
 
-class FarmsCloseStakeContract extends Contract {
+class FarmCloseStakeContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1505,7 +1505,7 @@ class FarmsCloseStakeContract extends Contract {
     }
 }
 
-class FarmsGetRewardContract extends Contract {
+class FarmGetRewardContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1589,21 +1589,22 @@ class FarmsGetRewardContract extends Contract {
 
 module.exports.Contract = Contract;
 
-module.exports.CreateTokenContract = CreateTokenContract;
-module.exports.CreatePosContract = CreatePosContract;
-module.exports.DelegateContract = DelegateContract;
-module.exports.UndelegateContract = UndelegateContract;
-module.exports.TransferContract = TransferContract;
-module.exports.PosRewardContract = PosRewardContract;
-module.exports.MintTokenContract = MintTokenContract;
-module.exports.BurnTokenContract = BurnTokenContract;
+module.exports.TokenCreateContract = TokenCreateContract;
+module.exports.TokenMintContract = TokenMintContract;
+module.exports.TokenBurnContract = TokenBurnContract;
 
-module.exports.DexPoolCreateContract = DexPoolCreateContract;
-module.exports.DexLiquidityAddContract = DexLiquidityAddContract;
-module.exports.DexLiquidityRemoveContract = DexLiquidityRemoveContract;
-module.exports.DexLiquiditySwapContract = DexLiquiditySwapContract;
+module.exports.PosCreateContract = PosCreateContract;
+module.exports.PosDelegateContract = PosDelegateContract;
+module.exports.PosUndelegateContract = PosUndelegateContract;
+module.exports.PosTransferContract = PosTransferContract;
+module.exports.PosGetRewardContract = PosGetRewardContract;
 
-module.exports.FarmsCreateFarmContract = FarmsCreateFarmContract;
-module.exports.FarmsAddStakeContract = FarmsAddStakeContract;
-module.exports.FarmsCloseStakeContract = FarmsCloseStakeContract;
-module.exports.FarmsGetRewardContract = FarmsGetRewardContract;
+module.exports.PoolCreateContract = PoolCreateContract;
+module.exports.PoolLiquidityAddContract = PoolLiquidityAddContract;
+module.exports.PoolLiquidityRemoveContract = PoolLiquidityRemoveContract;
+module.exports.PoolLiquiditySwapContract = PoolLiquiditySwapContract;
+
+module.exports.FarmCreateContract = FarmCreateContract;
+module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;
+module.exports.FarmCloseStakeContract = FarmCloseStakeContract;
+module.exports.FarmGetRewardContract = FarmGetRewardContract;

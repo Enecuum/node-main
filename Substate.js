@@ -176,7 +176,7 @@ class Substate {
                 this.tokens.push(contract.data.parameters.token_hash);
             }
                 break;
-            case "create_pool" : {
+            case "pool_create" : {
                 // asset_1 token info
                 // asset_2 token info
                 // 1_2 pool info
@@ -185,7 +185,7 @@ class Substate {
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
-            case "add_liquidity" : {
+            case "pool_add_liquidity" : {
                 // asset_1 token info
                 // asset_2 token info
                 // 1_2 pool info
@@ -194,18 +194,18 @@ class Substate {
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_1, contract.data.parameters.asset_2).pair_id);
             }
                 break;
-            case "remove_liquidity" :
+            case "pool_remove_liquidity" :
                 // l_token token info
                 // pool of l_token info
                 this.tokens.push(contract.data.parameters.hash);
                 this.lt_hashes.push(contract.data.parameters.hash);
                 break;
-            case "swap" :
+            case "pool_swap" :
                 this.tokens.push(contract.data.parameters.asset_in);
                 this.tokens.push(contract.data.parameters.asset_out);
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
                 break;
-            case "create_farm" : {
+            case "farm_create" : {
                 // stake_token token info
                 // reward_token token info
                 this.farms.push(tx.hash);
@@ -213,23 +213,17 @@ class Substate {
                 this.tokens.push(contract.data.parameters.reward_token);
             }
                 break;
-            case "add_funds" : {
-                // stake_token token info
-                // reward_token token info
-                this.farms.push(contract.data.parameters.farm_id);
-                //this.farmers.push(tx.from);
-            }
-                break;
-            case "put_stake" : {
-                // stake_token token info
-                // reward_token token info
+            case "farm_increase_stake" : {
                 this.farms.push(contract.data.parameters.farm_id);
                 this.farmers.push(tx.from);
             }
                 break;
-            case "close_stake" : {
-                // stake_token token info
-                // reward_token token info
+            case "farm_close_stake" : {
+                this.farms.push(contract.data.parameters.farm_id);
+                this.farmers.push(tx.from);
+            }
+                break;
+            case "farm_get_reward" : {
                 this.farms.push(contract.data.parameters.farm_id);
                 this.farmers.push(tx.from);
             }

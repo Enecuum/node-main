@@ -36,23 +36,23 @@ class ContractFactory{
             idx = i;
         }
         switch(type) {
-            case "create_token" :   return new Contracts[idx].CreateTokenContract(data);
-            case "create_pos" :     return new Contracts[idx].CreatePosContract(data);
-            case "delegate" :       return new Contracts[idx].DelegateContract(data);
-            case "undelegate" :     return new Contracts[idx].UndelegateContract(data);
-            case "transfer" :       return new Contracts[idx].TransferContract(data);
-            case "pos_reward" :     return new Contracts[idx].PosRewardContract(data);
-            case "mint" :           return new Contracts[idx].MintTokenContract(data);
-            case "burn" :           return new Contracts[idx].BurnTokenContract(data);
-            case "create_pool" :    return new Contracts[idx].DexPoolCreateContract(data);
-            case "add_liquidity" :  return new Contracts[idx].DexLiquidityAddContract(data);
-            case "remove_liquidity":return new Contracts[idx].DexLiquidityRemoveContract(data);
-            case "swap" :           return new Contracts[idx].DexLiquiditySwapContract(data);
-            case "create_farm" :    return new Contracts[idx].FarmsCreateFarmContract(data);
-            case "add_stake" :      return new Contracts[idx].FarmsAddStakeContract(data);
-            case "close_stake" :    return new Contracts[idx].FarmsCloseStakeContract(data);
-            case "farm_reward" :    return new Contracts[idx].FarmsGetRewardContract(data);
-            default :               return null;
+            case "create_token" :           return new Contracts[idx].TokenCreateContract(data);
+            case "create_pos" :             return new Contracts[idx].PosCreateContract(data);
+            case "delegate" :               return new Contracts[idx].PosDelegateContract(data);
+            case "undelegate" :             return new Contracts[idx].PosUndelegateContract(data);
+            case "transfer" :               return new Contracts[idx].PosTransferContract(data);
+            case "pos_reward" :             return new Contracts[idx].PosGetRewardContract(data);
+            case "mint" :                   return new Contracts[idx].TokenMintContract(data);
+            case "burn" :                   return new Contracts[idx].TokenBurnContract(data);
+            case "pool_create" :            return new Contracts[idx].PoolCreateContract(data);
+            case "pool_add_liquidity" :     return new Contracts[idx].PoolLiquidityAddContract(data);
+            case "pool_remove_liquidity":   return new Contracts[idx].PoolLiquidityRemoveContract(data);
+            case "pool_swap" :              return new Contracts[idx].PoolLiquiditySwapContract(data);
+            case "farm_create" :            return new Contracts[idx].FarmCreateContract(data);
+            case "farm_increase_stake" :    return new Contracts[idx].FarmIncreaseStakeContract(data);
+            case "farm_close_stake" :       return new Contracts[idx].FarmCloseStakeContract(data);
+            case "farm_get_reward" :        return new Contracts[idx].FarmGetRewardContract(data);
+            default :                       return null;
         }
     }
     async processData(tx, db, kblock){

@@ -17,6 +17,7 @@ const StakeCalc = require('./stakecalc.js').StakeCalc;
 
 const day = 24*60*60*1000;
 const check_type_timeout = 10*60*1000;
+const tokens_ptice_timeout = 5000;
 
 const FULL_NODE = 0;
 const POW = 1;
@@ -72,7 +73,26 @@ class Stat {
         this.statsInt = setTimeout(async () => { await this.calсStat(); }, 2000);
         this.recalcRoi = setImmediate(async () => { await this.calcRoi(); }, day);
         this.redefNodesType = setImmediate(async () => { await this.redefNodes(); }, check_type_timeout);
-        this.recalcPosPowRew = setImmediate(async () => { await this.calcPosPowRew(); }, day)
+        this.recalcPosPowRew = setImmediate(async () => { await this.calcPosPowRew(); }, day);
+
+        this.tokensPrice = setImmediate(async () => { await this.tokensPriceCaching(); }, tokens_ptice_timeout);
+    }
+
+    async tokensPriceCaching() {
+        let start = new Date();
+        let tokens = await this.db.get_tokens_price();
+        try {
+            for (let token of tokens) {
+                let price = Math.round((await this.service.get_cg_token_usg(token.cg_id))*1e10);
+                console.log(`price ${price}`)
+                await this.db.update_token_price(token.tokens_hash, price);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        let end = new Date();
+        let calcTime = tokens_ptice_timeout - (end - start);
+        setTimeout(async () => { await this.calcRoi(); }, calcTime);
     }
 
     async calcRoi(){

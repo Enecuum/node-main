@@ -409,6 +409,22 @@ CREATE TABLE `tokens_index` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `tokens_price`
+--
+
+DROP TABLE IF EXISTS `tokens_price`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tokens_price` (
+  `tokens_hash` varchar(64) NOT NULL,
+  `cg_id` varchar(64) NOT NULL,
+  `price` bigint(20) NOT NULL,
+  PRIMARY KEY (`token_hash`),
+  CONSTRAINT `fk_tokens` FOREIGN KEY (`token_hash`) REFERENCES `tokens` (`hash`) ON DELETE NO ACTION ON UPDATE NO ACTION
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `transactions`
 --
 

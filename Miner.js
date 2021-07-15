@@ -1,5 +1,5 @@
-const Utils = require('../Utils');
-const Transport = require('../Transport').Tip;
+const Utils = require('./Utils');
+const Transport = require('./Transport').Tip;
 var rx = require('node-randomx/addon');
 
 class Miner {

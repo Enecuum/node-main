@@ -1,7 +1,7 @@
 const argv = require('yargs').argv;
 const fs = require('fs');
 
-const DB = require('../DB').DB;
+const DB = require('./DB').DB;
 const Miner = require('./Miner');
 
 const CONFIG_FILENAME = 'config.json';

@@ -1395,6 +1395,7 @@ class DB {
 			farms.level,
 			farms.last_block,
 			farms.total_stake,
+			farms.emission,
 			(SELECT stake FROM farmers WHERE farmer_id = ? AND farmers.farm_id = farms.farm_id) as stake 
 			FROM farms 
 			LEFT JOIN tokens AS S ON stake_token = S.hash 
@@ -2030,7 +2031,7 @@ class DB {
 
 	async get_token_price(token_hash) {
 		let data = await this.request(mysql.format("SELECT price FROM tokens_price WHERE tokens_hash = ?", token_hash));
-		if(data.length !== 0) {
+		if(data.length !== 0)
 			return data[0].price;
 		return null;
 	}

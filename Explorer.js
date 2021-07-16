@@ -837,6 +837,7 @@ class Explorer {
 				rec.apy = null;
 				rec.liquidity = null;
 				rec.earned = null;
+				rec.blocks_left = null;
 				if(rec.total_stake > 0) {
 					//Token Price
 					let reward_token_price = (await this.db.get_token_price(rec.reward_token_hash));
@@ -848,19 +849,23 @@ class Explorer {
 					let total_stake_usd = rec.total_stake / Math.pow(10, rec.stake_token_decimals) * stake_token_price;
 					rec.liquidity = total_stake_usd;
 
+					let max_n = Math.round(rec.emission / rec.block_reward);
 					//Earned
 					if (rec.stake > 0) {
-						let distributed = (BigInt(n) - BigInt(rec.last_block)) * BigInt(rec.block_reward);
+						let distributed = BigInt(Math.min(max_n ,(n - rec.last_block))) * BigInt(rec.block_reward);
 						let new_level = BigInt(rec.level) + (distributed * LEVEL_DECIMALS) / BigInt(rec.total_stake);
+						rec.new_level = new_level;
 						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.level)) / LEVEL_DECIMALS;
 					}
+					//Blocks left
+					rec.blocks_left = max_n - (n - rec.last_block);
 
 					//APY
 					let block_reward_usd = (rec.block_reward / Math.pow(10, rec.reward_token_decimals)) * reward_token_price;
 					console.debug(`block_reward_usd - rec.block_reward = ${rec.block_reward}, rec.reward_token_decimals = ${rec.reward_token_decimals}, reward_token_price = ${reward_token_price}`);
 					console.debug(`roi - block_reward_usd = ${block_reward_usd}, total_stake_usd = ${total_stake_usd}`);
 					if(block_reward_usd > 0 && total_stake_usd > 0){
-						let roi = BigInt(Math.round(block_reward_usd / total_stake_usd * 365 * 5760) * Utils.PERCENT_FORMAT_SIZE;
+						let roi = BigInt(Math.round(block_reward_usd / total_stake_usd * 365 * 5760)) * Utils.PERCENT_FORMAT_SIZE;
 						rec.apy = roi;
 					}
 

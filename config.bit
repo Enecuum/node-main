@@ -73,10 +73,15 @@
     "mint" :            0,
     "burn" :            0,
     "custom" :          20000000000,
-    "create_pool" :     0,
-    "add_liquidity" :   0,
-    "remove_liquidity" :0,
-    "swap" :            0
+    "pool_create" :     0,
+    "pool_add_liquidity" :   0,
+    "pool_remove_liquidity" :0,
+    "pool_swap" :            0,
+    "farm_create" :             0,
+    "farm_get_reward" :         0,
+    "farm_increase_stake" :     0,
+    "farm_decrease_stake" :     0,
+    "farm_close_stake" :        0
   },
   "first_message_always_probe" : false,
   "karma" : {

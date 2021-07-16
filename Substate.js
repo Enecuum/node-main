@@ -197,8 +197,8 @@ class Substate {
             case "pool_remove_liquidity" :
                 // l_token token info
                 // pool of l_token info
-                this.tokens.push(contract.data.parameters.hash);
-                this.lt_hashes.push(contract.data.parameters.hash);
+                this.tokens.push(contract.data.parameters.lt);
+                this.lt_hashes.push(contract.data.parameters.lt);
                 break;
             case "pool_swap" :
                 this.tokens.push(contract.data.parameters.asset_in);

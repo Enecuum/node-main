@@ -1386,6 +1386,25 @@ class DB {
 		let res = await this.request(mysql.format('SELECT * FROM farms WHERE farm_id in (?)', [ids]));
 		return res;
 	}
+	async get_dex_farms(farmer_id){
+		let res = await this.request(mysql.format(
+			`SELECT farm_id, 
+			stake_token as stake_token_hash, S.ticker as stake_token_name, S.decimals as stake_token_decimals,
+			reward_token as reward_token_hash, R.ticker as reward_token_name, R.decimals as reward_token_decimals,
+			farms.block_reward,
+			farms.level,
+			farms.last_block,
+			farms.total_stake,
+			(SELECT stake FROM farmers WHERE farmer_id = ? AND farmers.farm_id = farms.farm_id) as stake 
+			FROM farms 
+			LEFT JOIN tokens AS S ON stake_token = S.hash 
+			LEFT JOIN tokens AS R ON reward_token = R.hash`, [farmer_id]));
+		return res;
+	}
+	async get_farms_all(){
+		let res = await this.request(mysql.format('SELECT * FROM farms'));
+		return res;
+	}
 	async get_farmers_by_farmer(ids){
 		if(!ids.length)
 			return [];
@@ -2002,6 +2021,23 @@ class DB {
 			next_chunk = res.next_chunk;
 		}
 		return data;
+	}
+
+	async get_tokens_price() {
+		let res = this.request(mysql.format("SELECT * FROM tokens_price"));
+		return res;
+	}
+
+	async get_token_price(token_hash) {
+		let data = await this.request(mysql.format("SELECT price FROM tokens_price WHERE tokens_hash = ?", token_hash));
+		if(data.length !== 0) {
+			return data[0].price;
+		return null;
+	}
+
+	async update_token_price(token_hash, price){
+		let res = this.request(mysql.format("UPDATE tokens_price SET price = ? WHERE tokens_hash = ?", [price, token_hash]));
+		return res;
 	}
 
 	async get_rois(){

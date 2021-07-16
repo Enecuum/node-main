@@ -50,6 +50,7 @@ class ContractFactory{
             case "pool_swap" :              return new Contracts[idx].PoolLiquiditySwapContract(data);
             case "farm_create" :            return new Contracts[idx].FarmCreateContract(data);
             case "farm_increase_stake" :    return new Contracts[idx].FarmIncreaseStakeContract(data);
+            case "farm_decrease_stake" :    return new Contracts[idx].FarmDecreaseStakeContract(data);
             case "farm_close_stake" :       return new Contracts[idx].FarmCloseStakeContract(data);
             case "farm_get_reward" :        return new Contracts[idx].FarmGetRewardContract(data);
             default :                       return null;

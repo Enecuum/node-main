@@ -218,6 +218,11 @@ class Substate {
                 this.farmers.push(tx.from);
             }
                 break;
+            case "farm_decrease_stake" : {
+                this.farms.push(contract.data.parameters.farm_id);
+                this.farmers.push(tx.from);
+            }
+                break;
             case "farm_close_stake" : {
                 this.farms.push(contract.data.parameters.farm_id);
                 this.farmers.push(tx.from);
@@ -404,6 +409,8 @@ class Substate {
                 if(this.farmers[farmer_idx].stake + changes.stake < BigInt(0))
                     throw new ContractError(`Negative farmers state`);
                 this.farmers[farmer_idx].stake += changes.stake;
+                if(this.farmers[farmer_idx].stake <= BigInt(0))
+                    this.farmers[farmer_idx].delete = true;
                 this.farmers[farmer_idx].changed = true;
             }
             if(changes.hasOwnProperty("level")){

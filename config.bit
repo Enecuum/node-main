@@ -80,6 +80,7 @@
     "farm_create" :             0,
     "farm_get_reward" :         0,
     "farm_increase_stake" :     0,
+    "farm_decrease_stake" :     0,
     "farm_close_stake" :        0
   },
   "first_message_always_probe" : false,

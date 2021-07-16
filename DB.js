@@ -1054,12 +1054,12 @@ class DB {
 		substate.farms = substate.farms.filter(a => a.changed === true);
 		if(substate.farms.length > 0)
 			state_sql.push(	mysql.format("INSERT INTO farms (`farm_id`, `stake_token`, `reward_token`, `emission`, `block_reward`, `level`, `total_stake`, `last_block`) VALUES ? ON DUPLICATE KEY UPDATE `emission` = VALUES(emission), `level` = VALUES(level), `total_stake` = VALUES(total_stake), `last_block` = VALUES(last_block)",
-				[substate.farms.map(a => [a.farm_id, a.stake_token, a.reward_token, a.emission, a.block_reward, a.level, a.total_stake, a.last_block])]));
+				[substate.farms.map(a => [a.farm_id, a.stake_token, a.reward_token, a.emission, a.block_reward, a.level.toString(), a.total_stake, a.last_block])]));
 
 		let farmers_delete = substate.farmers.filter(a => a.delete === true);
 		substate.farmers = substate.farmers.filter(a => (a.changed === true) && (a.delete !== true));
 		if(substate.farmers.length > 0)
-			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ON DUPLICATE KEY UPDATE `stake` = VALUES(stake), `level` = VALUES(level)", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level])]));
+			state_sql.push(	mysql.format("INSERT INTO farmers (`farm_id`, `farmer_id`, `stake`, `level`) VALUES ? ON DUPLICATE KEY UPDATE `stake` = VALUES(stake), `level` = VALUES(level)", [substate.farmers.map(a => [a.farm_id, a.farmer_id, a.stake, a.level.toString()])]));
 		if(farmers_delete.length > 0){
 			for (let farmer of farmers_delete){
 				state_sql.push(	mysql.format("DELETE FROM farmers WHERE farm_id = ? AND farmer_id = ?", [farmer.farm_id, farmer.farmer_id]));

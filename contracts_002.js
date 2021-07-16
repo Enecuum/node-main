@@ -1366,11 +1366,11 @@ class FarmIncreaseStakeContract extends Contract {
         if (farm.total_stake > BigInt(0)){
             let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
             distributed = _d < farm.emission ? _d : farm.emission;
-            new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+            new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
         }
         let farmer_level = new_level;
         if(farmer.stake > BigInt(0)){
-            let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+            let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
             let farmer_stake = farmer.stake + params.amount;
             farmer_level = (farmer_reward * LEVEL_DECIMALS) / farmer_stake;
         }
@@ -1469,10 +1469,10 @@ class FarmDecreaseStakeContract extends Contract {
         if (farm.total_stake > BigInt(0)){
             let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
             distributed = _d < farm.emission ? _d : farm.emission;
-            new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+            new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
         }
 
-        let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
 
         let farm_data = {
             farm_id : params.farm_id,
@@ -1558,8 +1558,8 @@ class FarmCloseStakeContract extends Contract {
         let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
         let distributed = _d < farm.emission ? _d : farm.emission;
 
-        let new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
-        let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
 
         let farm_data = {
             farm_id : params.farm_id,
@@ -1643,8 +1643,8 @@ class FarmGetRewardContract extends Contract {
         let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
         let distributed = _d < farm.emission ? _d : farm.emission;
 
-        let new_level = farm.level + (distributed * LEVEL_DECIMALS) / farm.total_stake;
-        let farmer_reward = farmer.stake * (new_level - farmer.level) / LEVEL_DECIMALS;
+        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
 
         let farm_data = {
             farm_id : params.farm_id,

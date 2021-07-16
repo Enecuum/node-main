@@ -84,7 +84,7 @@ CREATE TABLE `farms` (
   `reward_token` VARCHAR(64) NOT NULL,
   `emission` BIGINT(20)  UNSIGNED NULL,
   `block_reward` BIGINT(20) UNSIGNED NULL,
-  `level` VARCHAR(64) UNSIGNED NULL,
+  `level` VARCHAR(64) NOT NULL,
   `total_stake` BIGINT(20) UNSIGNED NULL,
   `last_block` BIGINT(20) UNSIGNED NULL,
   PRIMARY KEY (`farm_id`)
@@ -96,7 +96,7 @@ CREATE TABLE `farmers` (
   `farm_id` VARCHAR(64) NOT NULL,
   `farmer_id` VARCHAR(66) NOT NULL,
   `stake` BIGINT(20) NULL,
-  `level` VARCHAR(64) NULL,
+  `level` VARCHAR(64) NOT NULL,
   PRIMARY KEY (`farm_id`, `farmer_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -419,8 +419,8 @@ CREATE TABLE `tokens_price` (
   `tokens_hash` varchar(64) NOT NULL,
   `cg_id` varchar(64) NOT NULL,
   `price` bigint(20) NOT NULL,
-  PRIMARY KEY (`token_hash`),
-  CONSTRAINT `fk_tokens` FOREIGN KEY (`token_hash`) REFERENCES `tokens` (`hash`) ON DELETE NO ACTION ON UPDATE NO ACTION
+  PRIMARY KEY (`tokens_hash`),
+  CONSTRAINT `fk_tokens` FOREIGN KEY (`tokens_hash`) REFERENCES `tokens` (`hash`) ON DELETE NO ACTION ON UPDATE NO ACTION
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

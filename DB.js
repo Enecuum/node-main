@@ -2057,7 +2057,7 @@ class DB {
 	}
 
 	async dex_get_pools_all(){
-		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools`)));
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE volume_1 > 0 and volume_2 > 0`)));
 		return res;
 	}
 	async dex_get_pools(ids){

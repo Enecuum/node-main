@@ -419,8 +419,7 @@ CREATE TABLE `tokens_price` (
   `tokens_hash` varchar(64) NOT NULL,
   `cg_id` varchar(64) NOT NULL,
   `price` bigint(20) NOT NULL,
-  PRIMARY KEY (`tokens_hash`),
-  CONSTRAINT `fk_tokens` FOREIGN KEY (`tokens_hash`) REFERENCES `tokens` (`hash`) ON DELETE NO ACTION ON UPDATE NO ACTION
+  PRIMARY KEY (`tokens_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

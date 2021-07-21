@@ -1370,9 +1370,9 @@ class FarmIncreaseStakeContract extends Contract {
         }
         let farmer_level = new_level;
         if(farmer.stake > BigInt(0)){
-            let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
+            let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level));
             let farmer_stake = farmer.stake + params.amount;
-            farmer_level = (farmer_reward * LEVEL_DECIMALS) / farmer_stake;
+            farmer_level = new_level - (farmer_reward / farmer_stake);
         }
 
         let farm_data = {

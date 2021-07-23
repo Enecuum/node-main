@@ -849,15 +849,16 @@ class Explorer {
 					let total_stake_usd = rec.total_stake / Math.pow(10, rec.stake_token_decimals) * stake_token_price;
 					rec.liquidity = total_stake_usd;
 
-					let max_n = Math.round(rec.emission / rec.block_reward);
 					//Earned
 					if (rec.stake > 0) {
-						let distributed = BigInt(Math.min(max_n ,(n - rec.last_block))) * BigInt(rec.block_reward);
+						let _d = (BigInt(n) - BigInt(rec.last_block)) * BigInt(rec.block_reward);
+						let distributed = _d < BigInt(rec.emission) ? _d : BigInt(rec.emission);
 						let new_level = BigInt(rec.level) + (distributed * LEVEL_DECIMALS) / BigInt(rec.total_stake);
 						rec.new_level = new_level;
 						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.level)) / LEVEL_DECIMALS;
 					}
 					//Blocks left
+					let max_n = Number(BigInt(rec.emission) / BigInt(rec.block_reward));
 					rec.blocks_left = max_n - (n - rec.last_block);
 
 					//APY
@@ -870,7 +871,7 @@ class Explorer {
 					}
 
 				}
-			};
+			}
 			res.send(data);
 		});
 

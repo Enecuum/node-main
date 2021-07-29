@@ -132,7 +132,9 @@ class DB {
 			TRUNCATE TABLE delegates;
 			TRUNCATE TABLE undelegates;
 			TRUNCATE TABLE tokens_index;
-			TRUNCATE TABLE dex_pools`);
+			TRUNCATE TABLE dex_pools;
+			TRUNCATE TABLE farms;
+			TRUNCATE TABLE farmers`);
 
             let sprouts = '';
 			let kblock = '';
@@ -190,6 +192,19 @@ class DB {
 					dex_pools.push(mysql.format("INSERT INTO dex_pools (pair_id, asset_1, volume_1, asset_2, volume_2, pool_fee, token_hash) VALUES ? ", [chunk.map(dex_pool => [dex_pool.pair_id, dex_pool.asset_1, dex_pool.volume_1, dex_pool.asset_2, dex_pool.volume_2 , dex_pool.pool_fee , dex_pool.token_hash])]));
 				});
 			}
+			let farms = [];
+			if (snapshot.farms && snapshot.farms.length > 0) {
+				let farms_chunks = snapshot.farms.chunk(INSERT_CHUNK_SIZE);
+				farms_chunks.forEach(chunk => {
+					farms.push(mysql.format("INSERT INTO farms (farm_id, stake_token, reward_token, emission, block_reward, level, total_stake, last_block) VALUES ? ", [chunk.map(farm => [farm.farm_id, farm.stake_token, farm.reward_token, farm.emission, farm.block_reward, farm.level , farm.total_stake , farm.last_block])]));
+				});
+			}let farmers = [];
+			if (snapshot.farmers && snapshot.farmers.length > 0) {
+				let farmers_chunks = snapshot.farmers.chunk(INSERT_CHUNK_SIZE);
+				farmers_chunks.forEach(chunk => {
+					farmers.push(mysql.format("INSERT INTO farmers (farm_id, farmer_id, stake, level) VALUES ? ", [chunk.map(farmer => [farmer.farm_id, farmer.farmer_id, farmer.stake, farmer.level])]));
+				});
+			}
 			let cashier_ptr = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", snapshot.kblocks_hash);
             //let unlock = mysql.format(`UNLOCK TABLES`);
 			let sql_put_snapshot = "";
@@ -197,7 +212,7 @@ class DB {
 				sql_put_snapshot = mysql.format("INSERT INTO snapshots SET ?", [{hash:snapshot.hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
 			}
 
-			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), dex_pools.join(';'), cashier_ptr].join(';'));
+			return this.transaction([truncate, sprouts, kblock, sql_put_snapshot, ledger.join(';'), tokens.join(';'), tokens_index.join(';'), poses.join(';'), delegates.join(';'), undelegates.join(';'), dex_pools.join(';'), farms.join(';'), farmers.join(';'), cashier_ptr].join(';'));
         }catch (e) {
             console.error(e);
             return false;
@@ -589,10 +604,13 @@ class DB {
         console.info("Database initialized");
     }
 
-	peek_range(min, max) {
-		let sql = mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, leader_sign, reward FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]);
-		return this.request(sql);
-	};
+	async peek_range(min, max) {
+		let data = await this.request(mysql.format("SELECT n, hash, time, publisher, nonce, link, m_root, leader_sign FROM kblocks WHERE n >= ? AND n <= ? ORDER BY n ASC", [min, max]));
+		for (let i = 0; i < data.length; i++) {
+			data[i].leader_sign = JSON.parse(data[i].leader_sign);
+		}
+		return data;
+	}
 
 	async get_page(page_num, page_size){
 		let count = (await this.request(mysql.format("SELECT count(*) AS cnt FROM kblocks WHERE kblocks.n <= (SELECT n-1 FROM kblocks WHERE hash = (SELECT `value` FROM stat WHERE `key` = 'cashier_ptr'))")))[0].cnt;

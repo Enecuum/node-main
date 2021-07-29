@@ -540,6 +540,7 @@ class Syncer {
 			this.peers[peer_index].failures = 0;
 		} catch (e) {
 			console.error('Syncronization aborted, error:', e);
+			this.peers[peer_index].failures++;
 		} finally {
 			this.sync_running = false;
 			await this.transport.selfcast("wait_sync", false);
@@ -745,23 +746,26 @@ class Syncer {
 				break;
 		}
 		let isValid_leader_sign = false;
-		let recalc_m_root = undefined;
 		if(n >= this.config.FORKS.fork_block_002) {
-			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
-			isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+			isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, candidate.m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
 		} else {
-			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 		}
 		if (!isValid_leader_sign) {
 			console.warn(`Invalid leader sign`);
 			return false;
 		}
-
+		let recalc_m_root = undefined;
+		if(n >= this.config.FORKS.fork_block_002) {
+			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
+		} else {
+			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
+		}
 		if (candidate.m_root !== recalc_m_root) {
 			console.warn(`After recalc block, changed m_root: before ${candidate.m_root}, after ${recalc_m_root}`);
 			return false;
 		}
+
 		end = new Date().getTime();
 		console.info(`recalc merkle_root time: ${end - start}ms`);
 		start = end;

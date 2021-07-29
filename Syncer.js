@@ -540,6 +540,7 @@ class Syncer {
 			this.peers[peer_index].failures = 0;
 		} catch (e) {
 			console.error('Syncronization aborted, error:', e);
+			this.peers[peer_index].failures++;
 		} finally {
 			this.sync_running = false;
 			await this.transport.selfcast("wait_sync", false);

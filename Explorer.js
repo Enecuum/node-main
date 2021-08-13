@@ -414,7 +414,6 @@ class Explorer {
 			console.trace('requested height');
 			let data = await this.db.get_mblocks_height();
 			let result = {};
-			console.warn(data)
 			if(data.height){
 				result.height = parseInt(data.height);
 			}
@@ -830,7 +829,7 @@ class Explorer {
 		this.app.get('/api/v1/get_dex_farms', async (req, res) => {
 			console.trace('get_dex_farms', req.query);
 			//filter white list
-			let data = await this.db.get_dex_farms(req.query.farmer_id);
+			let data = await this.db.get_dex_farms(req.query.farmer_id, req.query.farms);
 			let n = (await this.db.get_mblocks_height()).height;
 			let LEVEL_DECIMALS =   BigInt('10000000000000000000');
 			for (let rec of data) {

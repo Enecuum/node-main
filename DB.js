@@ -1404,7 +1404,10 @@ class DB {
 		let res = await this.request(mysql.format('SELECT * FROM farms WHERE farm_id in (?)', [ids]));
 		return res;
 	}
-	async get_dex_farms(farmer_id){
+	async get_dex_farms(farmer_id, farms){
+	    let where = '';
+        if(farms !== undefined)
+            where = mysql.format(`WHERE farm_id in (?)`, [farms]);
 		let res = await this.request(mysql.format(
 			`SELECT farm_id, 
 			stake_token as stake_token_hash, S.ticker as stake_token_name, S.decimals as stake_token_decimals,
@@ -1417,7 +1420,8 @@ class DB {
 			(SELECT stake FROM farmers WHERE farmer_id = ? AND farmers.farm_id = farms.farm_id) as stake 
 			FROM farms 
 			LEFT JOIN tokens AS S ON stake_token = S.hash 
-			LEFT JOIN tokens AS R ON reward_token = R.hash`, [farmer_id]));
+			LEFT JOIN tokens AS R ON reward_token = R.hash
+			${where}`, [farmer_id]));
 		return res;
 	}
 	async get_farms_all(){

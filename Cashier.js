@@ -584,10 +584,14 @@ class Cashier {
                 // Check if tx has contract
                 let contract = contracts[tx.hash] || null;
                 if (contract) {
-                    await contract.execute(tx, substate_copy, kblock);
+                    let res = await contract.execute(tx, substate_copy, kblock);
                     // add eindex entry for claims
                     if(contract.type === 'pos_reward')
                         this.eindex_entry(rewards, 'ic', substate_copy.claims[tx.hash].delegator, tx.hash, substate_copy.claims[tx.hash].reward);
+                    if(res.hasOwnProperty("dex_swap"))
+                        this.eindex_entry(rewards, 'iswapout', tx.from, tx.hash, res.dex_swap.out);
+                    if(res.hasOwnProperty("farm_reward"))
+                        this.eindex_entry(rewards, 'ifrew', tx.from, tx.hash, res.farm_reward);
                 }
                 statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
                 console.silly(`approved tx `, Utils.JSON_stringify(tx));

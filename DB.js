@@ -972,7 +972,7 @@ class DB {
 
 	generate_eindex(rewards, time = null, tokens_counts){
 		let ind = [];
-		let idx_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust'];
+		let idx_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust', 'iswapout', 'ifrew'];
 		let tx_types = ['iin', 'iout'];
 		let legacy_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref'];
 		for(let rec of rewards){

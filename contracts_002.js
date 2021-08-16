@@ -1126,7 +1126,11 @@ class PoolLiquiditySwapContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            dex_swap : {
+                in : params.amount_in,
+                out : amount_out
+            }
         };
     }
 }
@@ -1667,7 +1671,8 @@ class FarmGetRewardContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            farm_reward : farmer_reward
         };
     }
 }

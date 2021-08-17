@@ -208,6 +208,12 @@ class Explorer {
 			res.send(data);
 		});
 
+		this.app.get('/api/v1/eindex_by_hash', async (req, res) => {
+			console.trace('requested eindex_by_hash', req.query);
+			let data = await this.db.get_eindex_by_hash(req.query.hash);
+			res.send(data);
+		});
+
         this.app.get('/api/v1/top_accounts', async (req, res) => {
             let data = await this.db.get_top_accounts(req.query.page, 20, req.query.token_hash);
             for(let i = 0; i < data.accounts.length; i++){

@@ -1347,7 +1347,12 @@ class DB {
 
 		return {balance, records, page_count : Math.ceil(count / page_size), id};
 	}
-	
+
+	async get_eindex_by_hash(hash){
+		let records = await this.request(mysql.format(`SELECT id, hash, time, rectype, value FROM eindex WHERE hash = ? ORDER BY i DESC`, [hash]));
+		return records;
+	}
+
 	async get_balance(id, token){
 		let balance = (await this.request(mysql.format(`SELECT L.amount as amount, L.token as token, T.ticker as ticker, T.decimals as decimals
 			FROM ledger as L 

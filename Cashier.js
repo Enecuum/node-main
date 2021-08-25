@@ -593,6 +593,19 @@ class Cashier {
                         this.eindex_entry(rewards, 'iswapout', tx.from, tx.hash, res.dex_swap.out);
                     if(res.hasOwnProperty("farm_reward"))
                         this.eindex_entry(rewards, 'ifrew', tx.from, tx.hash, res.farm_reward);
+
+                    if(res.hasOwnProperty("pool_create_lt"))
+                        this.eindex_entry(rewards, 'ipcreatelt', tx.from, tx.hash, res.pool_create_lt);
+                    if(res.hasOwnProperty("liq_add_lt"))
+                        this.eindex_entry(rewards, 'iliqaddlt', tx.from, tx.hash, res.liq_add_lt);
+                    if(res.hasOwnProperty("liq_remove")){
+                        this.eindex_entry(rewards, 'iliqrmv1', tx.from, tx.hash, res.liq_remove.liq_remove1);
+                        this.eindex_entry(rewards, 'iliqrmv2', tx.from, tx.hash, res.liq_remove.liq_remove2);
+                    }
+                    if(res.hasOwnProperty("farm_close_reward"))
+                        this.eindex_entry(rewards, 'ifcloserew', tx.from, tx.hash, res.farm_close_reward);
+                    if(res.hasOwnProperty("farm_decrease_reward"))
+                        this.eindex_entry(rewards, 'ifdecrew', tx.from, tx.hash, res.farm_decrease_reward);
                 }
                 statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
                 console.silly(`approved tx `, Utils.JSON_stringify(tx));

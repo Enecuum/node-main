@@ -804,7 +804,8 @@ class PoolCreateContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            pool_create_lt : lt_amount
         };
     }
 }
@@ -938,7 +939,8 @@ class PoolLiquidityAddContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            liq_add_lt : lt_amount
         };
     }
 }
@@ -1036,7 +1038,11 @@ class PoolLiquidityRemoveContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            liq_remove : {
+                liq_remove1 : amount_1,
+                liq_remove2 : amount_2
+            }
         };
     }
 }
@@ -1507,7 +1513,8 @@ class FarmDecreaseStakeContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            farm_decrease_reward : farmer_reward
         };
     }
 }
@@ -1591,7 +1598,8 @@ class FarmCloseStakeContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            farm_close_reward : farmer_reward
         };
     }
 }

@@ -379,6 +379,7 @@ class Cashier {
                     accounts[pub].amount = BigInt(accounts[pub].amount) + pos_owner_reward;
                     total_reward += BigInt(pos_owner_reward);
                     this.eindex_entry(rewards,'iv', accounts[pub].id, s.hash, pos_owner_reward);
+                    this.eindex_entry(rewards,'istat', s.publisher, s.hash, s.reward);
                     this.srewards += pos_owner_reward;
                     this.srewards += delegates_reward;
                 }
@@ -584,10 +585,27 @@ class Cashier {
                 // Check if tx has contract
                 let contract = contracts[tx.hash] || null;
                 if (contract) {
-                    await contract.execute(tx, substate_copy, kblock);
+                    let res = await contract.execute(tx, substate_copy, kblock);
                     // add eindex entry for claims
                     if(contract.type === 'pos_reward')
                         this.eindex_entry(rewards, 'ic', substate_copy.claims[tx.hash].delegator, tx.hash, substate_copy.claims[tx.hash].reward);
+                    if(res.hasOwnProperty("dex_swap"))
+                        this.eindex_entry(rewards, 'iswapout', tx.from, tx.hash, res.dex_swap.out);
+                    if(res.hasOwnProperty("farm_reward"))
+                        this.eindex_entry(rewards, 'ifrew', tx.from, tx.hash, res.farm_reward);
+
+                    if(res.hasOwnProperty("pool_create_lt"))
+                        this.eindex_entry(rewards, 'ipcreatelt', tx.from, tx.hash, res.pool_create_lt);
+                    if(res.hasOwnProperty("liq_add_lt"))
+                        this.eindex_entry(rewards, 'iliqaddlt', tx.from, tx.hash, res.liq_add_lt);
+                    if(res.hasOwnProperty("liq_remove")){
+                        this.eindex_entry(rewards, 'iliqrmv1', tx.from, tx.hash, res.liq_remove.liq_remove1);
+                        this.eindex_entry(rewards, 'iliqrmv2', tx.from, tx.hash, res.liq_remove.liq_remove2);
+                    }
+                    if(res.hasOwnProperty("farm_close_reward"))
+                        this.eindex_entry(rewards, 'ifcloserew', tx.from, tx.hash, res.farm_close_reward);
+                    if(res.hasOwnProperty("farm_decrease_reward"))
+                        this.eindex_entry(rewards, 'ifdecrew', tx.from, tx.hash, res.farm_decrease_reward);
                 }
                 statuses.push(this.status_entry(Utils.TX_STATUS.CONFIRMED, tx));
                 console.silly(`approved tx `, Utils.JSON_stringify(tx));

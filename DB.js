@@ -972,7 +972,7 @@ class DB {
 
 	generate_eindex(rewards, time = null, tokens_counts){
 		let ind = [];
-		let idx_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust'];
+		let idx_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref', 'iv', 'ic', 'ifk', 'ifg', 'ifl', 'idust', 'iswapout', 'ifrew', 'ipcreatelt', 'iliqaddlt', 'iliqrmv1', 'iliqrmv2', 'ifcloserew', 'ifdecrew'];
 		let tx_types = ['iin', 'iout'];
 		let legacy_types = ['iin', 'iout', 'ik', 'im', 'istat', 'iref'];
 		for(let rec of rewards){
@@ -1347,7 +1347,12 @@ class DB {
 
 		return {balance, records, page_count : Math.ceil(count / page_size), id};
 	}
-	
+
+	async get_eindex_by_hash(hash){
+		let records = await this.request(mysql.format(`SELECT id, hash, time, rectype, value FROM eindex WHERE hash = ? ORDER BY i DESC`, [hash]));
+		return records;
+	}
+
 	async get_balance(id, token){
 		let balance = (await this.request(mysql.format(`SELECT L.amount as amount, L.token as token, T.ticker as ticker, T.decimals as decimals
 			FROM ledger as L 

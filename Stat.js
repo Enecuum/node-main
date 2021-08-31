@@ -92,7 +92,7 @@ class Stat {
         }
         let end = new Date();
         let calcTime = tokens_ptice_timeout - (end - start);
-        setTimeout(async () => { await this.calcRoi(); }, calcTime);
+        setTimeout(async () => { await this.tokensPriceCaching(); }, calcTime);
     }
 
     async calcRoi(){

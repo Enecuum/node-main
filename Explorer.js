@@ -76,6 +76,34 @@ class Explorer {
 
 		this.app.use(express.json());
 
+		this.app.get('/api/v1/network_info', async (req, res) => {
+			console.trace('requested network_info', req.query);
+			let native_token = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let data = {
+				target_speed: this.config.target_speed,
+				reward_ratio: this.config.reward_ratio,
+				transfer_lock: this.config.transfer_lock,
+				pos_min_stake: this.config.pos_min_stake,
+				native_token: native_token,
+				snapshot_interval: this.config.snapshot_intervcal,
+				origin: this.config.ORIGIN,
+				fee_shares : this.config.fee_shares,
+				MPK : this.config.ecc[this.config.ecc.ecc_mode].MPK,
+				mblock_slots: {
+					size:this.config.mblock_slots.size,
+					count:this.config.mblock_slots.count,
+					min_stake:this.config.mblock_slots.min_stake
+				}
+			};
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/native_token', async (req, res) => {
+			console.trace('requested native_token', req.query);
+			let data = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			res.send(data);
+		});
+
 		this.app.get('/api/v1/page', async (req, res) => {
 			console.trace('requested page', req.query);		
 			let data = await this.db.get_page(req.query.n, 10);

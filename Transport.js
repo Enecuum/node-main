@@ -25,7 +25,7 @@ let host_list = {};
 class Transport {
 
 	constructor(config, db) {
-		this.PROTOCOL_VERSION = 2;
+		this.PROTOCOL_VERSION = 3;
 		this.peers = [];
 		this.methods_map = {query : "on_query"};
 		this.events_map = {};

@@ -669,7 +669,7 @@ class Syncer {
 		let kblock = msg.data;
 		console.silly(`on_tail kblock = ${JSON.stringify(kblock)}`);
 		let tail = await this.db.peek_tail();
-		if (kblock.n > tail.n) {
+		if (kblock.n > (tail.n + 1)) {
 			this.sync_chain([msg.host, msg.port].join(":"));
 		}
 	}

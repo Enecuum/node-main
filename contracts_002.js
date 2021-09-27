@@ -1103,6 +1103,8 @@ class PoolLiquiditySwapContract extends Contract {
             throw new ContractError(`Pool ${pair_id} not exist`);
 
         let pool_info = await substate.dex_get_pool_info(pair_id);
+        let lt_info = await substate.get_token_info(pool_info.token_hash);
+
         let volume_in =  (params.asset_in === pool_info.asset_1) ? pool_info.volume_1 : pool_info.volume_2;
         let volume_out = (params.asset_in === pool_info.asset_2) ? pool_info.volume_1 : pool_info.volume_2;
         let k = volume_in * volume_out;
@@ -1111,12 +1113,17 @@ class PoolLiquiditySwapContract extends Contract {
             throw new ContractError(`Too much liquidity for pool ${pair_id}`);
 
         // amount_out = volume_2 - k/(volume_1 + amount_in)
-        let amount_out = volume_out - (k / (volume_in + params.amount_in));
-
+        let amount_out = volume_out - (k / (volume_in + (params.amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
+        // cmd_tokens = lp_total * cmd_fee * amount_in / volume_1
+        let cmd_lt_amount = ((lt_info.total_supply * Utils.DEX_COMMANDER_FEE) / Utils.PERCENT_FORMAT_SIZE) * params.amount_in / volume_in;
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
             volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
             volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
+        };
+        let tok_data = {
+            hash : pool_info.token_hash,
+            total_supply : cmd_lt_amount
         };
         substate.accounts_change({
             id : tx.from,
@@ -1128,6 +1135,12 @@ class PoolLiquiditySwapContract extends Contract {
             amount : amount_out,
             token : params.asset_out,
         });
+        substate.accounts_change({
+            id : Utils.DEX_COMMANDER_ADDRESS,
+            amount : cmd_lt_amount,
+            token : pool_info.token_hash,
+        });
+        substate.tokens_change(tok_data);
         substate.pools_change(pool_data);
         return {
             amount_changes : [],

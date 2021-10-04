@@ -641,7 +641,7 @@ class Explorer {
 
 		this.app.get('/api/v1/get_pos_info', async (req, res) => {
 			console.trace('get_pos_info', req.query);
-			let data = await this.db.get_pos_contract_info(req.query.pos_id, 20);
+			let data = await this.db.get_pos_contract_info(req.query.pos_id);
             res.send(data);
 		});
 
@@ -851,6 +851,22 @@ class Explorer {
 		this.app.get('/api/v1/get_dex_pools', async (req, res) => {
 			console.trace('get_dex_pools', req.query);
 			let data = await this.db.dex_get_pools_all();
+			for (let rec of data) {
+				let asset_1_token_price = (await this.db.get_token_price(rec.asset_1));
+				asset_1_token_price = asset_1_token_price === undefined ? 0 : asset_1_token_price / 1e10;
+				let asset_2_token_price = (await this.db.get_token_price(rec.asset_2));
+				asset_2_token_price = asset_2_token_price === undefined ? 0 : asset_2_token_price / 1e10;
+				let tokens_info = await this.db.get_tokens_all([rec.asset_1, rec.asset_2]);
+				if( asset_1_token_price && asset_2_token_price ){
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price +
+									rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price;
+				} else if (asset_1_token_price) {
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price * 2;
+				} else if (asset_2_token_price) {
+					rec.liquidity = rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price * 2;
+				} else
+					rec.liquidity = null;
+			}
 			res.send(data);
 		});
 

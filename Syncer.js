@@ -591,11 +591,6 @@ class Syncer {
                 console.warn(`on_microblocks: no valid microblocks found`);
                 return;
             }
-            let isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-            if (!isValid_leader_sign) {
-                console.warn(`on_microblocks: Invalid leader sign on mblocks`);
-                return;
-            }
             let validation_time = process.hrtime(time);
             time = process.hrtime();
             let result = await this.db.put_microblocks(mblocks);

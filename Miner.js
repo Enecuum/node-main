@@ -19,7 +19,7 @@ class Miner {
 		this.ECC = new Utils.ECC(config.ecc.ecc_mode);
 
 		//init transport
-		this.transport = new Transport(this.config.id, 'miner');
+		this.transport = new Transport(this.config.id, 'miner_'+process.pid);
 		this.transport.on('wait_sync', this.on_wait_sync.bind(this));
 		this.transport.on('m_root', this.on_merkle_root.bind(this));
 

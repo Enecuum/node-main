@@ -115,7 +115,9 @@ class Transport {
 	}
 
 	on(name, callback) {
-		this.events_map[name] = callback;
+		if(this.events_map[name] === undefined)
+			this.events_map[name] = [];
+		this.events_map[name].push(callback);
 	}
 
 	http_request(socket, method, data){
@@ -230,7 +232,13 @@ class Transport {
 						console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
 						let result = '';
 						try {
-							result = await this.events_map[request.method](request);
+							if(Array.isArray(this.events_map[request.method])){
+								for(callback of this.events_map[request.method]){
+									await callback(request);
+								}
+								result = 1;
+							}else
+								result = await this.events_map[request.method](request);
 						} catch (e) {
 							result = e;
 						}
@@ -298,7 +306,7 @@ class Transport {
 			console.info(`add peer ${peer.socket}`);
 			this.db.add_client(peer.socket, peer.id, 1, 0);
 			if (this.events_map['new_peer']){
-				this.events_map['new_peer'](peer.socket);
+				this.events_map['new_peer'][0](peer.socket);
 			}
 		}
 	}

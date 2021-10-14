@@ -19,7 +19,7 @@ class Miner {
 		this.ECC = new Utils.ECC(config.ecc.ecc_mode);
 
 		//init transport
-		this.transport = new Transport(this.config.id, 'miner');
+		this.transport = new Transport(this.config.id, 'miner_'+process.pid);
 		this.transport.on('wait_sync', this.on_wait_sync.bind(this));
 		this.transport.on('m_root', this.on_merkle_root.bind(this));
 
@@ -281,16 +281,18 @@ class Miner {
 				start = now;
 
 				let h;
+				let tries = 0;
 				do {
-					if (candidate.nonce % 10000 === 0) {
+					if (tries % 5000 === 0) {
 						now = new Date();
 						let span = now - start;
 						if (span >= 1000) {
-							console.trace(`Miner not found hash in ${candidate.nonce} tries`);
+							console.trace(`Miner not found hash in ${tries} tries`);
 							return;
 						}
 					}
-					candidate.nonce++;
+					tries++;
+					candidate.nonce = Math.round(Math.random() * Utils.MAX_NONCE);
 					h = Utils.hash_kblock(candidate, this.vm);
 				} while (!Utils.difficulty_met(h, current_diff));
 

@@ -98,6 +98,7 @@ let utils = {
 	SYNC_CHUNK_SIZE : 1000000, //byte
 	SYNC_FAILURES_LIMIT : 5,
 	SYNC_IGNORE_TIMEOUT : 7200000, //ms  2 hours
+	MAX_NONCE : 2147483647, //Maximum Value Signed Int
 
 	pid_cached : 0,
 	lastTime : Date.now(),

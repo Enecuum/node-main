@@ -109,13 +109,17 @@ class Transport {
 					}.bind(this));
 				};
 
-				this.on(method, f.bind(this));
+				this.on(method, socket, f.bind(this));
 			}.bind(this)
 		);
 	}
 
-	on(name, callback) {
-		this.events_map[name] = callback;
+	on(name, socket, callback) {
+		if(this.events_map[name] === undefined)
+			this.events_map[name] = [];
+		if(this.events_map[name].findIndex(x => x.socket === socket) === -1)
+			this.events_map[name].push({socket, callback});
+		//this.events_map[name].push(callback);
 	}
 
 	http_request(socket, method, data){
@@ -229,9 +233,23 @@ class Transport {
 					} else if (this.events_map[request.method]) {
 						console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
 						let result = '';
+
+						let item;
 						try {
-							result = await this.events_map[request.method](request);
+							console.info(`callback '${request.method}' count ${this.events_map[request.method].length}`);
+							if(Array.isArray(this.events_map[request.method])){
+								for(item of this.events_map[request.method]){
+									console.info(`call`);
+									result = await item.callback(request);
+								}
+							} else
+								result = await this.events_map[request.method](request);
 						} catch (e) {
+							const index = this.events_map[request.method].indexOf(item);
+							if (index > -1) {
+								this.events_map[request.method].splice(index, 1);
+							}
+							console.warn(`error call - ${JSON.stringify(e)}`);
 							result = e;
 						}
 						response.result = result;
@@ -298,7 +316,7 @@ class Transport {
 			console.info(`add peer ${peer.socket}`);
 			this.db.add_client(peer.socket, peer.id, 1, 0);
 			if (this.events_map['new_peer']){
-				this.events_map['new_peer'](peer.socket);
+				this.events_map['new_peer'][0].callback(peer.socket);
 			}
 		}
 	}

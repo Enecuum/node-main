@@ -59,11 +59,13 @@ ENV B_VAR $BUILDVAR
 
 ENV SYNC_INTERVAL NaN
 ENV LAG_INTERVAL NaN
+ENV MINER_INSTANCES 1
+ENV EXPLORER_INSTANCES 1
 
 CMD if [ "$B_VAR" = "POW" ] ; then \
 	pm2 start isyncer.js --name "syncer" -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY --fastsync.lag_interval_b=$LAG_INTERVAL --fastsync.sync_interval_b=$SYNC_INTERVAL ;\
 	pm2 start itransport.js --name "transport" -- --port=$PORT --peer=$PEER --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
-	pm2 start iminer.js --name "miner" -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
+	pm2 start iminer.js --name "miner" -i $MINER_INSTANCES -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
 	pm2 start inodeapi.js --name "nodeapi" -- --enable_post_tx=$POST_TX --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
 	pm2-runtime icashier.js --name "cashier"  -- --cashier_interval_ms 10 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 elif [ "$B_VAR" = "POS" ] ; then \
@@ -74,7 +76,7 @@ elif [ "$B_VAR" = "POS" ] ; then \
 	pm2-runtime icashier.js --name "cashier"  -- --cashier_interval_ms 10 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 elif [ "$B_VAR" = "FULLNODE" ] ; then \
 	pm2 start isyncer.js --name "syncer" -- --id='fullnode' --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --fastsync.lag_interval_b=$LAG_INTERVAL --fastsync.sync_interval_b=$SYNC_INTERVAL ;\
-	pm2 start iexplorer.js --name "explorer"  -- --id='fullnode' --explorer 80 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
+	pm2 start iexplorer.js --name "explorer" -i $EXPLORER_INSTANCES -- --id='fullnode' --explorer 80 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 	pm2 start icashier.js --name "cashier"  -- --id='fullnode' --cashier_interval_ms 10 --indexer_mode 1 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 	pm2 start itransport.js --name "transport" -- --id='fullnode' --port=$PORT --peer=$PEER --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 	pm2 start inodeapi.js --name "nodeapi" -- --enable_post_tx=$POST_TX --id='fullnode' --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\

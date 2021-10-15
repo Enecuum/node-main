@@ -50,11 +50,20 @@ class Transport {
 	}
 
 	ipc_callback(){
-		// TODO: destroyedSocketID is always = false
+		let that = this;
 		this.ipc.server.on('socket.disconnected', function(socket, destroyedSocketID) {
 				console.debug(' ipc client ' + destroyedSocketID + ' has disconnected!');
+				for(let method in that.events_map){
+					let index = that.events_map[method].findIndex(item => item.id === destroyedSocketID);
+					if(index > -1)
+						that.events_map[method].splice(index, 1);
+				}
 			}
 		);
+
+		this.ipc.server.on('client.id', function(id, socket) {
+			socket.id = id;
+		});
 
 		this.ipc.server.on('broadcast', function(message){
 				let {method, data} = message;
@@ -83,6 +92,10 @@ class Transport {
 
 		this.ipc.server.on('on', function(message, socket){
 				console.trace(`ipc ${this.hubid} got ${JSON.stringify(message)}`);
+				if(!socket.id){
+					console.debug(`undefined socket id`);
+					return;
+				}
 				let {method} = message;
 
 				let f = function (data) {
@@ -109,16 +122,16 @@ class Transport {
 					}.bind(this));
 				};
 
-				this.on(method, socket, f.bind(this));
+				this.on(method, socket.id, f.bind(this));
 			}.bind(this)
 		);
 	}
 
-	on(name, socket, callback) {
+	on(name, id, callback) {
 		if(this.events_map[name] === undefined)
 			this.events_map[name] = [];
-		if(this.events_map[name].findIndex(x => x.socket === socket) === -1)
-			this.events_map[name].push({socket, callback});
+		if(this.events_map[name].findIndex(x => x.id === id) === -1)
+			this.events_map[name].push({id, callback});
 		//this.events_map[name].push(callback);
 	}
 
@@ -233,22 +246,14 @@ class Transport {
 					} else if (this.events_map[request.method]) {
 						console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
 						let result = '';
-
-						let item;
 						try {
-							console.info(`callback '${request.method}' count ${this.events_map[request.method].length}`);
-							if(Array.isArray(this.events_map[request.method])){
-								for(item of this.events_map[request.method]){
-									console.info(`call`);
+							console.debug(`callback '${request.method}' count ${this.events_map[request.method].length}`);
+							if(this.events_map[request.method]) {
+								for (let item of this.events_map[request.method]) {
 									result = await item.callback(request);
 								}
-							} else
-								result = await this.events_map[request.method](request);
-						} catch (e) {
-							const index = this.events_map[request.method].indexOf(item);
-							if (index > -1) {
-								this.events_map[request.method].splice(index, 1);
 							}
+						} catch (e) {
 							console.warn(`error call - ${JSON.stringify(e)}`);
 							result = e;
 						}
@@ -316,7 +321,9 @@ class Transport {
 			console.info(`add peer ${peer.socket}`);
 			this.db.add_client(peer.socket, peer.id, 1, 0);
 			if (this.events_map['new_peer']){
-				this.events_map['new_peer'][0].callback(peer.socket);
+				for(item of this.events_map['new_peer']){
+					item.callback(peer.socket);
+				}
 			}
 		}
 	}
@@ -425,6 +432,7 @@ class Tip {
 	connect_func() {
 		this.ipc.of[this.hubid].on('connect', function () {
 			console.silly(`ipc ${this.ipc.config.id} connected to ${this.hubid}`);
+			this.ipc.of[this.hubid].emit('client.id', {id: this.ipc.config.id});
 			Object.keys(this.events_map).forEach(e => this.ipc.of[this.hubid].emit('on', {method: e}));
 		}.bind(this));
 

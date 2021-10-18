@@ -306,27 +306,22 @@ class Syncer {
 		return result;
 	}
 
-	check_peer(socket){
-		let index = this.peers.findIndex(p => p.socket === socket);
-		console.silly(`check_peer peers:${JSON.stringify(this.peers)}`);
-		if(index >= 0) {
-			let now = Date.now();
-			if(this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT){
-				this.peers[index].ignore_timeout = now + Utils.SYNC_IGNORE_TIMEOUT;
-				this.peers[index].failures = 0;
-			}
-			if(this.peers[index].ignore_timeout > 0) {
-				if (now < this.peers[index].ignore_timeout) {
-					return -1;
-				} else {
-					this.peers[index].ignore_timeout = 0;
-				}
-			}
-		} else {
-			return this.peers.push({socket:socket, ignore_timeout:0, failures:0}) - 1;
-		}
-		return index;
-	}
+    check_peer(socket){
+        let index = this.peers.findIndex(p => p.socket === socket);
+        console.silly(`check_peer peers:${JSON.stringify(this.peers)}`);
+        if(index >= 0) {
+            let now = Date.now();
+            if(this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT){
+                index = this.peers.findIndex((a, b) => {
+                    if (a.failures < b.failures) return -1;
+                    return a.failures > b.failures ? 1 : 0;
+                });
+            }
+        } else {
+            return this.peers.push({socket:socket, failures:0}) - 1;
+        }
+        return index;
+    }
 
 	async sync_chain(socket) {
 		let peer_index = this.check_peer(socket);
@@ -669,7 +664,7 @@ class Syncer {
 		let kblock = msg.data;
 		console.silly(`on_tail kblock = ${JSON.stringify(kblock)}`);
 		let tail = await this.db.peek_tail();
-		if (kblock.n > tail.n) {
+		if (kblock.n > (tail.n + 1)) {
 			this.sync_chain([msg.host, msg.port].join(":"));
 		}
 	}
@@ -841,7 +836,9 @@ class Syncer {
 					} else {
 						let kblocks_hash = candidate.hash;
 						await this.transport.selfcast("emit_statblock", kblocks_hash);
-					}
+                        let index = this.check_peer([msg.host, msg.port].join(":"));
+                        this.peers[index].failures = 0;
+                    }
 				} catch (e) {
 					console.warn(`Failed to put macroblock (e) = ${e}`);
 				}

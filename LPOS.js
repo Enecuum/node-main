@@ -1,7 +1,7 @@
-const enq = require('../Enq');
+const enq = require('./Enq');
 const crypto = require('crypto');
-const Transport = require('../Transport').Tip;
-const Utils = require('../Utils');
+const Transport = require('./Transport').Tip;
+const Utils = require('./Utils');
 
 
 class LPOS {

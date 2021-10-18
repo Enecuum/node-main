@@ -4,7 +4,7 @@ echo 'Image name:'$1
 echo 'Image type:'$2
 ##!/usr/bin/env bash
 CONFIG_FILE='config.json';
-BASE_CONFIG=../../../$CONFIG_FILE;
+BASE_CONFIG=../../$CONFIG_FILE;
 GIT_HASH=$(git rev-parse HEAD)
 ##edit config.json add git hash
 node > build/${CONFIG_FILE} <<EOF

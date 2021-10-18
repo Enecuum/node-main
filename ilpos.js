@@ -1,7 +1,7 @@
 const argv = require('yargs').argv;
 const fs = require('fs');
 
-const DB = require('../DB').DB;
+const DB = require('./DB').DB;
 const LPOS = require('./LPOS');
 
 const CONFIG_FILENAME = 'config.json';

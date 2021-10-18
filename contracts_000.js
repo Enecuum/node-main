@@ -31,7 +31,7 @@ class Contract{
         return this._mysql;
     }
 }
-class CreateTokenContract extends Contract {
+class TokenCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -188,7 +188,7 @@ class CreateTokenContract extends Contract {
         return super.mysql.format(`INSERT INTO tokens SET ?`, [data])
     }
 }
-class CreatePosContract extends Contract {
+class PosCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -250,7 +250,7 @@ class CreatePosContract extends Contract {
         return super.mysql.format(`INSERT INTO poses SET ?`, [data])
     }
 }
-class DelegateContract extends Contract {
+class PosDelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -329,7 +329,7 @@ class DelegateContract extends Contract {
         ON DUPLICATE KEY UPDATE amount = amount + VALUES(amount)`, [[data.pos_id, data.delegator, data.amount]])
     }
 }
-class UndelegateContract extends Contract {
+class PosUndelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -422,7 +422,7 @@ class UndelegateContract extends Contract {
             [[data.id, data.pos_id, data.amount, data.height]])
     }
 }
-class TransferContract extends Contract {
+class PosTransferContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -510,7 +510,7 @@ class TransferContract extends Contract {
         return super.mysql.format(`UPDATE undelegates SET amount = ? WHERE id = ?`, [data.amount, data.id])
     }
 }
-class PosRewardContract extends Contract {
+class PosGetRewardContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -582,7 +582,7 @@ class PosRewardContract extends Contract {
             [data.amount, data.pos_id, data.delegator])
     }
 }
-class MintTokenContract extends Contract {
+class TokenMintContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -657,7 +657,7 @@ class MintTokenContract extends Contract {
             [data.mint_amount, data.token_hash])
     }
 }
-class BurnTokenContract extends Contract {
+class TokenBurnContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -739,11 +739,11 @@ class BurnTokenContract extends Contract {
 }
 
 module.exports.Contract = Contract;
-module.exports.CreateTokenContract = CreateTokenContract;
-module.exports.CreatePosContract = CreatePosContract;
-module.exports.DelegateContract = DelegateContract;
-module.exports.UndelegateContract = UndelegateContract;
-module.exports.TransferContract = TransferContract;
-module.exports.PosRewardContract = PosRewardContract;
-module.exports.MintTokenContract = MintTokenContract;
-module.exports.BurnTokenContract = BurnTokenContract;
+module.exports.TokenCreateContract = TokenCreateContract;
+module.exports.PosCreateContract = PosCreateContract;
+module.exports.PosDelegateContract = PosDelegateContract;
+module.exports.PosUndelegateContract = PosUndelegateContract;
+module.exports.PosTransferContract = PosTransferContract;
+module.exports.PosGetRewardContract = PosGetRewardContract;
+module.exports.TokenMintContract = TokenMintContract;
+module.exports.TokenBurnContract = TokenBurnContract;

@@ -1095,9 +1095,9 @@ class PoolLiquiditySwapContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let BURN_ADDRESS = "021000000000000000000000000000000000000000000000000000000000000000";
+        let BURN_ADDRESS = Utils.DEX_BURN_ADDRESS;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
-        let ENX_TOKEN_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
+        let ENX_TOKEN_HASH = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
 
         let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;

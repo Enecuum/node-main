@@ -42,13 +42,15 @@ class Substate {
         this.accounts = this.accounts.filter(v => v !== null);
         this.accounts = await this.db.get_accounts_all(this.accounts);
 
-        this.pools = await this.db.dex_get_pools(this.pools);
-        let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
+        // TODO: optimized drlrction
+        // this.pools = await this.db.dex_get_pools(this.pools);
+        // let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
+        // if(more_pools.length > 0)
+        //     this.pools = this.pools.concat(more_pools);
+        // this.pools = this.pools.filter((v, i, a) => a.indexOf(v) === i);
+        // this.pools = this.pools.filter(v => v !== null);
+        this.pools = await this.db.dex_get_pools_all();
 
-        if(more_pools.length > 0)
-            this.pools = this.pools.concat(more_pools);
-        this.pools = this.pools.filter((v, i, a) => a.indexOf(v) === i);
-        this.pools = this.pools.filter(v => v !== null);
         this.lt_hashes = this.pools.map(h => h.token_hash);
         if(this.lt_hashes.length > 0)
             this.tokens = this.tokens.concat(this.lt_hashes);
@@ -201,6 +203,8 @@ class Substate {
                 this.lt_hashes.push(contract.data.parameters.lt);
                 break;
             case "pool_swap" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(contract.data.parameters.asset_in);
                 this.tokens.push(contract.data.parameters.asset_out);
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);

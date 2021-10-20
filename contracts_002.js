@@ -763,7 +763,7 @@ class PoolCreateContract extends Contract {
             volume_1 : assets.amount_1,
             asset_2 : assets.asset_2,
             volume_2 : assets.amount_2,
-            pool_fee : BigInt(0),
+            pool_fee : BigInt(30),
             token_hash : tx.hash
         };
 

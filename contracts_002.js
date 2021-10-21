@@ -19,6 +19,7 @@ const {ContractError} = require('./errors');
 
 //let MAX_SUPPLY = BigInt('18446744073709551615');
 let MAX_SUPPLY_LIMIT = BigInt('18446744073709551615');
+let LEVEL_DECIMALS =   BigInt('10000000000000000000');
 let MAX_DECIMALS = BigInt(10);
 let ENQ_INTEGER_COIN = BigInt(10000000000);
 
@@ -31,7 +32,7 @@ class Contract{
         return this._mysql;
     }
 }
-class CreateTokenContract extends Contract {
+class TokenCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -186,7 +187,7 @@ class CreateTokenContract extends Contract {
         };
     }
 }
-class CreatePosContract extends Contract {
+class PosCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -245,7 +246,7 @@ class CreatePosContract extends Contract {
         };
     }
 }
-class DelegateContract extends Contract {
+class PosDelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -312,7 +313,7 @@ class DelegateContract extends Contract {
         };
     }
 }
-class UndelegateContract extends Contract {
+class PosUndelegateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -386,7 +387,7 @@ class UndelegateContract extends Contract {
         };
     }
 }
-class TransferContract extends Contract {
+class PosTransferContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -459,7 +460,7 @@ class TransferContract extends Contract {
         return (BigInt(kblock.n) - BigInt(transfer.height)) >= BigInt(transfer_lock);
     }
 }
-class PosRewardContract extends Contract {
+class PosGetRewardContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -519,7 +520,7 @@ class PosRewardContract extends Contract {
         };
     }
 }
-class MintTokenContract extends Contract {
+class TokenMintContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -593,7 +594,7 @@ class MintTokenContract extends Contract {
         };
     }
 }
-class BurnTokenContract extends Contract {
+class TokenBurnContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -669,7 +670,7 @@ class BurnTokenContract extends Contract {
         };
     }
 }
-class DexPoolCreateContract extends Contract {
+class PoolCreateContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -762,7 +763,7 @@ class DexPoolCreateContract extends Contract {
             volume_1 : assets.amount_1,
             asset_2 : assets.asset_2,
             volume_2 : assets.amount_2,
-            pool_fee : BigInt(0),
+            pool_fee : BigInt(30),
             token_hash : tx.hash
         };
 
@@ -803,11 +804,12 @@ class DexPoolCreateContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            pool_create_lt : lt_amount
         };
     }
 }
-class DexLiquidityAddContract extends Contract {
+class PoolLiquidityAddContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -937,11 +939,12 @@ class DexLiquidityAddContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            liq_add_lt : lt_amount
         };
     }
 }
-class DexLiquidityRemoveContract extends Contract {
+class PoolLiquidityRemoveContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1035,11 +1038,15 @@ class DexLiquidityRemoveContract extends Contract {
         return {
             amount_changes : [],
             pos_changes : [],
-            post_action : []
+            post_action : [],
+            liq_remove : {
+                liq_remove1 : amount_1,
+                liq_remove2 : amount_2
+            }
         };
     }
 }
-class DexLiquiditySwapContract extends Contract {
+class PoolLiquiditySwapContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1088,6 +1095,10 @@ class DexLiquiditySwapContract extends Contract {
             return null;
         let params = this.data.parameters;
 
+        let BURN_ADDRESS = Utils.DEX_BURN_ADDRESS;
+        let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
+        let ENX_TOKEN_HASH = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
+
         let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
 
@@ -1096,20 +1107,47 @@ class DexLiquiditySwapContract extends Contract {
             throw new ContractError(`Pool ${pair_id} not exist`);
 
         let pool_info = await substate.dex_get_pool_info(pair_id);
-        let volume_in =  (params.asset_in === pool_info.asset_1) ? pool_info.volume_1 : pool_info.volume_2;
-        let volume_out = (params.asset_in === pool_info.asset_2) ? pool_info.volume_1 : pool_info.volume_2;
+        let lt_info = await substate.get_token_info(pool_info.token_hash);
+
+        let volume_in =  params.asset_in === pool_info.asset_1 ? pool_info.volume_1 : pool_info.volume_2;
+        let volume_out = params.asset_in === pool_info.asset_2 ? pool_info.volume_1 : pool_info.volume_2;
         let k = volume_in * volume_out;
 
         if(params.amount_in > k - volume_in)
             throw new ContractError(`Too much liquidity for pool ${pair_id}`);
 
         // amount_out = volume_2 - k/(volume_1 + amount_in)
-        let amount_out = volume_out - (k / (volume_in + params.amount_in));
+        let amount_out = volume_out - (k / (volume_in + (params.amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
+        // cmd_tokens = lp_total * cmd_fee * amount_in / volume_1
+        let cmd_lt_amount = ((lt_info.total_supply * Utils.DEX_COMMANDER_FEE) / Utils.PERCENT_FORMAT_SIZE) * params.amount_in / volume_in;
+
+        let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
+        let lt_pair_id = lt_assets.pair_id;
+        let lt_pool_exist = await substate.dex_check_pool_exist(lt_pair_id);
+        if(lt_pool_exist){
+            substate.accounts_change({
+                id : CMD_ADDRESS,
+                amount : cmd_lt_amount,
+                token : pool_info.token_hash,
+            });
+        }
+        else {
+            substate.accounts_change({
+                id : BURN_ADDRESS,
+                amount : cmd_lt_amount,
+                token : pool_info.token_hash,
+            });
+        }
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
             volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
             volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
+        };
+
+        let tok_data = {
+            hash : pool_info.token_hash,
+            total_supply : cmd_lt_amount
         };
         substate.accounts_change({
             id : tx.from,
@@ -1121,7 +1159,107 @@ class DexLiquiditySwapContract extends Contract {
             amount : amount_out,
             token : params.asset_out,
         });
+        substate.tokens_change(tok_data);
         substate.pools_change(pool_data);
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            dex_swap : {
+                in : params.amount_in,
+                out : amount_out
+            }
+        };
+    }
+}
+
+class FarmCreateContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * stake_token : hex string 64 chars
+         * reward_token : hex string 64 chars
+         * block_reward : 0...MAX_SUPPLY_LIMIT
+         * emission : 0...MAX_SUPPLY_LIMIT
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["stake_token", "reward_token", "block_reward", "emission"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.stake_token))
+            throw new ContractError("Incorrect stake_token format");
+        if(!hash_regexp.test(params.reward_token))
+            throw new ContractError("Incorrect reward_token format");
+
+        let bigintModel = ["block_reward", "emission"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.block_reward <= BigInt(0) || params.block_reward > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect block_reward");
+        }
+        if(params.emission <= BigInt(0) || params.emission > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect emission");
+        }
+        return true;
+    }
+    async execute(tx, substate) {
+        /**
+         * check stake_token, reward_token exist
+         * check block_reward <= emission
+         * add record to farms table
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let stake_token_info = await substate.get_token_info(params.stake_token);
+        if(!stake_token_info)
+            throw new ContractError(`Token ${params.stake_token} not found`);
+        let reward_token_info = await substate.get_token_info(params.reward_token);
+        if(!reward_token_info)
+            throw new ContractError(`Token ${params.reward_token} not found`);
+
+        let balance = (await substate.get_balance(tx.from, params.reward_token));
+        if(BigInt(balance.amount) - BigInt(params.emission) < BigInt(0))
+            throw new ContractError(`Token ${params.reward_token} insufficient balance`);
+
+        // let balance_1 = (await substate.get_balance(tx.from, params.stake_token));
+        // if(BigInt(balance_1.amount) - BigInt(params.stake_token) < BigInt(0))
+        //     throw new ContractError(`Token ${params.stake_token} insufficient balance`);
+        // let balance_2 = (await substate.get_balance(tx.from, params.reward_token));
+        // if(BigInt(balance_2.amount) - BigInt(params.reward_token) < BigInt(0))
+        //     throw new ContractError(`Token ${params.reward_token} insufficient balance`);
+
+        let farm_data = {
+            farm_id : tx.hash,
+            stake_token : params.stake_token,
+            reward_token : params.reward_token,
+            emission : params.emission,
+            block_reward : params.block_reward,
+            level : BigInt(0),
+            total_stake : BigInt(0),
+            last_block : BigInt(0)
+        };
+
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1 ) * params.emission,
+            token : params.reward_token,
+        });
+        substate.farms_add(farm_data);
+
         return {
             amount_changes : [],
             pos_changes : [],
@@ -1130,16 +1268,475 @@ class DexLiquiditySwapContract extends Contract {
     }
 }
 
+class FarmsAddFundsContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         * amount : 0...MAX_SUPPLY_LIMIT
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id", "amount"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        let bigintModel = ["amount"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount <= BigInt(0) || params.amount > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount");
+        }
+        return true;
+    }
+    async execute(tx, substate) {
+        /**
+         * check farm exist
+         * check farm_id.reward_token balance
+         * decrease farm_id.reward_token balance
+         * increase farm reward
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        // let reward_token_info = await substate.get_token_info(params.reward_token);
+        // if(!reward_token_info)
+        //     throw new ContractError(`Token ${params.reward_token} not found`);
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+
+        let balance = (await substate.get_balance(tx.from, farm.reward_token));
+        if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
+            throw new ContractError(`Token ${params.reward_token} insufficient balance`);
+
+        let farm_data = {
+            farm_id : farm.farm_id,
+            emission : params.amount
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1 ) * params.amount,
+            token : farm.reward_token,
+        });
+        substate.farms_change(farm_data);
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
+    }
+}
+
+class FarmIncreaseStakeContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         * amount : 0...MAX_SUPPLY_LIMIT
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id", "amount"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        let bigintModel = ["amount"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount <= BigInt(0) || params.amount > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount");
+        }
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.stake_token balance
+         *
+         * decrease farm_id.stake_token balance
+         * change farm total_stake,
+         *
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            farmer = {
+                farm_id : params.farm_id,
+                farmer_id : tx.from,
+                stake : BigInt(0),
+                level : BigInt(0)
+            }
+        }
+        let balance = await substate.get_balance(tx.from, farm.stake_token);
+        if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
+            throw new ContractError(`Token ${farm.stake_token} insufficient balance`);
+
+        let distributed = BigInt(0);
+        let new_level = BigInt(0);
+        if (farm.total_stake > BigInt(0)){
+            let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+            distributed = _d < farm.emission ? _d : farm.emission;
+            new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        }
+        let farmer_level = new_level;
+        if(farmer.stake > BigInt(0)){
+            let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level));
+            let farmer_stake = farmer.stake + params.amount;
+            farmer_level = new_level - (farmer_reward / farmer_stake);
+        }
+
+        let farm_data = {
+            farm_id : params.farm_id,
+            total_stake : params.amount,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : BigInt(kblock.n)
+        };
+        let farmer_data = {
+            farm_id : farm.farm_id,
+            farmer_id : tx.from,
+            level : farmer_level,
+            stake : params.amount
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1 ) * params.amount,
+            token : farm.stake_token,
+        });
+        substate.farms_change(farm_data);
+        substate.farmers_change(farmer_data);
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
+    }
+}
+
+class FarmDecreaseStakeContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         * amount : 0...MAX_SUPPLY_LIMIT
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id", "amount"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        let bigintModel = ["amount"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount <= BigInt(0) || params.amount > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount");
+        }
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.stake_token balance
+         *
+         * decrease farm_id.stake_token balance
+         * change farm total_stake,
+         *
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            farmer = {
+                farm_id : params.farm_id,
+                farmer_id : tx.from,
+                stake : BigInt(0),
+                level : BigInt(0)
+            }
+        }
+        if(params.amount > farmer.stake)
+            throw new ContractError(`Amount is higher than farmer stake`);
+
+        let distributed = BigInt(0);
+        let new_level = BigInt(0);
+        if (farm.total_stake > BigInt(0)){
+            let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+            distributed = _d < farm.emission ? _d : farm.emission;
+            new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        }
+
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
+
+        let farm_data = {
+            farm_id : params.farm_id,
+            total_stake : BigInt(-1) * params.amount,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : BigInt(kblock.n)
+        };
+        let farmer_data = {
+            farm_id : farm.farm_id,
+            farmer_id : tx.from,
+            stake : BigInt(-1) * params.amount
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : params.amount,
+            token : farm.stake_token,
+        });
+        if(farmer_reward > BigInt(0)){
+            substate.accounts_change({
+                id : tx.from,
+                amount : farmer_reward,
+                token : farm.reward_token,
+            });
+        }
+        substate.farms_change(farm_data);
+        substate.farmers_change(farmer_data);
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            farm_decrease_reward : farmer_reward
+        };
+    }
+}
+
+class FarmCloseStakeContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.stake_token balance
+         *
+         * decrease farm_id.stake_token balance
+         * change farm total_stake,
+         *
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            throw new ContractError(`Farm_farmer ${params.farm_id}_${tx.from} not found`);
+        }
+
+        let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+        let distributed = _d < farm.emission ? _d : farm.emission;
+
+        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
+
+        let farm_data = {
+            farm_id : params.farm_id,
+            total_stake : BigInt(-1) * farmer.stake,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : BigInt(kblock.n)
+        };
+        let farmer_data = {
+            farm_id : farm.farm_id,
+            farmer_id : tx.from
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : farmer.stake,
+            token : farm.stake_token,
+        });
+        substate.accounts_change({
+            id : tx.from,
+            amount : farmer_reward,
+            token : farm.reward_token,
+        });
+        substate.farms_change(farm_data);
+        substate.farmers_delete(farmer_data);
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            farm_close_reward : farmer_reward
+        };
+    }
+}
+
+class FarmGetRewardContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.stake_token balance
+         *
+         * change farmer level
+         * change farm emission, level
+         * add reward to account
+         *
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+
+        let farmer = await substate.get_farmer(params.farm_id, tx.from);
+        if(!farmer){
+            throw new ContractError(`Farm_farmer ${params.farm_id}_${tx.from} not found`);
+        }
+
+        let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+        let distributed = _d < farm.emission ? _d : farm.emission;
+
+        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / LEVEL_DECIMALS;
+
+        let farm_data = {
+            farm_id : params.farm_id,
+            level : new_level,
+            emission : BigInt(-1) * distributed,
+            last_block : BigInt(kblock.n)
+        };
+        let farmer_data = {
+            farm_id : farm.farm_id,
+            farmer_id : tx.from,
+            level : new_level
+        };
+        substate.accounts_change({
+            id : tx.from,
+            amount : farmer_reward,
+            token : farm.reward_token,
+        });
+        substate.farms_change(farm_data);
+        substate.farmers_change(farmer_data);
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            farm_reward : farmer_reward
+        };
+    }
+}
+
 module.exports.Contract = Contract;
-module.exports.CreateTokenContract = CreateTokenContract;
-module.exports.CreatePosContract = CreatePosContract;
-module.exports.DelegateContract = DelegateContract;
-module.exports.UndelegateContract = UndelegateContract;
-module.exports.TransferContract = TransferContract;
-module.exports.PosRewardContract = PosRewardContract;
-module.exports.MintTokenContract = MintTokenContract;
-module.exports.BurnTokenContract = BurnTokenContract;
-module.exports.DexPoolCreateContract = DexPoolCreateContract;
-module.exports.DexLiquidityAddContract = DexLiquidityAddContract;
-module.exports.DexLiquidityRemoveContract = DexLiquidityRemoveContract;
-module.exports.DexLiquiditySwapContract = DexLiquiditySwapContract;
+
+module.exports.TokenCreateContract = TokenCreateContract;
+module.exports.TokenMintContract = TokenMintContract;
+module.exports.TokenBurnContract = TokenBurnContract;
+
+module.exports.PosCreateContract = PosCreateContract;
+module.exports.PosDelegateContract = PosDelegateContract;
+module.exports.PosUndelegateContract = PosUndelegateContract;
+module.exports.PosTransferContract = PosTransferContract;
+module.exports.PosGetRewardContract = PosGetRewardContract;
+
+module.exports.PoolCreateContract = PoolCreateContract;
+module.exports.PoolLiquidityAddContract = PoolLiquidityAddContract;
+module.exports.PoolLiquidityRemoveContract = PoolLiquidityRemoveContract;
+module.exports.PoolLiquiditySwapContract = PoolLiquiditySwapContract;
+
+module.exports.FarmCreateContract = FarmCreateContract;
+module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;
+module.exports.FarmDecreaseStakeContract = FarmDecreaseStakeContract;
+module.exports.FarmCloseStakeContract = FarmCloseStakeContract;
+module.exports.FarmGetRewardContract = FarmGetRewardContract;

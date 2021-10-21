@@ -77,6 +77,28 @@ CREATE TABLE `dex_pools` (
   PRIMARY KEY (`pair_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+DROP TABLE IF EXISTS `farms`;
+CREATE TABLE `farms` (
+  `farm_id` VARCHAR(64) NOT NULL,
+  `stake_token` VARCHAR(64) NOT NULL,
+  `reward_token` VARCHAR(64) NOT NULL,
+  `emission` BIGINT(20)  UNSIGNED NULL,
+  `block_reward` BIGINT(20) UNSIGNED NULL,
+  `level` VARCHAR(64) NOT NULL,
+  `total_stake` BIGINT(20) UNSIGNED NULL,
+  `last_block` BIGINT(20) DEFAULT NULL,
+  PRIMARY KEY (`farm_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `farmers`;
+CREATE TABLE `farmers` (
+  `farm_id` VARCHAR(64) NOT NULL,
+  `farmer_id` VARCHAR(66) NOT NULL,
+  `stake` BIGINT(20) NULL,
+  `level` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`farm_id`, `farmer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `snapshots`
@@ -383,6 +405,21 @@ CREATE TABLE `tokens_index` (
   `hash` varchar(64) NOT NULL,
   `txs_count` bigint(20) DEFAULT '1',
   PRIMARY KEY (`hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tokens_price`
+--
+
+DROP TABLE IF EXISTS `tokens_price`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tokens_price` (
+  `tokens_hash` varchar(64) NOT NULL,
+  `cg_id` varchar(64) NOT NULL,
+  `price` bigint(20) NOT NULL,
+  PRIMARY KEY (`tokens_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

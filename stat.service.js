@@ -99,6 +99,15 @@ class StatService {
             });
         return tmp['enq-enecuum'].eth;
     };
+    
+    async get_cg_token_usg(cg_id){
+        let tmp = await Utils.http.get('https://api.coingecko.com/api/v3/simple/price',
+            {
+                ids : cg_id,
+                vs_currencies : 'usd'
+            });
+        return tmp[cg_id].usd;
+    };
 
     async get_accounts_count(){
         let tmp = await this.db.get_accounts_count();

@@ -306,27 +306,22 @@ class Syncer {
 		return result;
 	}
 
-	check_peer(socket){
-		let index = this.peers.findIndex(p => p.socket === socket);
-		console.silly(`check_peer peers:${JSON.stringify(this.peers)}`);
-		if(index >= 0) {
-			let now = Date.now();
-			if(this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT){
-				this.peers[index].ignore_timeout = now + Utils.SYNC_IGNORE_TIMEOUT;
-				this.peers[index].failures = 0;
-			}
-			if(this.peers[index].ignore_timeout > 0) {
-				if (now < this.peers[index].ignore_timeout) {
-					return -1;
-				} else {
-					this.peers[index].ignore_timeout = 0;
-				}
-			}
-		} else {
-			return this.peers.push({socket:socket, ignore_timeout:0, failures:0}) - 1;
-		}
-		return index;
-	}
+    check_peer(socket){
+        let index = this.peers.findIndex(p => p.socket === socket);
+        console.silly(`check_peer peers:${JSON.stringify(this.peers)}`);
+        if(index >= 0) {
+            let now = Date.now();
+            if(this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT){
+                index = this.peers.findIndex((a, b) => {
+                    if (a.failures < b.failures) return -1;
+                    return a.failures > b.failures ? 1 : 0;
+                });
+            }
+        } else {
+            return this.peers.push({socket:socket, failures:0}) - 1;
+        }
+        return index;
+    }
 
 	async sync_chain(socket) {
 		let peer_index = this.check_peer(socket);
@@ -540,6 +535,7 @@ class Syncer {
 			this.peers[peer_index].failures = 0;
 		} catch (e) {
 			console.error('Syncronization aborted, error:', e);
+			this.peers[peer_index].failures++;
 		} finally {
 			this.sync_running = false;
 			await this.transport.selfcast("wait_sync", false);
@@ -588,11 +584,6 @@ class Syncer {
             mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
             if (mblocks.length === 0) {
                 console.warn(`on_microblocks: no valid microblocks found`);
-                return;
-            }
-            let isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
-            if (!isValid_leader_sign) {
-                console.warn(`on_microblocks: Invalid leader sign on mblocks`);
                 return;
             }
             let validation_time = process.hrtime(time);
@@ -673,7 +664,7 @@ class Syncer {
 		let kblock = msg.data;
 		console.silly(`on_tail kblock = ${JSON.stringify(kblock)}`);
 		let tail = await this.db.peek_tail();
-		if (kblock.n > tail.n) {
+		if (kblock.n > (tail.n + 1)) {
 			this.sync_chain([msg.host, msg.port].join(":"));
 		}
 	}
@@ -745,23 +736,26 @@ class Syncer {
 				break;
 		}
 		let isValid_leader_sign = false;
-		let recalc_m_root = undefined;
 		if(n >= this.config.FORKS.fork_block_002) {
-			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
-			isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, recalc_m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+			isValid_leader_sign = Utils.valid_leader_sign_002(candidate.link, candidate.m_root, candidate.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
 		} else {
-			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
 			isValid_leader_sign = Utils.valid_leader_sign_000(valid_mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 		}
 		if (!isValid_leader_sign) {
 			console.warn(`Invalid leader sign`);
 			return false;
 		}
-
+		let recalc_m_root = undefined;
+		if(n >= this.config.FORKS.fork_block_002) {
+			recalc_m_root = Utils.merkle_root_002(valid_mblocks, valid_sblocks, snapshot_hash);
+		} else {
+			recalc_m_root = Utils.merkle_root_000(valid_mblocks, valid_sblocks, snapshot_hash);
+		}
 		if (candidate.m_root !== recalc_m_root) {
 			console.warn(`After recalc block, changed m_root: before ${candidate.m_root}, after ${recalc_m_root}`);
 			return false;
 		}
+
 		end = new Date().getTime();
 		console.info(`recalc merkle_root time: ${end - start}ms`);
 		start = end;
@@ -842,7 +836,9 @@ class Syncer {
 					} else {
 						let kblocks_hash = candidate.hash;
 						await this.transport.selfcast("emit_statblock", kblocks_hash);
-					}
+                        let index = this.check_peer([msg.host, msg.port].join(":"));
+                        this.peers[index].failures = 0;
+                    }
 				} catch (e) {
 					console.warn(`Failed to put macroblock (e) = ${e}`);
 				}

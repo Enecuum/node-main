@@ -89,6 +89,9 @@ let utils = {
 	},
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
+	DEX_COMMANDER_ADDRESS : "033333333333333333333333333333333333333333333333333333333333333333",
+	DEX_BURN_ADDRESS : "02dead000000000000000000000000000000000000000000000000000000000000",
+	DEX_COMMANDER_FEE : BigInt(5), // 0.05%
 	MINER_INTERVAL : 1000,
 	M_ROOT_RESEND_INTERVAL : 40000,
 	POS_MINER_RESEND_INTERVAL : 30000,
@@ -98,6 +101,7 @@ let utils = {
 	SYNC_CHUNK_SIZE : 1000000, //byte
 	SYNC_FAILURES_LIMIT : 5,
 	SYNC_IGNORE_TIMEOUT : 7200000, //ms  2 hours
+	MAX_NONCE : 2147483647, //Maximum Value Signed Int
 
 	pid_cached : 0,
 	lastTime : Date.now(),
@@ -216,13 +220,29 @@ let utils = {
 		let delegates_hash = crypto.createHash('sha256').update(snapshot.delegates.map(delegate => this.hash_delegated(delegate)).sort().join("")).digest('hex');
 		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate)).sort().join("")).digest('hex');
 		let dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
+		let farms_hash = crypto.createHash('sha256').update(snapshot.farms.map(farm => this.hash_farm(farm)).sort().join("")).digest('hex');
+		let farmers_hash = crypto.createHash('sha256').update(snapshot.farmers.map(farmer => this.hash_farmer(farmer)).sort().join("")).digest('hex');
 		return crypto.createHash('sha256').update(snapshot.kblocks_hash.toLowerCase() +
 			ledger_accounts_hash.toLowerCase() +
 			tokens_hash.toLowerCase() +
 			poses_hash.toLowerCase() +
 			delegates_hash.toLowerCase() +
 			undelegates_hash.toLowerCase() +
-			dex_pools_hash.toLowerCase()).digest('hex');
+			dex_pools_hash.toLowerCase() +
+			farms_hash.toLowerCase() +
+			farmers_hash.toLowerCase()).digest('hex');
+	},
+	hash_farm : function(farm){
+		if (!farm)
+			return undefined;
+		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
+	},
+	hash_farmer : function(farmer){
+		if (!farmer)
+			return undefined;
+		let str = [	'farm_id', 'farmer_id', 'stake', 'level'].map(v => crypto.createHash('sha256').update(farmer[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_dex_pool : function(dex_pool){
 		if (!dex_pool)

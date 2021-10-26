@@ -42,7 +42,7 @@ class Substate {
         this.accounts = this.accounts.filter(v => v !== null);
         this.accounts = await this.db.get_accounts_all(this.accounts);
 
-        // TODO: optimized drlrction
+        // TODO: optimized selection
         // this.pools = await this.db.dex_get_pools(this.pools);
         // let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
         // if(more_pools.length > 0)
@@ -90,11 +90,11 @@ class Substate {
             else
                 delete this.undelegates[und]
         }
-        // TODO farms
-        this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
-        this.farms = this.farms.filter(v => v !== null);
-        this.farms = await this.db.get_farms(this.farms);
-
+        // TODO: optimized selection
+        // this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
+        // this.farms = this.farms.filter(v => v !== null);
+        // this.farms = await this.db.get_farms(this.farms);
+        this.farms = await this.db.get_farms_all();
         // TODO farmers
         this.farmers = this.farmers.filter((v, i, a) => a.indexOf(v) === i);
         this.farmers = this.farmers.filter(v => v !== null);

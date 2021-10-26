@@ -16,7 +16,8 @@
 
 const Utils = require('./Utils');
 const {ContractError} = require('./errors');
-
+const ContractMachine = require('./SmartContracts');
+const ContractParser = require('./contractParser').ContractParser;
 //let MAX_SUPPLY = BigInt('18446744073709551615');
 let MAX_SUPPLY_LIMIT = BigInt('18446744073709551615');
 let LEVEL_DECIMALS =   BigInt('10000000000000000000');
@@ -1267,7 +1268,6 @@ class FarmCreateContract extends Contract {
         };
     }
 }
-
 class FarmsAddFundsContract extends Contract {
     constructor(data) {
         super();
@@ -1333,6 +1333,169 @@ class FarmsAddFundsContract extends Contract {
             token : farm.reward_token,
         });
         substate.farms_change(farm_data);
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
+    }
+}
+class FarmsAddEmissionContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * farm_id : hex string 64 chars
+         * amount : 0...MAX_SUPPLY_LIMIT
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["farm_id", "amount"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.farm_id))
+            throw new ContractError("Incorrect farm_id format");
+
+        let bigintModel = ["amount"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount <= BigInt(0) || params.amount > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount");
+        }
+        return true;
+    }
+    async execute(tx, substate, kblock) {
+        /**
+         * check farm exist
+         * check farm_id.reward_token balance
+         * decrease farm_id.reward_token balance
+         * increase farm reward
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        // let reward_token_info = await substate.get_token_info(params.reward_token);
+        // if(!reward_token_info)
+        //     throw new ContractError(`Token ${params.reward_token} not found`);
+        let farm = await substate.get_farm(params.farm_id);
+        if(!farm)
+            throw new ContractError(`Farm ${params.farm_id} doesn't exist`);
+
+        let balance = (await substate.get_balance(tx.from, farm.reward_token));
+        if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
+            throw new ContractError(`Token ${farm.reward_token} insufficient balance`);
+
+        let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
+        let distributed = _d < farm.emission ? _d : farm.emission;
+        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
+        // TODO: accumulator
+        let farm_data = {
+            farm_id : farm.farm_id,
+            level : new_level
+        };
+
+        substate.accounts_change({
+            id : tx.from,
+            amount : BigInt(-1 ) * params.amount,
+            token : farm.reward_token,
+        });
+        substate.farms_change(farm_data);
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : []
+        };
+    }
+}
+
+class DexCmdDistributeContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        return true;
+    }
+    async execute(tx, substate, kblock, config) {
+        /**
+         * Check cmd's balance
+         * get ltoken pool
+         * swap lp_token to ENX
+         * Add ENX to farm
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let ENX_TOKEN_HASH = "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2";
+
+//        let ENX_TOKEN_HASH  = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
+        let ENX_FARM_ID     = "42b199033fc1e3d398f870d8934047caaf4b313c18b25ccea58ab607fce2a557";
+
+        let balance = (await substate.get_balance(Utils.DEX_COMMANDER_ADDRESS, params.token_hash));
+        if(BigInt(balance.amount) <= BigInt(0))
+            throw new ContractError(`Token ${params.token_hash} insufficient balance`);
+
+        let assets = Utils.getPairId(params.token_hash, ENX_TOKEN_HASH);
+        let pair_id = assets.pair_id;
+
+        let pool_exist = (await substate.dex_check_pool_exist(pair_id));
+        if(!pool_exist)
+            throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
+
+        let pool_info = await substate.dex_get_pool_info(pair_id);
+
+        let swap_object = {
+            type : "pool_swap",
+            parameters : {
+                asset_in : params.token_hash,
+                asset_out : ENX_TOKEN_HASH,
+                amount_in : BigInt(balance.amount)
+            }
+        };
+
+        // TODO: ??? pass config with dchema
+        //let config = {};
+        let factory = new ContractMachine.ContractFactory(config);
+        let parser = new ContractParser(config);
+
+        let swap_data = parser.dataFromObject(swap_object);
+        let swap_contract = factory.createContract(swap_data);
+        // TODO: ??? change tx object
+        tx.from = Utils.DEX_COMMANDER_ADDRESS;
+        let swap_res = await swap_contract.execute(tx, substate);
+
+        let balance_enx = (await substate.get_balance(Utils.DEX_COMMANDER_ADDRESS, ENX_TOKEN_HASH));
+        if(BigInt(balance_enx.amount) <= BigInt(0))
+            throw new ContractError(`Token ${ENX_TOKEN_HASH} insufficient balance`);
+
+        let dist_object = {
+            type : "farm_add_emission",
+            parameters : {
+                farm_id : ENX_FARM_ID,
+                amount : balance_enx.amount
+            }
+        };
+
+        let dist_data = parser.dataFromObject(dist_object);
+        let dist_contract = factory.createContract(dist_data);
+        // TODO: ??? change tx object
+        let dist_res = await dist_contract.execute(tx, substate, kblock);
 
         return {
             amount_changes : [],
@@ -1445,7 +1608,6 @@ class FarmIncreaseStakeContract extends Contract {
         };
     }
 }
-
 class FarmDecreaseStakeContract extends Contract {
     constructor(data) {
         super();
@@ -1551,7 +1713,6 @@ class FarmDecreaseStakeContract extends Contract {
         };
     }
 }
-
 class FarmCloseStakeContract extends Contract {
     constructor(data) {
         super();
@@ -1636,7 +1797,6 @@ class FarmCloseStakeContract extends Contract {
         };
     }
 }
-
 class FarmGetRewardContract extends Contract {
     constructor(data) {
         super();
@@ -1740,3 +1900,6 @@ module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;
 module.exports.FarmDecreaseStakeContract = FarmDecreaseStakeContract;
 module.exports.FarmCloseStakeContract = FarmCloseStakeContract;
 module.exports.FarmGetRewardContract = FarmGetRewardContract;
+module.exports.FarmsAddEmissionContract = FarmsAddEmissionContract;
+
+module.exports.DexCmdDistributeContract = DexCmdDistributeContract;

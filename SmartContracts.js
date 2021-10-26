@@ -53,6 +53,8 @@ class ContractFactory{
             case "farm_decrease_stake" :    return new Contracts[idx].FarmDecreaseStakeContract(data);
             case "farm_close_stake" :       return new Contracts[idx].FarmCloseStakeContract(data);
             case "farm_get_reward" :        return new Contracts[idx].FarmGetRewardContract(data);
+            case "farm_add_emission" :      return new Contracts[idx].FarmsAddEmissionContract(data);
+            case "dex_cmd_distribute" :     return new Contracts[idx].DexCmdDistributeContract(data);
             default :                       return null;
         }
     }

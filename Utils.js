@@ -235,7 +235,7 @@ let utils = {
 	hash_farm : function(farm){
 		if (!farm)
 			return undefined;
-		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
+		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block', 'accumulator'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_farmer : function(farmer){

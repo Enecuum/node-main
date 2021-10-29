@@ -196,7 +196,7 @@ class DB {
 			if (snapshot.farms && snapshot.farms.length > 0) {
 				let farms_chunks = snapshot.farms.chunk(INSERT_CHUNK_SIZE);
 				farms_chunks.forEach(chunk => {
-					farms.push(mysql.format("INSERT INTO farms (farm_id, stake_token, reward_token, emission, block_reward, level, total_stake, last_block) VALUES ? ", [chunk.map(farm => [farm.farm_id, farm.stake_token, farm.reward_token, farm.emission, farm.block_reward, farm.level , farm.total_stake , farm.last_block])]));
+					farms.push(mysql.format("INSERT INTO farms (farm_id, stake_token, reward_token, emission, block_reward, level, total_stake, last_block, accumulator) VALUES ? ", [chunk.map(farm => [farm.farm_id, farm.stake_token, farm.reward_token, farm.emission, farm.block_reward, farm.level , farm.total_stake , farm.last_block, farm.accumulator])]));
 				});
 			}let farmers = [];
 			if (snapshot.farmers && snapshot.farmers.length > 0) {
@@ -569,7 +569,7 @@ class DB {
 		let kblock = await this.get_kblock(hash);
 		if(kblock && kblock.length > 0 && kblock[0].n >= this.app_config.FORKS.fork_block_002){
 			snapshot.dex_pools = await this.request(mysql.format("SELECT pair_id, asset_1, volume_1, asset_2, volume_2, pool_fee, token_hash FROM dex_pools ORDER BY pair_id"));
-			snapshot.farms = await this.request(mysql.format("SELECT farm_id, stake_token, reward_token, emission, block_reward, level, total_stake, last_block FROM farms ORDER BY farm_id"));
+			snapshot.farms = await this.request(mysql.format("SELECT farm_id, stake_token, reward_token, emission, block_reward, level, total_stake, last_block, accumulator FROM farms ORDER BY farm_id"));
 			snapshot.farmers = await this.request(mysql.format("SELECT farm_id, farmer_id, stake, level FROM farmers ORDER BY farmer_id"));
             snapshot.undelegates = await this.request(mysql.format("SELECT id, delegator, pos_id, amount, height FROM undelegates WHERE amount > 0 ORDER BY id"));	
 		}else{
@@ -1089,8 +1089,8 @@ class DB {
 
 		substate.farms = substate.farms.filter(a => a.changed === true);
 		if(substate.farms.length > 0)
-			state_sql.push(	mysql.format("INSERT INTO farms (`farm_id`, `stake_token`, `reward_token`, `emission`, `block_reward`, `level`, `total_stake`, `last_block`) VALUES ? ON DUPLICATE KEY UPDATE `emission` = VALUES(emission), `level` = VALUES(level), `total_stake` = VALUES(total_stake), `last_block` = VALUES(last_block)",
-				[substate.farms.map(a => [a.farm_id, a.stake_token, a.reward_token, a.emission, a.block_reward, a.level.toString(), a.total_stake, a.last_block])]));
+			state_sql.push(	mysql.format("INSERT INTO farms (`farm_id`, `stake_token`, `reward_token`, `emission`, `block_reward`, `level`, `total_stake`, `last_block`, `accumulator`) VALUES ? ON DUPLICATE KEY UPDATE `emission` = VALUES(emission), `level` = VALUES(level), `total_stake` = VALUES(total_stake), `last_block` = VALUES(last_block), `accumulator` = VALUES(accumulator)",
+				[substate.farms.map(a => [a.farm_id, a.stake_token, a.reward_token, a.emission, a.block_reward, a.level.toString(), a.total_stake, a.last_block, a.accumulator])]));
 
 		let farmers_delete = substate.farmers.filter(a => a.delete === true);
 		substate.farmers = substate.farmers.filter(a => (a.changed === true) && (a.delete !== true));

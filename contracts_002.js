@@ -1251,7 +1251,8 @@ class FarmCreateContract extends Contract {
             block_reward : params.block_reward,
             level : BigInt(0),
             total_stake : BigInt(0),
-            last_block : BigInt(0)
+            last_block : BigInt(0),
+            accumulator : BigInt(0)
         };
 
         substate.accounts_change({
@@ -1396,13 +1397,21 @@ class FarmsAddEmissionContract extends Contract {
         if(BigInt(balance.amount) - BigInt(params.amount) < BigInt(0))
             throw new ContractError(`Token ${farm.reward_token} insufficient balance`);
 
+
         let _d = (BigInt(kblock.n) - farm.last_block) * farm.block_reward;
         let distributed = _d < farm.emission ? _d : farm.emission;
-        let new_level = BigInt(farm.level) + (distributed * LEVEL_DECIMALS) / farm.total_stake;
-        // TODO: accumulator
+        // uprise  = (amount + accumulator) / total_stake
+        // accumulator = (amount + accumulator) - to_distribute * total_stake
+        let uprise = (params.amount + farm.accumulator) / farm.total_stake;
+        let accumulator = params.amount + farm.accumulator - uprise * farm.total_stake;
+
+        let new_level = BigInt(farm.level) + uprise * LEVEL_DECIMALS;
+
         let farm_data = {
             farm_id : farm.farm_id,
-            level : new_level
+            level : new_level,
+            emission : BigInt(-1 ) * distributed,
+            accumulator : accumulator
         };
 
         substate.accounts_change({
@@ -1445,7 +1454,7 @@ class DexCmdDistributeContract extends Contract {
         let ENX_TOKEN_HASH = "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2";
 
 //        let ENX_TOKEN_HASH  = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
-        let ENX_FARM_ID     = "42b199033fc1e3d398f870d8934047caaf4b313c18b25ccea58ab607fce2a557";
+        let ENX_FARM_ID     = "90de269307abd0931602edc9ee0bff632c3a3b00610dcf5bdbe51fb5b1b50d83";
 
         let balance = (await substate.get_balance(Utils.DEX_COMMANDER_ADDRESS, params.token_hash));
         if(BigInt(balance.amount) <= BigInt(0))
@@ -1469,8 +1478,6 @@ class DexCmdDistributeContract extends Contract {
             }
         };
 
-        // TODO: ??? pass config with dchema
-        //let config = {};
         let factory = new ContractMachine.ContractFactory(config);
         let parser = new ContractParser(config);
 

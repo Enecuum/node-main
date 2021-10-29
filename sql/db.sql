@@ -87,6 +87,7 @@ CREATE TABLE `farms` (
   `level` VARCHAR(64) NOT NULL,
   `total_stake` BIGINT(20) UNSIGNED NULL,
   `last_block` BIGINT(20) DEFAULT NULL,
+  `accumulator` BIGINT(20) UNSIGNED DEFAULT 0,
   PRIMARY KEY (`farm_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 

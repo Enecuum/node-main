@@ -404,6 +404,12 @@ class Substate {
                 this.farms[farm_idx].last_block = changes.last_block;
                 this.farms[farm_idx].changed = true;
             }
+            if(changes.hasOwnProperty("accumulator")){
+                if(changes.accumulator < BigInt(0))
+                    throw new ContractError(`Incorrect accumulator`);
+                this.farms[farm_idx].accumulator = changes.accumulator;
+                this.farms[farm_idx].changed = true;
+            }
         }
     }
     farmers_change(changes){

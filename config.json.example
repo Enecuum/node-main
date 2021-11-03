@@ -75,7 +75,9 @@
         "farm_get_reward" :      0,
         "farm_increase_stake" :  0,
         "farm_decrease_stake" :  0,
-        "farm_close_stake" :     0
+        "farm_close_stake" :     0,
+        "farm_add_emission" :    0,
+        "dex_cmd_distribute" :   0
     },
     "stakes":[25e10, 125e10, 250e10, 1250e10, 2500e10, 12500e10, 25000e10],
     "first_message_always_probe": false,
@@ -120,5 +122,13 @@
     "feeder_watchdog": 12,
     "enable_post_tx": false,
     "validation_try_count": 10,
-    "downloading_try_count": 10
+    "downloading_try_count": 10,
+    "dex" : {
+        "DEX_COMMANDER_ADDRESS" : "033333333333333333333333333333333333333333333333333333333333333333",
+        "DEX_BURN_ADDRESS" : "02dead000000000000000000000000000000000000000000000000000000000000",
+        "DEX_ENX_TOKEN_HASH" : "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e",
+        "DEX_ENX_FARM_ID" : "90de269307abd0931602edc9ee0bff632c3a3b00610dcf5bdbe51fb5b1b50d83",
+        "DEX_COMMANDER_FEE" : 5,
+        "DEX_POOL_FEE" : 30
+    }
 }

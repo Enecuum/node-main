@@ -764,7 +764,7 @@ class PoolCreateContract extends Contract {
             volume_1 : assets.amount_1,
             asset_2 : assets.asset_2,
             volume_2 : assets.amount_2,
-            pool_fee : BigInt(30),
+            pool_fee : Utils.DEX_POOL_FEE,
             token_hash : tx.hash
         };
 
@@ -1098,7 +1098,7 @@ class PoolLiquiditySwapContract extends Contract {
 
         let BURN_ADDRESS = Utils.DEX_BURN_ADDRESS;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
-        let ENX_TOKEN_HASH = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
+        let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
 
         let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
@@ -1438,6 +1438,7 @@ class DexCmdDistributeContract extends Contract {
             throw new ContractError("Incorrect contract");
     }
     validate() {
+        // TODO
         return true;
     }
     async execute(tx, substate, kblock, config) {
@@ -1451,12 +1452,11 @@ class DexCmdDistributeContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let ENX_TOKEN_HASH = "145e5feb2012a2db325852259fc6b8a6fd63cc5188a89bac9f35139fc8664fd2";
+        let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
+        let ENX_FARM_ID = Utils.DEX_ENX_FARM_ID;
+        let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
 
-//        let ENX_TOKEN_HASH  = "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e";
-        let ENX_FARM_ID     = "90de269307abd0931602edc9ee0bff632c3a3b00610dcf5bdbe51fb5b1b50d83";
-
-        let balance = (await substate.get_balance(Utils.DEX_COMMANDER_ADDRESS, params.token_hash));
+        let balance = (await substate.get_balance(CMD_ADDRESS, params.token_hash));
         if(BigInt(balance.amount) <= BigInt(0))
             throw new ContractError(`Token ${params.token_hash} insufficient balance`);
 
@@ -1484,10 +1484,10 @@ class DexCmdDistributeContract extends Contract {
         let swap_data = parser.dataFromObject(swap_object);
         let swap_contract = factory.createContract(swap_data);
         // TODO: ??? change tx object
-        tx.from = Utils.DEX_COMMANDER_ADDRESS;
+        tx.from = CMD_ADDRESS;
         let swap_res = await swap_contract.execute(tx, substate);
 
-        let balance_enx = (await substate.get_balance(Utils.DEX_COMMANDER_ADDRESS, ENX_TOKEN_HASH));
+        let balance_enx = (await substate.get_balance(CMD_ADDRESS, ENX_TOKEN_HASH));
         if(BigInt(balance_enx.amount) <= BigInt(0))
             throw new ContractError(`Token ${ENX_TOKEN_HASH} insufficient balance`);
 

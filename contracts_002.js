@@ -1438,7 +1438,19 @@ class DexCmdDistributeContract extends Contract {
             throw new ContractError("Incorrect contract");
     }
     validate() {
-        // TODO
+        /**
+         * parameters:
+         * token_hash : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["token_hash"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        if(!hash_regexp.test(params.token_hash))
+            throw new ContractError("Incorrect token_hash format");
         return true;
     }
     async execute(tx, substate, kblock, config) {

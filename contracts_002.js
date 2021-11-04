@@ -1495,9 +1495,16 @@ class DexCmdDistributeContract extends Contract {
 
         let swap_data = parser.dataFromObject(swap_object);
         let swap_contract = factory.createContract(swap_data);
-        // TODO: ??? change tx object
-        tx.from = CMD_ADDRESS;
-        let swap_res = await swap_contract.execute(tx, substate);
+
+        // change tx object to call a contract by cmder
+        let _tx = {
+            amount : tx.amount,
+            from : CMD_ADDRESS,
+            data : tx.data,
+            ticker : tx.ticker,
+            to : tx.to
+        };
+        let swap_res = await swap_contract.execute(_tx, substate);
 
         let balance_enx = (await substate.get_balance(CMD_ADDRESS, ENX_TOKEN_HASH));
         if(BigInt(balance_enx.amount) <= BigInt(0))
@@ -1513,8 +1520,8 @@ class DexCmdDistributeContract extends Contract {
 
         let dist_data = parser.dataFromObject(dist_object);
         let dist_contract = factory.createContract(dist_data);
-        // TODO: ??? change tx object
-        let dist_res = await dist_contract.execute(tx, substate, kblock);
+
+        let dist_res = await dist_contract.execute(_tx, substate, kblock);
 
         return {
             amount_changes : [],

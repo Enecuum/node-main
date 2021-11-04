@@ -1464,6 +1464,9 @@ class DexCmdDistributeContract extends Contract {
             return null;
         let params = this.data.parameters;
 
+        let cfactory = new ContractMachine.ContractFactory(config);
+        let cparser = new ContractParser(config);
+
         let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
         let ENX_FARM_ID = Utils.DEX_ENX_FARM_ID;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
@@ -1471,15 +1474,6 @@ class DexCmdDistributeContract extends Contract {
         let balance = (await substate.get_balance(CMD_ADDRESS, params.token_hash));
         if(BigInt(balance.amount) <= BigInt(0))
             throw new ContractError(`Token ${params.token_hash} insufficient balance`);
-
-        let assets = Utils.getPairId(params.token_hash, ENX_TOKEN_HASH);
-        let pair_id = assets.pair_id;
-
-        let pool_exist = (await substate.dex_check_pool_exist(pair_id));
-        if(!pool_exist)
-            throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
-
-        let pool_info = await substate.dex_get_pool_info(pair_id);
 
         let swap_object = {
             type : "pool_swap",
@@ -1490,11 +1484,8 @@ class DexCmdDistributeContract extends Contract {
             }
         };
 
-        let factory = new ContractMachine.ContractFactory(config);
-        let parser = new ContractParser(config);
-
-        let swap_data = parser.dataFromObject(swap_object);
-        let swap_contract = factory.createContract(swap_data);
+        let swap_data = cparser.dataFromObject(swap_object);
+        let swap_contract = cfactory.createContract(swap_data);
 
         // change tx object to call a contract by cmder
         let _tx = {
@@ -1504,7 +1495,20 @@ class DexCmdDistributeContract extends Contract {
             ticker : tx.ticker,
             to : tx.to
         };
-        let swap_res = await swap_contract.execute(_tx, substate);
+        try {
+            let swap_res = await swap_contract.execute(_tx, substate);
+        }
+        catch (e) {
+            if(e instanceof ContractError){
+                console.log(e);
+                return {
+                    amount_changes : [],
+                    pos_changes : [],
+                    post_action : []
+                };
+            }
+            else throw e;
+        }
 
         let balance_enx = (await substate.get_balance(CMD_ADDRESS, ENX_TOKEN_HASH));
         if(BigInt(balance_enx.amount) <= BigInt(0))
@@ -1518,11 +1522,23 @@ class DexCmdDistributeContract extends Contract {
             }
         };
 
-        let dist_data = parser.dataFromObject(dist_object);
-        let dist_contract = factory.createContract(dist_data);
+        let dist_data = cparser.dataFromObject(dist_object);
+        let dist_contract = cfactory.createContract(dist_data);
 
-        let dist_res = await dist_contract.execute(_tx, substate, kblock);
-
+        try {
+            let dist_res = await dist_contract.execute(_tx, substate, kblock);
+        }
+        catch (e) {
+            if(e instanceof ContractError){
+                console.log(e);
+                return {
+                    amount_changes : [],
+                    pos_changes : [],
+                    post_action : []
+                };
+            }
+            else throw e;
+        }
         return {
             amount_changes : [],
             pos_changes : [],

@@ -242,7 +242,7 @@ class Substate {
                 // this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(Utils.DEX_ENX_TOKEN_HASH);
                 this.tokens.push(contract.data.parameters.token_hash);
-                this.farms.push(Utils.DEX_ENX_FARM_ID);
+                this.farms.push(Utils.DEX_SPACE_STATION_ID);
             }
                 break;
             default : return false;

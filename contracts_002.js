@@ -1468,7 +1468,7 @@ class DexCmdDistributeContract extends Contract {
         let cparser = new ContractParser(config);
 
         let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
-        let ENX_FARM_ID = Utils.DEX_ENX_FARM_ID;
+        let ENX_FARM_ID = Utils.DEX_SPACE_STATION_ID;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
 
         let balance = (await substate.get_balance(CMD_ADDRESS, params.token_hash));

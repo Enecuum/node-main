@@ -846,7 +846,10 @@ class Syncer {
 				console.debug(`on macroblock invalid candidate ${candidate.hash}`);
 				if (kblock.n > tail.n + 1) {
 					this.sync_chain([msg.host, msg.port].join(":"));
+				} else {
+					this.transport.unicast([msg.host, msg.port].join(":"),"tail", tail);
 				}
+
 			}
 		} catch (e) {
 			console.error('on macroblock aborted, error:', e);

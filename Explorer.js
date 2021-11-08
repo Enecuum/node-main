@@ -93,7 +93,8 @@ class Explorer {
 					size:this.config.mblock_slots.size,
 					count:this.config.mblock_slots.count,
 					min_stake:this.config.mblock_slots.min_stake
-				}
+				},
+				enex : this.config.dex
 			};
 			res.send(data);
 		});

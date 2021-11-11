@@ -83,6 +83,7 @@ class Syncer {
 	}
 
 	async init_vm_randomx(key) {
+		this.config.randomx.mode = 'verify';
 		console.info(`Starting RandomX virtual machine. mode - ${this.config.randomx.mode}`);
 		try {
 			this.vm = await rx.RandomxVM(key, ["jit", "ssse3", this.config.randomx.mode]);

@@ -306,25 +306,26 @@ class Syncer {
 		return result;
 	}
 
-    check_peer(socket){
-        let index = this.peers.findIndex(p => p.socket === socket);
-        console.silly(`check_peer peers:${JSON.stringify(this.peers)}`);
-        if(index >= 0) {
-            let now = Date.now();
-            if(this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT){
-                index = this.peers.findIndex((a, b) => {
-                    if (a.failures < b.failures) return -1;
-                    return a.failures > b.failures ? 1 : 0;
-                });
-            }
-        } else {
-            return this.peers.push({socket:socket, failures:0}) - 1;
-        }
-        return index;
-    }
+    check_peer(socket) {
+		let index = this.peers.findIndex(p => p.socket === socket);
+		console.info(`check_peer peers:${JSON.stringify(this.peers)}`);
+		if (index >= 0) {
+			let now = Date.now();
+			if (this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT) {
+				index = this.peers.findIndex((a, b) => {
+					if (a.failures < b.failures) return -1;
+					return a.failures > b.failures ? 1 : 0;
+				});
+			}
+		} else {
+			return this.peers.push({socket: socket, failures: 0}) - 1;
+		}
+		return index;
+	}
 
 	async sync_chain(socket) {
 		let peer_index = this.check_peer(socket);
+		console.info({peer_index});
 		if (peer_index < 0) {
 			console.debug(`Peer ignore timeout ${socket}`);
 			return;
@@ -642,7 +643,7 @@ class Syncer {
             let top_poses = await this.db.get_top_poses(this.config.top_poses_count);
             sblocks = Utils.valid_full_statblocks(sblocks, pos_stakes, pos_min_stake, top_poses);
             if (sblocks.length === 0) {
-                console.warn(`on_statblocks: no valid statblocks found`);
+                console.debug(`on_statblocks: no valid statblocks found`);
                 return;
             }
             let validation_time = process.hrtime(time);

@@ -374,7 +374,7 @@ class Transport {
 				.catch((ex)=>{
 					this.db.set_client_state(peer.socket, peer.id, 0);
 					peer.failures++;
-					console.debug("Query failed, cannot connect to", peer.socket);
+					console.warn("Query failed, cannot connect to", peer.socket);
 				});
 		});
 

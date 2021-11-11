@@ -160,16 +160,22 @@ class Explorer {
 			let data = await this.db.get_account_all(req.query.id, req.query.page, 10);
 			if(data.records !== undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					if(data.records[i].input !== null){
-						let fee = Utils.calc_fee(tokendata, data.records[i].input);				
-						data.records[i].input = BigInt(data.records[i].input) - fee;
-						data.records[i].fee = fee;
-					}else if(data.records[i].output !== null){
-						let fee = Utils.calc_fee(tokendata, data.records[i].output);				
-						data.records[i].output = BigInt(data.records[i].output) - fee;
-						data.records[i].fee = fee;
-					}		
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						if (data.records[i].input !== null) {
+							let fee = Utils.calc_fee(tokendata, data.records[i].input);
+							data.records[i].input = BigInt(data.records[i].input) - fee;
+							data.records[i].fee = fee;
+						} else if (data.records[i].output !== null) {
+							let fee = Utils.calc_fee(tokendata, data.records[i].output);
+							data.records[i].output = BigInt(data.records[i].output) - fee;
+							data.records[i].fee = fee;
+						}
+					}
 				}
 			res.send(data);
 		});
@@ -179,10 +185,16 @@ class Explorer {
 			let data = await this.db.get_account_in(req.query.id, req.query.page, 10);
 			if(data.records != undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					let fee = Utils.calc_fee(tokendata, data.records[i].input);
-					data.records[i].input = BigInt(data.records[i].input) - fee;
-					data.records[i].fee = fee;
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						let fee = Utils.calc_fee(tokendata, data.records[i].input);
+						data.records[i].input = BigInt(data.records[i].input) - fee;
+						data.records[i].fee = fee;
+					}
 				}
 			res.send(data);
 		});
@@ -192,10 +204,16 @@ class Explorer {
 			let data = await this.db.get_account_out(req.query.id, req.query.page, 10);
 			if(data.records != undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					let fee = Utils.calc_fee(tokendata, data.records[i].output);
-					data.records[i].output = BigInt(data.records[i].output) - fee;
-					data.records[i].fee = fee;
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						let fee = Utils.calc_fee(tokendata, data.records[i].output);
+						data.records[i].output = BigInt(data.records[i].output) - fee;
+						data.records[i].fee = fee;
+					}
 				}
 			res.send(data);
 		});

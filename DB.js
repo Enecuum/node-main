@@ -675,15 +675,13 @@ class DB {
 		return res;
 	}
 
-	async clear_uptime_poses(){
-		let res = await this.request(mysql.format(`UPDATE IGNORE poses 
-											SET uptime = 0
-											WHERE uptime != 0`));
-	}
-
-	async update_pos_statuses(data){
-		let res = await this.request(mysql.format(`UPDATE poses SET uptime = ? WHERE id = ?`, [data.uptime, data.pos_id]));
-		return res;
+	async update_pos_statuses(data) {
+		let poses = [];
+		let clear = mysql.format(`UPDATE IGNORE poses SET uptime = 0 WHERE uptime != 0`);
+		for (let pos of data) {
+			poses.push(mysql.format(`UPDATE poses SET uptime = ? WHERE id = ?`, [pos.uptime, pos.pos_id]));
+		}
+		return this.transaction([clear, poses.join(';')].join(';'));
 	}
 
 	async update_total_supply(amount, token){

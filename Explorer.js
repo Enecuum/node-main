@@ -608,7 +608,7 @@ class Explorer {
 
 		this.app.get('/api/v1/get_pos_info', async (req, res) => {
 			console.trace('get_pos_info', req.query);
-			let data = await this.db.get_pos_contract_info(req.query.pos_id, 20);
+			let data = await this.db.get_pos_contract_info(req.query.pos_id);
             res.send(data);
 		});
 

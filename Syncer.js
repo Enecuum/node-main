@@ -609,11 +609,12 @@ class Syncer {
 			console.trace('ignore on_statblocks event during synchronization');
 			return;
 		}
+		/*
 		if (this.on_statblock_busy) {
 			console.trace('ignore on_statblocks event during the processing of the previous event');
 			return;
 		}
-		this.on_statblock_busy = true;
+		this.on_statblock_busy = true;*/
 		try {
 			let time = process.hrtime();
 			let sblocks = msg.data;
@@ -642,7 +643,7 @@ class Syncer {
 		} catch (e) {
 			console.error(e);
 		}
-		this.on_statblock_busy = false;
+		//this.on_statblock_busy = false;
 	}
 
 	async on_tail(msg) {

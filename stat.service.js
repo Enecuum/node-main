@@ -136,14 +136,9 @@ class StatService {
         let db_data = {
             n : (height.height - 1 - 5760)
         };
-        await this.db.clear_uptime_poses();
         let stat = await this.db.get_pos_statuses(db_data);
-        for(let pos of stat){
-            this.db.update_pos_statuses({
-                pos_id : pos.pos_id,
-                uptime : pos.uptime
-            });
-        }
+        await this.db.update_pos_statuses(stat);
+
         return height.height;
     }
 

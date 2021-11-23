@@ -675,15 +675,13 @@ class DB {
 		return res;
 	}
 
-	async clear_uptime_poses(){
-		let res = await this.request(mysql.format(`UPDATE IGNORE poses 
-											SET uptime = 0
-											WHERE uptime != 0`));
-	}
-
-	async update_pos_statuses(data){
-		let res = await this.request(mysql.format(`UPDATE poses SET uptime = ? WHERE id = ?`, [data.uptime, data.pos_id]));
-		return res;
+	async update_pos_statuses(data) {
+		let poses = [];
+		let clear = mysql.format(`UPDATE IGNORE poses SET uptime = 0 WHERE uptime != 0`);
+		for (let pos of data) {
+			poses.push(mysql.format(`UPDATE poses SET uptime = ? WHERE id = ?`, [pos.uptime, pos.pos_id]));
+		}
+		return this.transaction([clear, poses.join(';')].join(';'));
 	}
 
 	async update_total_supply(amount, token){
@@ -1227,7 +1225,12 @@ class DB {
 
 		return {balance, records, page_count : Math.ceil(count / page_size), id};
 	}
-	
+
+	async get_eindex_by_hash(hash){
+		let records = await this.request(mysql.format(`SELECT id, hash, time, rectype, value FROM eindex WHERE hash = ? ORDER BY i DESC`, [hash]));
+		return records;
+	}
+
 	async get_balance(id, token){
 		let balance = (await this.request(mysql.format(`SELECT L.amount as amount, L.token as token, T.ticker as ticker, T.decimals as decimals
 			FROM ledger as L 
@@ -1503,7 +1506,7 @@ class DB {
 	pending_peek(count, timeout_sec) {
 		let uid = Math.floor(Math.random() * 1e15);
 		console.silly(`pending uid = ${uid}`);
-		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter`, `lastrequested` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
+		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter` DESC, `lastrequested` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
 			.then((rows) => {
 				if (rows.affectedRows > 0){
 					return this.request(mysql.format("SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM pending WHERE `uid`=?", uid));
@@ -1606,35 +1609,81 @@ class DB {
         return data;
 	}
 
+	async get_statistic_year_blocks_count(blocks_interval){
+		let year_blocks_count = 60 / this.app_config.target_speed * 60 * 24 * 365;
+		let last_blocks_time = (await this.request(mysql.format(`SELECT (UNIX_TIMESTAMP() - kblocks.time) as time FROM kblocks WHERE n = (SELECT n - ${blocks_interval} FROM kblocks WHERE hash = (SELECT stat.value FROM stat WHERE stat.key = 'cashier_ptr'))`)))[0].time;
+		let statistic_year_blocks_count = 0;
+		if (last_blocks_time !== null)
+			statistic_year_blocks_count = 60 * 60 * 24 * blocks_interval * 365 / Number(last_blocks_time);
+		else
+			statistic_year_blocks_count = year_blocks_count;
+		return statistic_year_blocks_count;
+	}
+
+	async get_poses_stakes_info(){
+		let sql_poses_info = mysql.format(`SELECT (SELECT sum(amount) as total_stake FROM delegates) AS total_stake,
+												  (SELECT sum(amount) FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0) AS active_total_stake,
+												  (SELECT sum(effective_stake) FROM (SELECT (SELECT sum(amount) FROM delegates WHERE delegates.pos_id = poses.id ) * poses.uptime / 5760 as effective_stake FROM poses WHERE uptime > 0) as R) AS effective_total_stake`);
+		return (await this.request(sql_poses_info))[0];
+	}
+
 	async get_pos_contract_info_page(page_num, page_size){
 		let count = (await this.get_pos_contract_count()).count;
 		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
-
 		let i = page_size*page_num;
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
-		let year_blocks_count = 60 / this.app_config.target_speed * 60 * 24 * 365; 
-        let res = await this.request(mysql.format(`SELECT @i := @i + 1 AS rank,  pos_id, owner, fee, stake, stake_power, IF(uptime > 0, (stake / @active_total_stake), 0)  as active_stake_power, IFNULL(ROUND(((? * (stake / @active_total_stake) * (1e4 - fee) * (uptime / 5760) / 1e4 * ?)/stake*1e4),0),0) as roi FROM ( 
-						(SELECT @total_stake:=IFNULL((SELECT sum(amount) FROM delegates),0)) AS total_stake, 
-						(SELECT @active_total_stake:=IFNULL((SELECT sum(amount) as active_total_stake FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0),0)) AS active_total_stake, 
-						(SELECT id as pos_id, owner, fee, uptime, @stake := IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake, (@stake / @total_stake) as stake_power FROM poses ORDER BY stake DESC) as t,
-						(SELECT @i:=?) AS iterator
-						) LIMIT ?, ?`,[pos_rew, year_blocks_count, i,  page_num * page_size, page_size]));
+		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
+		let {total_stake, active_total_stake, effective_total_stake} = await this.get_poses_stakes_info();
+		let sql = mysql.format(`SELECT @i := @i + 1 AS rank, IFNULL(uptime > 0,0) as active, pos_id, owner, name, fee, stake, 
+											stake * (uptime / 5760) effective_stake,
+											stake / ${total_stake} stake_power, 
+											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
+											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
+											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL((uptime/5760),0) as uptime FROM (
+											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
+											(SELECT @i:= ?) AS iterator) LIMIT ?, ?`,[pos_rew, statistic_year_blocks_count, i, page_num * page_size, page_size]);
+		let res = await this.request(sql);
         return {pos_contracts:res, page_count : Math.ceil(count / page_size)};
     }
 
     async get_pos_contract_info(pos_id){
-		let i = 0;
 		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
-
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
-		let year_blocks_count = 60 / this.app_config.target_speed * 60 * 24 * 365; 
-        let res = await this.request(mysql.format(`SELECT * FROM(SELECT @i := @i + 1 AS rank, IFNULL(uptime > 0,0) as active, pos_id, owner, name, fee, stake, stake_power, IF(uptime > 0, (stake / @active_total_stake), 0)  as active_stake_power, IFNULL(ROUND(((? * (stake / @active_total_stake)  * (1e4 - fee) * (uptime / 5760)/ 1e4 * ?)/stake*1e4),0),0) as roi, IF(uptime > 0, 0,(stake/(@active_total_stake+stake))) as active_stake_share, IFNULL(uptime/5760,0) as uptime FROM ( 
-						(SELECT @total_stake:=IFNULL((SELECT sum(amount) FROM delegates),0)) AS total_stake, 
-						(SELECT @active_total_stake:=IFNULL((SELECT sum(amount) as active_total_stake FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0),0)) AS active_total_stake, 
-						(SELECT id as pos_id, owner, fee, uptime, name, @stake := IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake, CAST((@stake / @total_stake) as DECIMAL(10,2)) as stake_power FROM poses ORDER BY stake DESC) as t,
-						(SELECT @i:=?) AS iterator
-						)) as pos_list WHERE pos_id = ?`,[pos_rew, year_blocks_count, i, pos_id]));
-        return res;
+		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
+		let {total_stake, active_total_stake, effective_total_stake} = await this.get_poses_stakes_info();
+		let sql = mysql.format(`SELECT @i := @i + 1 AS rank, IFNULL(uptime > 0,0) as active, pos_id, owner, name, fee, stake, 
+											stake * (uptime / 5760) effective_stake,
+											stake / ${total_stake} stake_power, 
+											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
+											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
+											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL((uptime/5760),0) as uptime FROM (
+											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
+											(SELECT @i:= 0) AS iterator) WHERE pos_id = ?`,[pos_rew, statistic_year_blocks_count, pos_id]);
+        return await this.request(sql);
+    }
+
+    async get_pos_contract_info_all(){
+		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
+		let daily_pos_reward = pos_rew * 5760n;
+		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
+		let {total_stake, active_total_stake, effective_total_stake} = await this.get_poses_stakes_info();
+		let sql = mysql.format(`SELECT @i := @i + 1 AS rank, IFNULL(uptime > 0,0) as active, pos_id, owner, name, fee, stake, 
+											stake * (uptime / 5760) effective_stake,
+											stake / ${total_stake} stake_power, 
+											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
+											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
+											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL((uptime/5760),0) as uptime FROM (
+											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
+											(SELECT @i:= 0) AS iterator)`,[pos_rew, statistic_year_blocks_count]);
+		let pos_contracts = await this.request(sql);
+        return {daily_pos_reward, total_stake, active_total_stake, effective_total_stake, pos_contracts};
     }
 
 	async get_avg_block_time(count){
@@ -1647,30 +1696,6 @@ class DB {
 			ORDER BY kblocks.n DESC LIMIT ?) as T`, [count])))[0].time;
 		return time / count;
 	}
-
-    async get_pos_contract_info_all(){
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
-
-		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
-		let year_blocks_count = 60 / this.app_config.target_speed * 60 * 24 * 365; 
-		// TODO: Can be replaced by  get_avg_block_time
-		let last_blocks_time = (await this.request(mysql.format(`SELECT sum(tm) as time FROM (
-																SELECT kblocks.time - BEF.time tm FROM trinity.kblocks 
-																LEFT JOIN kblocks BEF ON kblocks.link = BEF.hash
-																WHERE kblocks.n < (SELECT n FROM kblocks WHERE hash = (SELECT stat.value FROM stat WHERE stat.key = 'cashier_ptr'))
-																ORDER BY kblocks.n DESC LIMIT 100) as T`)))[0].time;
-		let statistic_year_blocks_count = 0;
-		if (last_blocks_time !== null)
-			statistic_year_blocks_count = 60 * 60 * 24 * 100 * 365 / Number(last_blocks_time);
-		let sql = mysql.format(`SELECT @i := @i + 1 AS rank, IFNULL(uptime > 0,0) as active, pos_id, owner, fee, stake, stake_power, IF(uptime > 0, (stake / @active_total_stake) , 0)  as active_stake_power, IFNULL(ROUND(((? * (stake / @active_total_stake) * (1e4 - fee) * (uptime / 5760) / 1e4 * ?)/stake*1e4),0),0) as roi, IF(uptime > 0, 0,(stake/(@active_total_stake+stake))) as active_stake_share, IFNULL((uptime/5760),0) as uptime FROM (
-						(SELECT @total_stake:=IFNULL((SELECT sum(amount) FROM delegates),0)) AS total_stake,
-						(SELECT @active_total_stake:=IFNULL((SELECT sum(amount) as active_total_stake FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0),0)) AS active_total_stake,
-						(SELECT id as pos_id, owner, fee, uptime, @stake := IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake, (@stake / @total_stake) as stake_power FROM poses ORDER BY stake DESC) as t,
-						(SELECT @i:= 0) AS iterator
-						)`,[pos_rew, statistic_year_blocks_count])
-		let pos_contracts = await this.request(sql);
-        return {pos_contracts};
-    }
 
     async get_pos_contract_list(owner){
     	let res = await this.request(mysql.format('SELECT id as pos_id, owner, fee, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake, name FROM poses WHERE poses.owner = ? ORDER BY id DESC', [owner]));

@@ -76,6 +76,35 @@ class Explorer {
 
 		this.app.use(express.json());
 
+		this.app.get('/api/v1/network_info', async (req, res) => {
+			console.trace('requested network_info', req.query);
+			let native_token = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let data = {
+				target_speed: this.config.target_speed,
+				reward_ratio: this.config.reward_ratio,
+				transfer_lock: this.config.transfer_lock,
+				pos_min_stake: this.config.pos_min_stake,
+				native_token: native_token,
+				snapshot_interval: this.config.snapshot_intervcal,
+				origin: this.config.ORIGIN,
+				fee_shares : this.config.fee_shares,
+				MPK : this.config.ecc[this.config.ecc.ecc_mode].MPK,
+				mblock_slots: {
+					size:this.config.mblock_slots.size,
+					count:this.config.mblock_slots.count,
+					min_stake:this.config.mblock_slots.min_stake
+				},
+				enex : this.config.dex
+			};
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/native_token', async (req, res) => {
+			console.trace('requested native_token', req.query);
+			let data = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			res.send(data);
+		});
+
 		this.app.get('/api/v1/page', async (req, res) => {
 			console.trace('requested page', req.query);		
 			let data = await this.db.get_page(req.query.n, 10);
@@ -132,16 +161,22 @@ class Explorer {
 			let data = await this.db.get_account_all(req.query.id, req.query.page, 10);
 			if(data.records !== undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					if(data.records[i].input !== null){
-						let fee = Utils.calc_fee(tokendata, data.records[i].input);				
-						data.records[i].input = BigInt(data.records[i].input) - fee;
-						data.records[i].fee = fee;
-					}else if(data.records[i].output !== null){
-						let fee = Utils.calc_fee(tokendata, data.records[i].output);				
-						data.records[i].output = BigInt(data.records[i].output) - fee;
-						data.records[i].fee = fee;
-					}		
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						if (data.records[i].input !== null) {
+							let fee = Utils.calc_fee(tokendata, data.records[i].input);
+							data.records[i].input = BigInt(data.records[i].input) - fee;
+							data.records[i].fee = fee;
+						} else if (data.records[i].output !== null) {
+							let fee = Utils.calc_fee(tokendata, data.records[i].output);
+							data.records[i].output = BigInt(data.records[i].output) - fee;
+							data.records[i].fee = fee;
+						}
+					}
 				}
 			res.send(data);
 		});
@@ -151,10 +186,16 @@ class Explorer {
 			let data = await this.db.get_account_in(req.query.id, req.query.page, 10);
 			if(data.records != undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					let fee = Utils.calc_fee(tokendata, data.records[i].input);
-					data.records[i].input = BigInt(data.records[i].input) - fee;
-					data.records[i].fee = fee;
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						let fee = Utils.calc_fee(tokendata, data.records[i].input);
+						data.records[i].input = BigInt(data.records[i].input) - fee;
+						data.records[i].fee = fee;
+					}
 				}
 			res.send(data);
 		});
@@ -164,10 +205,16 @@ class Explorer {
 			let data = await this.db.get_account_out(req.query.id, req.query.page, 10);
 			if(data.records != undefined)
 				for(let i = 0; i< data.records.length; i++){
-					let tokendata = { fee_type: data.records[i].fee_type, fee_value: data.records[i].fee_value, fee_min: data.records[i].fee_min};
-					let fee = Utils.calc_fee(tokendata, data.records[i].output);
-					data.records[i].output = BigInt(data.records[i].output) - fee;
-					data.records[i].fee = fee;
+					if(data.records[i].fee_type !== null) {
+						let tokendata = {
+							fee_type: data.records[i].fee_type,
+							fee_value: data.records[i].fee_value,
+							fee_min: data.records[i].fee_min
+						};
+						let fee = Utils.calc_fee(tokendata, data.records[i].output);
+						data.records[i].output = BigInt(data.records[i].output) - fee;
+						data.records[i].fee = fee;
+					}
 				}
 			res.send(data);
 		});
@@ -205,6 +252,12 @@ class Explorer {
 		this.app.get('/api/v1/account_kreward', async (req, res) => {
 			console.trace('requested account_kreward', req.query);
 			let data = await this.db.get_account_kreward(req.query.id, req.query.page, 10);
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/eindex_by_hash', async (req, res) => {
+			console.trace('requested eindex_by_hash', req.query);
+			let data = await this.db.get_eindex_by_hash(req.query.hash);
 			res.send(data);
 		});
 
@@ -608,7 +661,7 @@ class Explorer {
 
 		this.app.get('/api/v1/get_pos_info', async (req, res) => {
 			console.trace('get_pos_info', req.query);
-			let data = await this.db.get_pos_contract_info(req.query.pos_id, 20);
+			let data = await this.db.get_pos_contract_info(req.query.pos_id);
             res.send(data);
 		});
 

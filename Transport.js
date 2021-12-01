@@ -130,9 +130,7 @@ class Transport {
 	on(name, id, callback) {
 		if(this.events_map[name] === undefined)
 			this.events_map[name] = [];
-		if(this.events_map[name].findIndex(x => x.id === id) === -1)
-			this.events_map[name].push({id, callback});
-		//this.events_map[name].push(callback);
+		this.events_map[name].push({id, callback});
 	}
 
 	http_request(socket, method, data){
@@ -249,7 +247,8 @@ class Transport {
 						try {
 							console.debug(`callback '${request.method}' count ${this.events_map[request.method].length}`);
 							if(this.events_map[request.method]) {
-								for (let item of this.events_map[request.method]) {
+								let clone_events_map = this.events_map[request.method].map(a => {return a});
+								for (let item of clone_events_map) {
 									result = await item.callback(request);
 								}
 							}
@@ -321,7 +320,8 @@ class Transport {
 			console.info(`add peer ${peer.socket}`);
 			this.db.add_client(peer.socket, peer.id, 1, 0);
 			if (this.events_map['new_peer']){
-				for(item of this.events_map['new_peer']){
+				let clone_events_map = this.events_map['new_peer'].map(a => {return a});
+				for(let item of clone_events_map){
 					item.callback(peer.socket);
 				}
 			}
@@ -374,7 +374,7 @@ class Transport {
 				.catch((ex)=>{
 					this.db.set_client_state(peer.socket, peer.id, 0);
 					peer.failures++;
-					console.debug("Query failed, cannot connect to", peer.socket);
+					console.warn("Query failed, cannot connect to", peer.socket);
 				});
 		});
 

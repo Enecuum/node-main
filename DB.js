@@ -484,6 +484,24 @@ class DB {
 		return this.transaction([sql_m.join(";"), sql_tx.join(";")].join(";"));
 	}
 
+	put_microblocks_calculated(mblocks) {
+		let sql_m = [];
+		let sql_tx = [];
+
+		console.trace(`putting mblocks hashes: ${JSON.stringify(mblocks.map(m => m.hash))}`);
+		let i = 0;
+		mblocks.forEach((m) => {
+			i++;
+			if (m.txs === undefined || m.txs.length === 0) {
+				console.warn(`ignore empty microblock ${m.hash}`);
+				return;
+			}
+			sql_m.push(mysql.format('INSERT IGNORE INTO mblocks (`hash`, `kblocks_hash`, `publisher`, `reward`, `sign`, `leader_sign`, `referrer`, `nonce`, `token`, `included`, `calculated`) VALUES (?)', [[m.hash, m.kblocks_hash, m.publisher, m.reward, m.sign,  JSON.stringify(m.leader_sign), m.referrer, m.nonce, m.token, 1, 1]]));
+			sql_tx.push(mysql.format('INSERT IGNORE INTO transactions (`hash`, `from`, `to`, `amount`, `mblocks_hash`, `nonce`, `sign`, `ticker`, `data`) VALUES ?', [m.txs.map(tx => [tx.hash, tx.from, tx.to, tx.amount, m.hash, tx.nonce, tx.sign, tx.ticker, tx.data])]));
+		});
+		return this.transaction([sql_m.join(";"), sql_tx.join(";")].join(";"));
+	}
+
 	put_statblocks(sblocks){
 		let sql_s = [];
 		console.trace(`putting sblocks ${JSON.stringify(sblocks.map(s => s.hash))}`);

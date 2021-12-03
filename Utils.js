@@ -134,6 +134,20 @@ let utils = {
 			return false;
 		}
 	},
+	ecdsa_verify_jsrsasign : function(cpkey, sign, msg){
+		let sig = new rsasign.Signature({ "alg": 'SHA256withECDSA' });
+		try {
+			let pkey;
+			pkey = crypto.ECDH.convertKey(cpkey, 'secp256k1', 'hex', 'hex', 'uncompressed');
+			sig.init({ xy: pkey, curve: 'secp256k1' });
+			sig.updateString(msg);
+			return sig.verify(sign);
+		}
+		catch(err){
+			console.error("Verification error: ", err);
+			return false;
+		}
+	},
 	ecdsa_sign : function(skey, msg){
 		let sig = new rsasign.Signature({ "alg": 'SHA256withECDSA' });
 		try {

@@ -889,6 +889,32 @@ class Explorer {
 			res.send(data);
 		});
 
+        this.app.get('/api/v1/get_sstation_pools', async (req, res) => {
+            console.trace('get_sstation_pools', req.query);
+            let data = await this.db.dex_get_sstation_pools();
+            for (let rec of data) {
+                let asset_1_token_price = (await this.db.get_token_price(rec.asset_1));
+                asset_1_token_price = asset_1_token_price === undefined ? 0 : asset_1_token_price / 1e10;
+                let asset_2_token_price = (await this.db.get_token_price(rec.asset_2));
+                asset_2_token_price = asset_2_token_price === undefined ? 0 : asset_2_token_price / 1e10;
+                let tokens_info = await this.db.get_tokens_all([rec.asset_1, rec.asset_2]);
+                rec.decimals_1 = tokens_info.find(t => t.hash === rec.asset_1).decimals;
+                rec.ticker_1 = tokens_info.find(t => t.hash === rec.asset_1).ticker;
+                rec.decimals_2 = tokens_info.find(t => t.hash === rec.asset_2).decimals;
+                rec.ticker_2 = tokens_info.find(t => t.hash === rec.asset_2).ticker;
+                if( asset_1_token_price && asset_2_token_price ){
+                    rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price +
+                        rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price;
+                } else if (asset_1_token_price) {
+                    rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price * 2;
+                } else if (asset_2_token_price) {
+                    rec.liquidity = rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price * 2;
+                } else
+                    rec.liquidity = null;
+            }
+            res.send(data);
+        });
+
 		this.app.get('/api/v1/get_farms', async (req, res) => {
 			console.trace('get_farms', req.query);
 			let data = await this.db.get_farms_all();

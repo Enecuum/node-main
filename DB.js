@@ -52,7 +52,7 @@ class DB {
 		this.pool = mysql.createPool(this.config);
 
 		this.pool.on('connection', function (connection) {
-			console.debug(`Set DB connection psrams at threadId [${connection.threadId}]`);
+			console.debug(`Set DB connection params at threadId [${connection.threadId}]`);
 			connection.query("SET sql_mode=(SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))");
 			connection.query("SET GLOBAL max_allowed_packet=134217728");
 		});
@@ -2127,6 +2127,14 @@ class DB {
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE volume_1 > 0 and volume_2 > 0`)));
 		return res;
 	}
+
+	async dex_get_sstation_pools(){
+		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE 
+						((asset_1 in (select token_hash from dex_pools) and asset_2 = ?) or (asset_2 in (select token_hash from dex_pools) and asset_1 = ?)) 
+						and volume_1 > 0 and volume_2 > 0;`,[this.app_config.dex.DEX_ENX_TOKEN_HASH, this.app_config.dex.DEX_ENX_TOKEN_HASH])));
+		return res;
+	}
+
 	async dex_get_pools(ids){
 		if(!ids.length)
 			return [];

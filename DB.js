@@ -2129,9 +2129,10 @@ class DB {
 	}
 
 	async dex_get_sstation_pools(){
-		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE 
-						((asset_1 in (select token_hash from dex_pools) and asset_2 = ?) or (asset_2 in (select token_hash from dex_pools) and asset_1 = ?)) 
-						and volume_1 > 0 and volume_2 > 0;`,[this.app_config.dex.DEX_ENX_TOKEN_HASH, this.app_config.dex.DEX_ENX_TOKEN_HASH])));
+		let res = (await this.request(mysql.format(`SELECT pair_id, asset_1 as asset_LP, volume_1 as volume_LP, asset_2 as asset_ENX, volume_2 as volume_ENX, pool_fee, token_hash FROM dex_pools WHERE asset_2 = ?
+						union all
+						SELECT pair_id, asset_2 as asset_LP, volume_2 as volume_LP, asset_1 as asset_ENX, volume_1 as volume_ENX, pool_fee, token_hash FROM dex_pools WHERE asset_1 = ?`,
+			[this.app_config.dex.DEX_ENX_TOKEN_HASH, this.app_config.dex.DEX_ENX_TOKEN_HASH])));
 		return res;
 	}
 

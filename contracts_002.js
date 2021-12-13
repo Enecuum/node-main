@@ -1060,11 +1060,12 @@ class PoolLiquiditySwapContract extends Contract {
          * parameters:
          * asset_in : hex string 64 chars
          * asset_out : hex string 64 chars
-         * amount_in : 0...MAX_SUPPLY_LIMIT
+         * amount_in : 1...MAX_SUPPLY_LIMIT
+         * amount_out_min : 1...MAX_SUPPLY_LIMIT
          */
         let params = this.data.parameters;
 
-        let paramsModel = ["asset_in", "asset_out", "amount_in"];
+        let paramsModel = ["asset_in", "asset_out", "amount_in", "amount_out_min"];
         if (paramsModel.some(key => params[key] === undefined)){
             throw new ContractError("Incorrect param structure");
         }
@@ -1074,12 +1075,15 @@ class PoolLiquiditySwapContract extends Contract {
         if(!hash_regexp.test(params.asset_out))
             throw new ContractError("Incorrect asset_out format");
 
-        let bigintModel = ["amount_in"];
+        let bigintModel = ["amount_in", "amount_out_min"];
         if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
             throw new ContractError("Incorrect field format, BigInteger expected");
         }
         if(params.amount_in <= BigInt(0) || params.amount_in > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_in");
+        }
+        if(params.amount_out_min <= BigInt(0) || params.amount_out_min > MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_out_min");
         }
         return true;
     }
@@ -1108,7 +1112,6 @@ class PoolLiquiditySwapContract extends Contract {
             throw new ContractError(`Pool ${pair_id} not exist`);
 
         let pool_info = await substate.dex_get_pool_info(pair_id);
-        let lt_info = await substate.get_token_info(pool_info.token_hash);
 
         let volume_in =  params.asset_in === pool_info.asset_1 ? pool_info.volume_1 : pool_info.volume_2;
         let volume_out = params.asset_in === pool_info.asset_2 ? pool_info.volume_1 : pool_info.volume_2;
@@ -1119,26 +1122,20 @@ class PoolLiquiditySwapContract extends Contract {
 
         // amount_out = volume_2 - k/(volume_1 + amount_in)
         let amount_out = volume_out - (k / (volume_in + (params.amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
+        if(amount_out < params.amount_out_min)
+            throw new ContractError(`Slippage overlimit`);
+
         // cmd_tokens = lp_total * cmd_fee * amount_in / volume_1
+        let lt_info = await substate.get_token_info(pool_info.token_hash);
         let cmd_lt_amount = ((lt_info.total_supply * Utils.DEX_COMMANDER_FEE) / Utils.PERCENT_FORMAT_SIZE) * params.amount_in / volume_in;
 
         let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
-        let lt_pair_id = lt_assets.pair_id;
-        let lt_pool_exist = await substate.dex_check_pool_exist(lt_pair_id);
-        if(lt_pool_exist){
-            substate.accounts_change({
-                id : CMD_ADDRESS,
-                amount : cmd_lt_amount,
-                token : pool_info.token_hash,
-            });
-        }
-        else {
-            substate.accounts_change({
-                id : BURN_ADDRESS,
-                amount : cmd_lt_amount,
-                token : pool_info.token_hash,
-            });
-        }
+        let lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
+        substate.accounts_change({
+            id : lt_pool_exist ? CMD_ADDRESS : BURN_ADDRESS,
+            amount : cmd_lt_amount,
+            token : pool_info.token_hash,
+        });
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,

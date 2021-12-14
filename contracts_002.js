@@ -1082,7 +1082,7 @@ class PoolLiquiditySwapContract extends Contract {
         if(params.amount_in <= BigInt(0) || params.amount_in > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_in");
         }
-        if(params.amount_out_min <= BigInt(0) || params.amount_out_min > MAX_SUPPLY_LIMIT){
+        if(params.amount_out_min < BigInt(0) || params.amount_out_min > MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_out_min");
         }
         return true;
@@ -1477,7 +1477,8 @@ class DexCmdDistributeContract extends Contract {
             parameters : {
                 asset_in : params.token_hash,
                 asset_out : ENX_TOKEN_HASH,
-                amount_in : BigInt(balance.amount)
+                amount_in : BigInt(balance.amount),
+                amount_out_min : BigInt(0)
             }
         };
 

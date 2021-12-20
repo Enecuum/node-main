@@ -52,7 +52,7 @@ class DB {
 		this.pool = mysql.createPool(this.config);
 
 		this.pool.on('connection', function (connection) {
-			console.debug(`Set DB connection psrams at threadId [${connection.threadId}]`);
+			console.debug(`Set DB connection params at threadId [${connection.threadId}]`);
 			connection.query("SET sql_mode=(SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''))");
 			connection.query("SET GLOBAL max_allowed_packet=134217728");
 		});
@@ -1430,21 +1430,19 @@ class DB {
 	async get_dex_farms(farmer_id, farms){
 	    let where = '';
         if(farms !== undefined)
-            where = mysql.format(`WHERE farm_id in (?)`, [farms]);
+            where = mysql.format(`WHERE farm_id IN (?)`, [farms]);
 		let res = await this.request(mysql.format(
-			`SELECT farm_id, 
-			stake_token as stake_token_hash, S.ticker as stake_token_name, S.decimals as stake_token_decimals,
-			reward_token as reward_token_hash, R.ticker as reward_token_name, R.decimals as reward_token_decimals,
-			farms.block_reward,
-			farms.level,
-			farms.last_block,
-			farms.total_stake,
-			farms.emission,
-			(SELECT stake FROM farmers WHERE farmer_id = ? AND farmers.farm_id = farms.farm_id) as stake 
-			FROM farms 
-			LEFT JOIN tokens AS S ON stake_token = S.hash 
-			LEFT JOIN tokens AS R ON reward_token = R.hash
-			${where}`, [farmer_id]));
+			`SELECT F.farm_id, 
+					stake_token as stake_token_hash, S.ticker as stake_token_name, S.decimals as stake_token_decimals,
+					reward_token as reward_token_hash, R.ticker as reward_token_name, R.decimals as reward_token_decimals,
+					F.block_reward, F.level, F.last_block, F.total_stake, F.emission,
+					FF.stake as stake,
+					FF.level as farmer_level
+				FROM farms as F
+				LEFT JOIN tokens AS S ON stake_token = S.hash 
+				LEFT JOIN tokens AS R ON reward_token = R.hash 
+				LEFT JOIN farmers AS FF ON FF.farm_id = F.farm_id and FF.farmer_id = ?
+				${where}`, [farmer_id]));
 		return res;
 	}
 	async get_farms_all(){
@@ -2029,8 +2027,6 @@ class DB {
 			LEFT JOIN kblocks ON U.height = kblocks.n
 			LEFT JOIN transactions ON  U.id = transactions.hash
 			WHERE transactions.from = ? AND transactions.status = 3 AND U.amount > 0 ORDER BY U.amount DESC;`, [height, delegator]));
-
-
         return res;
 	}
 
@@ -2127,6 +2123,15 @@ class DB {
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE volume_1 > 0 and volume_2 > 0`)));
 		return res;
 	}
+
+	async dex_get_sstation_pools(){
+		let res = (await this.request(mysql.format(`SELECT pair_id, asset_1 as asset_LP, volume_1 as volume_LP, asset_2 as asset_ENX, volume_2 as volume_ENX, pool_fee, token_hash FROM dex_pools WHERE asset_2 = ?
+						union all
+						SELECT pair_id, asset_2 as asset_LP, volume_2 as volume_LP, asset_1 as asset_ENX, volume_1 as volume_ENX, pool_fee, token_hash FROM dex_pools WHERE asset_1 = ?`,
+			[this.app_config.dex.DEX_ENX_TOKEN_HASH, this.app_config.dex.DEX_ENX_TOKEN_HASH])));
+		return res;
+	}
+
 	async dex_get_pools(ids){
 		if(!ids.length)
 			return [];

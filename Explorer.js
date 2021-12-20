@@ -949,7 +949,7 @@ class Explorer {
 						let distributed = _d < BigInt(rec.emission) ? _d : BigInt(rec.emission);
 						let new_level = BigInt(rec.level) + (distributed * LEVEL_DECIMALS) / BigInt(rec.total_stake);
 						rec.new_level = new_level;
-						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.level)) / LEVEL_DECIMALS;
+						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.farmer_level)) / LEVEL_DECIMALS;
 					}
 					//Blocks left
 					let max_n = Number(BigInt(rec.emission) / BigInt(rec.block_reward));

@@ -585,7 +585,7 @@ class Cashier {
                 // Check if tx has contract
                 let contract = contracts[tx.hash] || null;
                 if (contract) {
-                    let res = await contract.execute(tx, substate_copy, kblock);
+                    let res = await contract.execute(tx, substate_copy, kblock, this.config);
                     // add eindex entry for claims
                     if(contract.type === 'pos_reward')
                         this.eindex_entry(rewards, 'ic', substate_copy.claims[tx.hash].delegator, tx.hash, substate_copy.claims[tx.hash].reward);

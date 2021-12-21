@@ -42,7 +42,7 @@ class Substate {
         this.accounts = this.accounts.filter(v => v !== null);
         this.accounts = await this.db.get_accounts_all(this.accounts);
 
-        // TODO: optimized drlrction
+        // TODO: optimized selection
         // this.pools = await this.db.dex_get_pools(this.pools);
         // let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
         // if(more_pools.length > 0)
@@ -90,11 +90,11 @@ class Substate {
             else
                 delete this.undelegates[und]
         }
-        // TODO farms
-        this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
-        this.farms = this.farms.filter(v => v !== null);
-        this.farms = await this.db.get_farms(this.farms);
-
+        // TODO: optimized selection
+        // this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
+        // this.farms = this.farms.filter(v => v !== null);
+        // this.farms = await this.db.get_farms(this.farms);
+        this.farms = await this.db.get_farms_all();
         // TODO farmers
         this.farmers = this.farmers.filter((v, i, a) => a.indexOf(v) === i);
         this.farmers = this.farmers.filter(v => v !== null);
@@ -235,6 +235,14 @@ class Substate {
             case "farm_get_reward" : {
                 this.farms.push(contract.data.parameters.farm_id);
                 this.farmers.push(tx.from);
+            }
+                break;
+            case "dex_cmd_distribute" : {
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                // this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                this.tokens.push(Utils.DEX_ENX_TOKEN_HASH);
+                this.tokens.push(contract.data.parameters.token_hash);
+                this.farms.push(Utils.DEX_SPACE_STATION_ID);
             }
                 break;
             default : return false;
@@ -402,6 +410,12 @@ class Substate {
                 if(changes.last_block < this.farms[farm_idx].last_block)
                     throw new ContractError(`Incorrect last_block`);
                 this.farms[farm_idx].last_block = changes.last_block;
+                this.farms[farm_idx].changed = true;
+            }
+            if(changes.hasOwnProperty("accumulator")){
+                if(changes.accumulator < BigInt(0))
+                    throw new ContractError(`Incorrect accumulator`);
+                this.farms[farm_idx].accumulator = changes.accumulator;
                 this.farms[farm_idx].changed = true;
             }
         }

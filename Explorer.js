@@ -926,7 +926,6 @@ class Explorer {
 			//filter white list
 			let data = await this.db.get_dex_farms(req.query.farmer_id, req.query.farms);
 			let n = (await this.db.get_mblocks_height()).height;
-			let LEVEL_DECIMALS =   BigInt('10000000000000000000');
 			for (let rec of data) {
 				rec.apy = null;
 				rec.liquidity = null;
@@ -947,9 +946,9 @@ class Explorer {
 					if (rec.stake > 0) {
 						let _d = (BigInt(n) - BigInt(rec.last_block)) * BigInt(rec.block_reward);
 						let distributed = _d < BigInt(rec.emission) ? _d : BigInt(rec.emission);
-						let new_level = BigInt(rec.level) + (distributed * LEVEL_DECIMALS) / BigInt(rec.total_stake);
+						let new_level = BigInt(rec.level) + (distributed * Utils.FARMS_LEVEL_PRECISION) / BigInt(rec.total_stake);
 						rec.new_level = new_level;
-						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.farmer_level)) / LEVEL_DECIMALS;
+						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.farmer_level)) / Utils.FARMS_LEVEL_PRECISION;
 					}
 					//Blocks left
 					let max_n = Number(BigInt(rec.emission) / BigInt(rec.block_reward));

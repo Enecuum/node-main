@@ -55,6 +55,7 @@ class ContractFactory{
             case "farm_get_reward" :        return new Contracts[idx].FarmGetRewardContract(data);
             case "farm_add_emission" :      return new Contracts[idx].FarmsAddEmissionContract(data);
             case "dex_cmd_distribute" :     return new Contracts[idx].DexCmdDistributeContract(data);
+            case "pool_swap_routed" :     return new Contracts[idx].PoolLiquiditySwapRoutedContract(data);
             default :                       return null;
         }
     }

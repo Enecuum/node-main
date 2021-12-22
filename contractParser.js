@@ -29,7 +29,8 @@ let schema = {
     "farm_close_stake" :        "1c00",
     "farm_decrease_stake" :     "1d00",
     "farm_add_emission" :       "1e00",
-    "dex_cmd_distribute" :      "1f00"
+    "dex_cmd_distribute" :      "1f00",
+    "pool_swap_routed" : "2000"
 };
 
 class ContractParser {

@@ -54,6 +54,10 @@ class Substate {
         this.lt_hashes = this.pools.map(h => h.token_hash);
         if(this.lt_hashes.length > 0)
             this.tokens = this.tokens.concat(this.lt_hashes);
+        let tokens_a = this.pools.map(h => h.asset_1);
+        let tokens_b = this.pools.map(h => h.asset_2);
+        this.tokens = this.tokens.concat(tokens_a);
+        this.tokens = this.tokens.concat(tokens_b);
         this.tokens = this.tokens.filter((v, i, a) => a.indexOf(v) === i);
         this.tokens = this.tokens.filter(v => v !== null);
         this.tokens = this.tokens.map(function (hash) {

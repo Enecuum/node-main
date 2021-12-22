@@ -1059,7 +1059,7 @@ class PoolLiquiditySwapContract extends Contract {
          * asset_in : hex string 64 chars
          * asset_out : hex string 64 chars
          * amount_in : 1...Utils.MAX_SUPPLY_LIMIT
-         * amount_out_min : 1...Utils.MAX_SUPPLY_LIMIT
+         * amount_out_min : 0...Utils.MAX_SUPPLY_LIMIT
          */
         let params = this.data.parameters;
 
@@ -1157,6 +1157,114 @@ class PoolLiquiditySwapContract extends Contract {
         });
         substate.tokens_change(tok_data);
         substate.pools_change(pool_data);
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            dex_swap : {
+                in : params.amount_in,
+                out : amount_out
+            }
+        };
+    }
+}
+class PoolLiquiditySwapRoutedContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * amount_in : 1...Utils.MAX_SUPPLY_LIMIT
+         * amount_out_min : 0...Utils.MAX_SUPPLY_LIMIT
+         * plength : 2...4
+         * asset0 : hex string 64 chars
+         * asset1 : hex string 64 chars
+         * (opt) asset2 : hex string 64 chars
+         * (opt) asset3 : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["amount_in", "amount_out_min", "plength"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let bigintModel = ["amount_in", "amount_out_min", "plength"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_in <= BigInt(0) || params.amount_in > Utils.MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_in");
+        }
+        if(params.amount_out_min < BigInt(0) || params.amount_out_min > Utils.MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_out_min");
+        }
+        if(params.plength < BigInt(2) || params.plength > BigInt(4)){
+            throw new ContractError("Incorrect plength");
+        }
+
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        for(let i = 0n; i < params.plength; i++){
+            let key = `asset${i.toString(10)}`;
+            if (params[key] === undefined){
+                throw new ContractError(`Incorrect path, ${key} not found`);
+            }
+            if(!hash_regexp.test(params[key]))
+                throw new ContractError(`Incorrect ${key} format`);
+        }
+        return true;
+    }
+    async execute(tx, substate, kblock, config) {
+        /**
+         * for 0..plength - 1
+         * call swap contract
+         * check slippage
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let cfactory = new ContractMachine.ContractFactory(config);
+        let cparser = new ContractParser(config);
+
+        let amount_in = params.amount_in;
+        let amount_out = BigInt(0);
+        for(let i = 0n; i < params.plength - BigInt(1); i++) {
+            let asset_in = `asset${i.toString(10)}`;
+            let asset_out = `asset${(i + BigInt(1)).toString(10)}`;
+
+            let amount_out_min = BigInt(0);
+            let swap_object = {
+                type : "pool_swap",
+                parameters : {
+                    asset_in : params[asset_in],
+                    asset_out : params[asset_out],
+                    amount_in : amount_in,
+                    amount_out_min : amount_out_min
+                }
+            };
+            let swap_data = cparser.dataFromObject(swap_object);
+            let swap_contract = cfactory.createContract(swap_data);
+
+            let swap_res = await swap_contract.execute(tx, substate);
+            if(swap_res.hasOwnProperty("dex_swap")){
+                amount_in = swap_res.dex_swap.out;
+            }
+            else throw new ContractError(`Routed swap error`);
+            // Last iteration, check slippage
+            if(i + BigInt(2) === params.plength){
+                amount_in = swap_res.dex_swap.in;
+                amount_out = swap_res.dex_swap.out;
+
+                if(swap_res.dex_swap.out < params.amount_out_min)
+                    throw new ContractError(`Slippage overlimit`);
+            }
+        }
 
         return {
             amount_changes : [],
@@ -1932,6 +2040,7 @@ module.exports.PoolCreateContract = PoolCreateContract;
 module.exports.PoolLiquidityAddContract = PoolLiquidityAddContract;
 module.exports.PoolLiquidityRemoveContract = PoolLiquidityRemoveContract;
 module.exports.PoolLiquiditySwapContract = PoolLiquiditySwapContract;
+module.exports.PoolLiquiditySwapRoutedContract = PoolLiquiditySwapRoutedContract;
 
 module.exports.FarmCreateContract = FarmCreateContract;
 module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;

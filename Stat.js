@@ -44,6 +44,7 @@ class Stat {
             'reward_pow' :              this.service.get_pow_reward.bind(this),
             'reward_pos' :              this.service.get_pos_reward.bind(this),
             'csup' :                    this.service.get_csup.bind(this),
+            'tsup' :                    this.service.get_tsup.bind(this),
             'full_count' :              this.service.get_peer_count.bind(this, FULL_NODE),
             'pow_count' :               this.service.get_peer_count.bind(this, POW),
             'poa_count' :               this.service.get_peer_count.bind(this, POA),

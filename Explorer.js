@@ -150,7 +150,6 @@ class Explorer {
 		this.app.get('/api/v1/tps', async (req, res) => {
 			console.trace('requested tps', req.query);
 			let data = await this.db.get_tps(300);
-			data.tps = Math.round(data.tps);
 			await this.db.update_max_tps(data.tps);
 			res.send(data);
 		});

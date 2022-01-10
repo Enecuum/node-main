@@ -895,15 +895,20 @@ class PoolLiquidityAddContract extends Contract {
             amount_2 = required_2
         }
 
-        // lt = sqrt(amount_1 * amount_2)
-        let lt_amount = Utils.sqrt(amount_1 * amount_2);
-
         let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
         if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
             throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
         let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
         if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
             throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
+
+        let lt_info = (await substate.get_token_info(pool_info.token_hash));
+        if(!lt_info)
+            throw new ContractError(`Token ${pool_info.token_hash} not found`);
+
+        // liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
+        let lt_amount = Math.min((amount_1 * lt_info.total_supply / pool_info.amount_1),
+            (amount_2 * lt_info.total_supply / pool_info.amount_2));
 
         let pool_data = {
             pair_id : pair_id,
@@ -1123,9 +1128,16 @@ class PoolLiquiditySwapContract extends Contract {
         if(amount_out < params.amount_out_min)
             throw new ContractError(`Slippage overlimit`);
 
-        // cmd_tokens = lp_total * cmd_fee * amount_in / volume_1
+        let amount_1_change = (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out);
+        let amount_2_change = (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in);
+
         let lt_info = await substate.get_token_info(pool_info.token_hash);
-        let cmd_lt_amount = ((lt_info.total_supply * Utils.DEX_COMMANDER_FEE) / Utils.PERCENT_FORMAT_SIZE) * params.amount_in / volume_in;
+
+        // cmd_lt_amount = (sqrtK2 - sqrtK1) / cmd_fee * sqrtK2 + sqrtK1
+        let K_new = (volume_in + amount_1_change) * (volume_out + amount_2_change);
+        let cmd_lt_amount_num = Utils.sqrt(K_new) - Utils.sqrt(k);
+        let cmd_lt_amount_den = Utils.DEX_COMMANDER_FEE * (Utils.sqrt(K_new)) + Utils.sqrt(k);
+        let cmd_lt_amount = lt_info.total_supply * cmd_lt_amount_num / cmd_lt_amount_den;
 
         let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
         let lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
@@ -1137,8 +1149,8 @@ class PoolLiquiditySwapContract extends Contract {
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
-            volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
-            volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
+            volume_1 : amount_1_change,
+            volume_2 : amount_2_change
         };
 
         let tok_data = {
@@ -1164,7 +1176,8 @@ class PoolLiquiditySwapContract extends Contract {
             post_action : [],
             dex_swap : {
                 in : params.amount_in,
-                out : amount_out
+                out : amount_out,
+                cmd_lt_amount : cmd_lt_amount
             }
         };
     }

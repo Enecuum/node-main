@@ -47,7 +47,8 @@ class ContractFactory{
             case "pool_create" :            return new Contracts[idx].PoolCreateContract(data);
             case "pool_add_liquidity" :     return new Contracts[idx].PoolLiquidityAddContract(data);
             case "pool_remove_liquidity":   return new Contracts[idx].PoolLiquidityRemoveContract(data);
-            case "pool_swap" :              return new Contracts[idx].PoolLiquiditySwapContract(data);
+            case "pool_swap_exact" :        return new Contracts[idx].PoolLiquiditySwapExactContract(data);
+            case "pool_swap_for_exact" :    return new Contracts[idx].PoolLiquiditySwapForExactContract(data);
             case "farm_create" :            return new Contracts[idx].FarmCreateContract(data);
             case "farm_increase_stake" :    return new Contracts[idx].FarmIncreaseStakeContract(data);
             case "farm_decrease_stake" :    return new Contracts[idx].FarmDecreaseStakeContract(data);

@@ -70,7 +70,7 @@
         "pool_create" :     0,
         "pool_add_liquidity" :   0,
         "pool_remove_liquidity" :0,
-        "pool_swap" :            0,
+        "pool_swap_exact" :            0,
         "farm_create" :          0,
         "farm_get_reward" :      0,
         "farm_increase_stake" :  0,

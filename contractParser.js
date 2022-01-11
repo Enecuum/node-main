@@ -31,7 +31,8 @@ let schema = {
     "farm_decrease_stake" :     "1d00",
     "farm_add_emission" :       "1e00",
     "dex_cmd_distribute" :      "1f00",
-    "pool_swap_routed" : "2000"
+    "pool_swap_exact_routed" : "2000",
+    "pool_swap_for_exact_routed" : "2200",
 };
 
 class ContractParser {

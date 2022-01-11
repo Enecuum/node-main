@@ -1123,10 +1123,13 @@ class PoolLiquiditySwapExactContract extends Contract {
         if(params.amount_in > k - volume_in)
             throw new ContractError(`Too much liquidity for pool ${pair_id}`);
 
-        // amount_out = volume_2 - k/(volume_1 + amount_in)
-        let amount_out = volume_out - (k / (volume_in + (params.amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
+        let amount_in = params.amount_in;
+        //// amount_out = volume_2 - k/(volume_1 + amount_in)
+        let amount_out = volume_out - (k / (volume_in + (amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
+
         // Other formula
-        //let amount_out_wFee = (params.amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee));
+        // amount_out =  (volume_out * amount_out) / (volume_in + amount_out)
+        //let amount_out_wFee = (amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee));
         //let amount_out = (volume_out * amount_out_wFee) / ((volume_in * Utils.PERCENT_FORMAT_SIZE + amount_out_wFee));
 
         if(amount_out < params.amount_out_min)
@@ -1135,7 +1138,7 @@ class PoolLiquiditySwapExactContract extends Contract {
         let lt_info = await substate.get_token_info(pool_info.token_hash);
 
         // cmd_lt_amount = (sqrtK2 - sqrtK1) / cmd_fee * sqrtK2 + sqrtK1
-        let K_new = (volume_in + params.amount_in) * (volume_out - amount_out);
+        let K_new = (volume_in + amount_in) * (volume_out - amount_out);
         let cmd_lt_amount_num = Utils.sqrt(K_new) - Utils.sqrt(k);
         let cmd_lt_amount_den = Utils.DEX_COMMANDER_FEE * (Utils.sqrt(K_new)) + Utils.sqrt(k);
         let cmd_lt_amount = lt_info.total_supply * cmd_lt_amount_num / cmd_lt_amount_den;
@@ -1150,8 +1153,8 @@ class PoolLiquiditySwapExactContract extends Contract {
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
-            volume_1 : (params.asset_in === pool_info.asset_1) ? (params.amount_in) : (BigInt(-1) * amount_out),
-            volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (params.amount_in)
+            volume_1 : (params.asset_in === pool_info.asset_1) ? (amount_in) : (BigInt(-1) * amount_out),
+            volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (amount_in)
         };
 
         let tok_data = {
@@ -1160,7 +1163,7 @@ class PoolLiquiditySwapExactContract extends Contract {
         };
         substate.accounts_change({
             id : tx.from,
-            amount : BigInt(-1) * params.amount_in,
+            amount : BigInt(-1) * amount_in,
             token : params.asset_in,
         });
         substate.accounts_change({
@@ -1176,7 +1179,7 @@ class PoolLiquiditySwapExactContract extends Contract {
             pos_changes : [],
             post_action : [],
             dex_swap : {
-                in : params.amount_in,
+                in : amount_in,
                 out : amount_out,
                 cmd_lt_amount : cmd_lt_amount
             }
@@ -1215,7 +1218,7 @@ class PoolLiquiditySwapForExactContract extends Contract {
         if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
             throw new ContractError("Incorrect field format, BigInteger expected");
         }
-        // TODO
+
         if(params.amount_in_max <= BigInt(0) || params.amount_in_max > Utils.MAX_SUPPLY_LIMIT){
             throw new ContractError("Incorrect amount_in_max");
         }
@@ -1258,23 +1261,22 @@ class PoolLiquiditySwapForExactContract extends Contract {
         // if(params.amount_in > k - volume_in)
         //     throw new ContractError(`Too much liquidity for pool ${pair_id}`);
 
-        // amount_in = (volume_in * amount_out) / (volume_out - amount_out)
-        let amount_out_wFee = params.amount_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee);
-        // Other formula
-        let amount_in = (volume_in * params.amount_out * Utils.PERCENT_FORMAT_SIZE ) / ((volume_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee)) - params.amount_out);
+        let amount_out = params.amount_out;
+        //// amount_in = ((volume_in * amount_out) / (volume_out - amount_out)) - volume_in
+        // let amount_in = (k / (volume_out - (amount_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE))) - volume_in;
 
-        //let amount_in = (k / (volume_out - (params.amount_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE))) - volume_in;
+        // Other formula
+        //// amount_in = (volume_in * amount_out) / (volume_out - amount_out)
+        let amount_in = (volume_in * amount_out * Utils.PERCENT_FORMAT_SIZE ) / ((volume_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee)) - amount_out);
+
 
         if(amount_in > params.amount_in_max)
             throw new ContractError(`Slippage overlimit`);
 
-        let amount_1_change = (params.asset_in === pool_info.asset_1) ? (amount_in) : (BigInt(-1) * params.amount_out);
-        let amount_2_change = (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * params.amount_out) : (amount_in);
-
         let lt_info = await substate.get_token_info(pool_info.token_hash);
 
         // cmd_lt_amount = (sqrtK2 - sqrtK1) / cmd_fee * sqrtK2 + sqrtK1
-        let K_new = (volume_in + amount_1_change) * (volume_out + amount_2_change);
+        let K_new = (volume_in + amount_in) * (volume_out - amount_out);
         let cmd_lt_amount_num = Utils.sqrt(K_new) - Utils.sqrt(k);
         let cmd_lt_amount_den = Utils.DEX_COMMANDER_FEE * (Utils.sqrt(K_new)) + Utils.sqrt(k);
         let cmd_lt_amount = lt_info.total_supply * cmd_lt_amount_num / cmd_lt_amount_den;
@@ -1289,8 +1291,8 @@ class PoolLiquiditySwapForExactContract extends Contract {
 
         let pool_data = {
             pair_id : `${pool_info.asset_1}${pool_info.asset_2}`,
-            volume_1 : amount_1_change,
-            volume_2 : amount_2_change
+            volume_1 : (params.asset_in === pool_info.asset_1) ? (amount_in) : (BigInt(-1) * amount_out),
+            volume_2 : (params.asset_in === pool_info.asset_1) ? (BigInt(-1) * amount_out) : (amount_in)
         };
 
         let tok_data = {
@@ -1304,7 +1306,7 @@ class PoolLiquiditySwapForExactContract extends Contract {
         });
         substate.accounts_change({
             id : tx.from,
-            amount : params.amount_out,
+            amount : amount_out,
             token : params.asset_out,
         });
         substate.tokens_change(tok_data);
@@ -1316,13 +1318,13 @@ class PoolLiquiditySwapForExactContract extends Contract {
             post_action : [],
             dex_swap : {
                 in : amount_in,
-                out : params.amount_out,
+                out : amount_out,
                 cmd_lt_amount : cmd_lt_amount
             }
         };
     }
 }
-class PoolLiquiditySwapRoutedContract extends Contract {
+class PoolLiquiditySwapExactRoutedContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1393,7 +1395,7 @@ class PoolLiquiditySwapRoutedContract extends Contract {
 
             let amount_out_min = BigInt(0);
             let swap_object = {
-                type : "pool_swap",
+                type : "pool_swap_exact",
                 parameters : {
                     asset_in : params[asset_in],
                     asset_out : params[asset_out],
@@ -1426,6 +1428,114 @@ class PoolLiquiditySwapRoutedContract extends Contract {
             dex_swap : {
                 in : params.amount_in,
                 out : amount_out
+            }
+        };
+    }
+}
+class PoolLiquiditySwapForExactRoutedContract extends Contract {
+    constructor(data) {
+        super();
+        this.data = data;
+        this.type = this.data.type;
+        if(!this.validate())
+            throw new ContractError("Incorrect contract");
+    }
+    validate() {
+        /**
+         * parameters:
+         * amount_out : 1...Utils.MAX_SUPPLY_LIMIT
+         * amount_in_max : 0...Utils.MAX_SUPPLY_LIMIT
+         * plength : 2...4
+         * asset0 : hex string 64 chars
+         * asset1 : hex string 64 chars
+         * (opt) asset2 : hex string 64 chars
+         * (opt) asset3 : hex string 64 chars
+         */
+        let params = this.data.parameters;
+
+        let paramsModel = ["amount_out", "amount_in_max", "plength"];
+        if (paramsModel.some(key => params[key] === undefined)){
+            throw new ContractError("Incorrect param structure");
+        }
+        let bigintModel = ["amount_out", "amount_in_max", "plength"];
+        if (!bigintModel.every(key => (typeof params[key] === 'bigint'))){
+            throw new ContractError("Incorrect field format, BigInteger expected");
+        }
+        if(params.amount_out <= BigInt(0) || params.amount_out > Utils.MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_in");
+        }
+        if(params.amount_in_max < BigInt(0) || params.amount_in_max > Utils.MAX_SUPPLY_LIMIT){
+            throw new ContractError("Incorrect amount_out_min");
+        }
+        if(params.plength < BigInt(2) || params.plength > BigInt(4)){
+            throw new ContractError("Incorrect plength");
+        }
+
+        let hash_regexp = /^[0-9a-fA-F]{64}$/i;
+        for(let i = 0n; i < params.plength; i++){
+            let key = `asset${i.toString(10)}`;
+            if (params[key] === undefined){
+                throw new ContractError(`Incorrect path, ${key} not found`);
+            }
+            if(!hash_regexp.test(params[key]))
+                throw new ContractError(`Incorrect ${key} format`);
+        }
+        return true;
+    }
+    async execute(tx, substate, kblock, config) {
+        /**
+         * for 0..plength - 1
+         * call swap contract
+         * check slippage
+         */
+        if(this.data.type === undefined)
+            return null;
+        let params = this.data.parameters;
+
+        let cfactory = new ContractMachine.ContractFactory(config);
+        let cparser = new ContractParser(config);
+
+        let amount_out = params.amount_out;
+        let amount_in = BigInt(0);
+        for(let i = params.plength - BigInt(2); i >= BigInt(0); i--) {
+            let asset_in = `asset${i.toString(10)}`;
+            let asset_out = `asset${(i + BigInt(1)).toString(10)}`;
+
+            let amount_in_max = Utils.MAX_SUPPLY_LIMIT;
+            let swap_object = {
+                type : "pool_swap_for_exact",
+                parameters : {
+                    asset_in : params[asset_in],
+                    asset_out : params[asset_out],
+                    amount_out : amount_out,
+                    amount_in_max : amount_in_max
+                }
+            };
+            let swap_data = cparser.dataFromObject(swap_object);
+            let swap_contract = cfactory.createContract(swap_data);
+
+            let swap_res = await swap_contract.execute(tx, substate);
+            if(swap_res.hasOwnProperty("dex_swap")){
+                amount_out = swap_res.dex_swap.in;
+            }
+            else throw new ContractError(`Routed swap error`);
+            // Last iteration, check slippage
+            if(i === BigInt(0)){
+                amount_in = swap_res.dex_swap.in;
+                amount_out = swap_res.dex_swap.out;
+
+                if(swap_res.dex_swap.in > params.amount_in_max)
+                    throw new ContractError(`Slippage overlimit`);
+            }
+        }
+
+        return {
+            amount_changes : [],
+            pos_changes : [],
+            post_action : [],
+            dex_swap : {
+                in : amount_in,
+                out : params.amount_out
             }
         };
     }
@@ -1732,7 +1842,7 @@ class DexCmdDistributeContract extends Contract {
             throw new ContractError(`Token ${params.token_hash} insufficient balance`);
 
         let swap_object = {
-            type : "pool_swap",
+            type : "pool_swap_exact",
             parameters : {
                 asset_in : params.token_hash,
                 asset_out : ENX_TOKEN_HASH,
@@ -2192,8 +2302,10 @@ module.exports.PosGetRewardContract = PosGetRewardContract;
 module.exports.PoolCreateContract = PoolCreateContract;
 module.exports.PoolLiquidityAddContract = PoolLiquidityAddContract;
 module.exports.PoolLiquidityRemoveContract = PoolLiquidityRemoveContract;
-module.exports.PoolLiquiditySwapContract = PoolLiquiditySwapContract;
-module.exports.PoolLiquiditySwapRoutedContract = PoolLiquiditySwapRoutedContract;
+module.exports.PoolLiquiditySwapExactContract = PoolLiquiditySwapExactContract;
+module.exports.PoolLiquiditySwapForExactContract = PoolLiquiditySwapForExactContract;
+module.exports.PoolLiquiditySwapExactRoutedContract = PoolLiquiditySwapExactRoutedContract;
+module.exports.PoolLiquiditySwapForExactRoutedContract = PoolLiquiditySwapForExactRoutedContract;
 
 module.exports.FarmCreateContract = FarmCreateContract;
 module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;

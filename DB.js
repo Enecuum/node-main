@@ -2088,7 +2088,41 @@ class DB {
 	}
 
 	async get_tokens_price() {
-		let res = this.request(mysql.format("SELECT * FROM tokens_price"));
+		let res = this.request(mysql.format("SELECT * FROM tokens_price WHERE cg_id IS NOT NULL;"));
+		return res;
+	}
+
+	async get_dex_tokens_price() {
+		let res = this.request(mysql.format(`select asset_1, cg_price/1e10, asset_2, volume_1/POW(10,T1.decimals) as vol_1, volume_2/POW(10,T2.decimals) as vol_2, ROUND(((volume_1/POW(10,T1.decimals))/(volume_2/POW(10,T2.decimals))))*cg_price as calc_dex_price 
+											from tokens_price 
+											left join dex_pools on asset_1 = tokens_hash
+											left join tokens as T1 on asset_1 = T1.hash
+											left join tokens as T2 on asset_2 = T2.hash
+											where tokens_price.cg_price > 0
+											union all
+											
+											select asset_2 as asset_1, cg_price/1e10, asset_1 as asset_2, volume_2/POW(10,T2.decimals) as vol_1, volume_1/POW(10,T1.decimals) as vol_2, ROUND(((volume_2/POW(10,T2.decimals))/(volume_1/POW(10,T1.decimals))))*cg_price as calc_dex_price 
+											from tokens_price 
+											left join dex_pools on asset_2 = tokens_hash
+											left join tokens as T1 on asset_1 = T1.hash
+											left join tokens as T2 on asset_2 = T2.hash
+											where tokens_price.cg_price > 0
+											union all
+											
+											select asset_1, dex_price/1e10, asset_2, volume_1/POW(10,T1.decimals) as vol_1, volume_2/POW(10,T2.decimals) as vol_2, ROUND(((volume_1/POW(10,T1.decimals))/(volume_2/POW(10,T2.decimals))))*dex_price as calc_dex_price 
+											from tokens_price 
+											left join dex_pools on asset_1 = tokens_hash
+											left join tokens as T1 on asset_1 = T1.hash
+											left join tokens as T2 on asset_2 = T2.hash
+											where asset_1 is not null and tokens_price.dex_price > 0
+											union all
+											
+											select asset_2 as asset_1, dex_price/1e10, asset_1 as asset_2, volume_2/POW(10,T2.decimals) as vol_1, volume_1/POW(10,T1.decimals) as vol_2, ROUND(((volume_2/POW(10,T2.decimals))/(volume_1/POW(10,T1.decimals))))*dex_price as calc_dex_price 
+											from tokens_price 
+											left join dex_pools on asset_2 = tokens_hash
+											left join tokens as T1 on asset_1 = T1.hash
+											left join tokens as T2 on asset_2 = T2.hash
+											where asset_2 is not null and tokens_price.dex_price > 0`));
 		return res;
 	}
 
@@ -2100,8 +2134,20 @@ class DB {
 	}
 
 	async update_token_price(token_hash, price){
-		let res = this.request(mysql.format("UPDATE tokens_price SET price = ? WHERE tokens_hash = ?", [price, token_hash]));
+		let res = this.request(mysql.format("UPDATE tokens_price SET cg_price = ? WHERE tokens_hash = ?", [price, token_hash]));
 		return res;
+	}
+
+	async update_tokens_price(cg_data, dex_data){
+		let upd_cg_prices = [];
+		cg_data.forEach(item => {
+			upd_cg_prices.push(mysql.format("UPDATE tokens_price SET cg_price = ? WHERE tokens_hash = ?", [item.price, item.tokens_hash]));
+		});
+		let upd_dex_prices = [];
+		dex_data.forEach(item => {
+			upd_dex_prices.push(mysql.format("INSERT INTO tokens_price (`tokens_hash`, `dex_price`) VALUES (?) ON DUPLICATE KEY UPDATE `dex_price` = VALUES(`dex_price`)", [[item.asset_2, item.calc_dex_price]]));
+		});
+		return this.transaction([upd_cg_prices.join(';'),upd_dex_prices.join(';')].join(';'));
 	}
 
 	async get_rois(){

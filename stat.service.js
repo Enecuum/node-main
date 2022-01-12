@@ -109,6 +109,15 @@ class StatService {
         return tmp[cg_id].usd;
     };
 
+    async get_cg_tokens_usg(cg_ids){
+        let data = await Utils.http.get('https://api.coingecko.com/api/v3/simple/price',
+            {
+                ids : cg_ids.join(','),
+                vs_currencies : 'usd'
+            });
+        return data;
+    };
+
     async get_accounts_count(){
         let tmp = await this.db.get_accounts_count();
         return parseInt(tmp.count);

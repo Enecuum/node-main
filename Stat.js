@@ -82,17 +82,24 @@ class Stat {
         let start = new Date();
         let tokens = await this.db.get_tokens_price();
         try {
-            for (let token of tokens) {
-                let price = Math.round((await this.service.get_cg_token_usg(token.cg_id))*1e10);
-                console.log(`price ${price}`)
-                await this.db.update_token_price(token.tokens_hash, price);
-            }
+            let cg_data = [];
+            let prices = await this.service.get_cg_tokens_usg(tokens.map(item => {return item.cg_id}));
+            let request_time = new Date();
+            let cg_request_time = request_time - start;
+            console.debug({cg_request_time});
+            tokens.forEach(item => {
+                cg_data.push({tokens_hash: item.tokens_hash, price: Math.round(prices[item.cg_id].usd*1e10)})
+            });
+            let dex_data = await this.db.get_dex_tokens_price();
+            await this.db.update_tokens_price(cg_data, dex_data);
         } catch (e) {
             console.error(e);
         }
         let end = new Date();
-        let calcTime = tokens_ptice_timeout - (end - start);
-        setTimeout(async () => { await this.tokensPriceCaching(); }, calcTime);
+        let calcTime = end - start;
+        console.debug({calcTime});
+        let timeout = tokens_ptice_timeout - calcTime;
+        setTimeout(async () => { await this.tokensPriceCaching(); }, timeout);
     }
 
     async calcRoi(){

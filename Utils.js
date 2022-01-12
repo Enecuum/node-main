@@ -73,6 +73,7 @@ function apiRequest(options){
                     body = JSON.parse(body);
                 }
                 catch (err) {
+            		console.error(`body is not JSON: ${body}`);
                     return reject(new Error('apiRequest parse error : ' + err));
                 }
             return resolve(body);

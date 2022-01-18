@@ -78,7 +78,7 @@ class Explorer {
 
 		this.app.get('/api/v1/network_info', async (req, res) => {
 			console.trace('requested network_info', req.query);
-			let native_token = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let native_token = (await this.db.get_tokens_info([this.config.native_token_hash]))[0];
 			let data = {
 				target_speed: this.config.target_speed,
 				reward_ratio: this.config.reward_ratio,
@@ -101,7 +101,7 @@ class Explorer {
 
 		this.app.get('/api/v1/native_token', async (req, res) => {
 			console.trace('requested native_token', req.query);
-			let data = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let data = (await this.db.get_tokens_info([this.config.native_token_hash]))[0];
 			res.send(data);
 		});
 
@@ -341,20 +341,8 @@ class Explorer {
 		this.app.get('/api/v1/token_info', async (req, res) => {
 			console.trace('requested token_info', req.query);
 			let hash = req.query.hash;
-			let data = await this.db.get_tokens_all([hash]);
+			let data = await this.db.get_tokens_info([hash]);
 			console.trace(`token_info = `, JSON.stringify(data));
-			if(data) {
-				data.forEach(t => {
-					t.price_raw = {
-						cg_price: t.cg_price,
-						dex_price: t.dex_price,
-						decimals: t.price_decimals
-					};
-					delete t.cg_price;
-					delete t.dex_price;
-					delete t.price_decimals
-				});
-			}
 			res.send(data);
 		});
 
@@ -895,18 +883,16 @@ class Explorer {
 			console.trace('get_dex_pools', req.query);
 			let data = await this.db.dex_get_pools_all();
 			for (let rec of data) {
-				let asset_1_token_price = (await this.db.get_token_price(rec.asset_1));
-				asset_1_token_price = asset_1_token_price === undefined ? 0 : asset_1_token_price / 1e10;
-				let asset_2_token_price = (await this.db.get_token_price(rec.asset_2));
-				asset_2_token_price = asset_2_token_price === undefined ? 0 : asset_2_token_price / 1e10;
-				let tokens_info = await this.db.get_tokens_all([rec.asset_1, rec.asset_2]);
-				if( asset_1_token_price && asset_2_token_price ){
-					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price +
-									rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price;
-				} else if (asset_1_token_price) {
-					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * asset_1_token_price * 2;
-				} else if (asset_2_token_price) {
-					rec.liquidity = rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * asset_2_token_price * 2;
+				let tokens_info = await this.db.get_tokens_info([rec.asset_1, rec.asset_2]);
+				let price_token_1 = ((tokens_info.find(t => t.hash === rec.asset_1)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_1)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_1)).dex_price_usd;
+				let price_token_2 = ((tokens_info.find(t => t.hash === rec.asset_2)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_2)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_2)).dex_price_usd;
+				if( price_token_1 && price_token_2 ){
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * price_token_1 +
+									rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * price_token_2;
+				} else if (price_token_1) {
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * price_token_1 * 2;
+				} else if (price_token_2) {
+					rec.liquidity = rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * price_token_2 * 2;
 				} else
 					rec.liquidity = null;
 			}
@@ -917,22 +903,20 @@ class Explorer {
 			console.trace('get_sstation_pools', req.query);
 			let data = await this.db.dex_get_sstation_pools();
 			for (let rec of data) {
-				let asset_LP_token_price = (await this.db.get_token_price(rec.asset_LP));
-				asset_LP_token_price = asset_LP_token_price === undefined ? 0 : asset_LP_token_price / 1e10;
-				let asset_ENX_token_price = (await this.db.get_token_price(rec.asset_ENX));
-				asset_ENX_token_price = asset_ENX_token_price === undefined ? 0 : asset_ENX_token_price / 1e10;
-				let tokens_info = await this.db.get_tokens_all([rec.asset_LP, rec.asset_ENX]);
+				let tokens_info = await this.db.get_tokens_info([rec.asset_LP, rec.asset_ENX]);
+				let LP_price_token = ((tokens_info.find(t => t.hash === rec.asset_LP)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_LP)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_LP)).dex_price_usd;
+				let ENX_price_token = ((tokens_info.find(t => t.hash === rec.asset_ENX)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_ENX)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_ENX)).dex_price_usd;
 				rec.decimals_LP = tokens_info.find(t => t.hash === rec.asset_LP).decimals;
 				rec.ticker_LP = tokens_info.find(t => t.hash === rec.asset_LP).ticker;
 				rec.decimals_ENX = tokens_info.find(t => t.hash === rec.asset_ENX).decimals;
 				rec.ticker_ENX = tokens_info.find(t => t.hash === rec.asset_ENX).ticker;
-				if( asset_LP_token_price && asset_ENX_token_price ){
-					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * asset_LP_token_price +
-						rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * asset_ENX_token_price;
-				} else if (asset_LP_token_price) {
-					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * asset_LP_token_price * 2;
-				} else if (asset_ENX_token_price) {
-					rec.liquidity = rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * asset_ENX_token_price * 2;
+				if( LP_price_token && ENX_price_token ){
+					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * LP_price_token +
+						rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * ENX_price_token;
+				} else if (LP_price_token) {
+					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * LP_price_token * 2;
+				} else if (ENX_price_token) {
+					rec.liquidity = rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * ENX_price_token * 2;
 				} else
 					rec.liquidity = null;
 			}
@@ -957,9 +941,10 @@ class Explorer {
 				rec.blocks_left = null;
 				if(rec.total_stake > 0) {
 					//Token Price
-					let reward_token_price = (await this.db.get_token_price(rec.reward_token_hash));
+					let tokens_info = await this.db.get_tokens_info([rec.reward_token_hash, rec.stake_token_hash]);
+					let reward_token_price = ((tokens_info.find(t => t.hash === rec.reward_token_hash)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.reward_token_hash)).cg_price_usd : (tokens_info.find(t => t.hash === rec.reward_token_hash)).dex_price_usd;
 					reward_token_price = reward_token_price === undefined ? 0 : reward_token_price / 1e10;
-					let stake_token_price = (await this.db.get_token_price(rec.stake_token_hash));
+					let stake_token_price = ((tokens_info.find(t => t.hash === rec.stake_token_hash)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.stake_token_hash)).cg_price_usd : (tokens_info.find(t => t.hash === rec.stake_token_hash)).dex_price_usd;
 					stake_token_price = stake_token_price === undefined ? 0 : stake_token_price / 1e10;
 
 					//Liquidity

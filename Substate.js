@@ -65,7 +65,7 @@ class Substate {
             if (hash_regexp.test(hash))
                 return hash;
         });
-        this.tokens = await this.db.get_tokens_all(this.tokens);
+        this.tokens = await this.db.get_tokens(this.tokens);
 
         //this.poses = this.poses.filter((v, i, a) => a.indexOf(v) === i);
         //this.poses = this.poses.filter(v => v !== null);

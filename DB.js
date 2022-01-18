@@ -1455,7 +1455,16 @@ class DB {
 		let res = await this.request(mysql.format('SELECT * FROM farmers WHERE farmer_id in (?)', [ids]));
 		return res;
 	}
-	async get_tokens_all(hashes){
+	async get_tokens(hashes){
+		if(!hashes.length)
+			return [];
+		let res = await this.request(mysql.format(`SELECT tokens.*
+														FROM tokens
+														WHERE tokens.hash in (?)`, [hashes]));
+		return res;
+	}
+
+	async get_tokens_info(hashes){
 		if(!hashes.length)
 			return [];
 		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count,
@@ -1468,6 +1477,18 @@ class DB {
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash 
 														LEFT JOIN tokens_price ON tokens.hash = tokens_price.tokens_hash
 														WHERE tokens.hash in (?)`, [hashes]));
+		if(res) {
+			res.forEach(t => {
+				t.price_raw = {
+					cg_price: t.cg_price,
+					dex_price: t.dex_price,
+					decimals: t.price_decimals
+				};
+				delete t.cg_price;
+				delete t.dex_price;
+				delete t.price_decimals
+			});
+		}
 		return res;
 	}
 
@@ -1818,7 +1839,7 @@ class DB {
 
 	async get_pos_contract_info_page(page_num, page_size){
 		let count = (await this.get_pos_contract_count()).count;
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let i = page_size*page_num;
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
@@ -1838,7 +1859,7 @@ class DB {
     }
 
     async get_pos_contract_info(pos_id){
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
 		let {total_stake, active_total_stake, effective_total_stake} = await this.get_poses_stakes_info();
@@ -1856,7 +1877,7 @@ class DB {
     }
 
     async get_pos_contract_info_all(){
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let daily_pos_reward = pos_rew * 5760n;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);

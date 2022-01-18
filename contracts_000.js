@@ -624,7 +624,7 @@ class TokenMintContract extends Contract {
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
-        let token_info = (await db.get_tokens_all(params.token_hash))[0];
+        let token_info = (await db.get_tokens(params.token_hash))[0];
         if(!token_info)
             throw new ContractError("Token not found");
         if(token_info.owner !== tx.from)
@@ -699,7 +699,7 @@ class TokenBurnContract extends Contract {
         if(this.data.type === undefined)
             return null;
         let params = this.data.parameters;
-        let token_info = (await db.get_tokens_all(params.token_hash))[0];
+        let token_info = (await db.get_tokens(params.token_hash))[0];
         if(!token_info)
             throw new ContractError("Token not found");
         if(token_info.owner !== tx.from)

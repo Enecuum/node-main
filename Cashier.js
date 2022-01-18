@@ -178,8 +178,8 @@ class Cashier {
              *
              */
             mblock_tokens = mblock_tokens.concat(mblocks.map(m => m.token));
-            let tokens = await this.db.get_tokens_all(mblock_tokens);
-            let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+            let tokens = await this.db.get_tokens(mblock_tokens);
+            let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 
             accounts = accounts.concat(tokens.map(tok => tok.owner));
             accounts = accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -518,8 +518,8 @@ class Cashier {
             if (hash_regexp.test(tx.ticker))
                 return tx.ticker;
         });
-        let tokens = await this.db.get_tokens_all(filtered_tickers);
-        let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+        let tokens = await this.db.get_tokens(filtered_tickers);
+        let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
         substate.accounts = substate.accounts.concat(tokens.map(token => token.owner));
 
         substate.tokens.push(Utils.ENQ_TOKEN_NAME);
@@ -718,8 +718,8 @@ class Cashier {
              *
              */
             mblock_tokens = mblock_tokens.concat(mblocks.map(m => m.token));
-            let tokens = await this.db.get_tokens_all(mblock_tokens);
-            let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+            let tokens = await this.db.get_tokens(mblock_tokens);
+            let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 
             accounts = accounts.concat(tokens.map(tok => tok.owner));
             accounts = accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -1055,8 +1055,8 @@ class Cashier {
             if (hash_regexp.test(tx.ticker))
                 return tx.ticker;
         });
-        let tokens = await this.db.get_tokens_all(filtered_tickers);
-        let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+        let tokens = await this.db.get_tokens(filtered_tickers);
+        let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
         accounts = accounts.concat(tokens.map(token => token.owner));
 
         let duplicates = await this.db.get_duplicates(chunk.txs.map(tx => tx.hash));

@@ -583,7 +583,7 @@ class Syncer {
                 return;
             }
             let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
-            let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
+            let tokens = await this.db.get_tokens(mblocks.map(m => m.token));
             mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
             if (mblocks.length === 0) {
                 console.warn(`on_microblocks: no valid microblocks found`);
@@ -711,7 +711,7 @@ class Syncer {
 		}
 		let start = new Date().getTime();
 		let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
-		let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
+		let tokens = await this.db.get_tokens(mblocks.map(m => m.token));
 		let valid_mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
 		if (valid_mblocks.length !== mblocks.length) {
 			console.warn(`Valid mblock count change: before ${mblocks.length}, after ${valid_mblocks.length}`);

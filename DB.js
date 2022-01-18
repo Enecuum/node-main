@@ -1458,9 +1458,15 @@ class DB {
 	async get_tokens_all(hashes){
 		if(!hashes.length)
 			return [];
-		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count
+		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count,
+														cg_price/POW(10,tokens_price.decimals) as cg_price_usd,
+														dex_price/POW(10,tokens_price.decimals) as dex_price_usd,
+														cg_price,
+														dex_price,
+														tokens_price.decimals as price_decimals
 														FROM tokens
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash 
+														LEFT JOIN tokens_price ON tokens.hash = tokens_price.tokens_hash
 														WHERE tokens.hash in (?)`, [hashes]));
 		return res;
 	}
@@ -1519,12 +1525,18 @@ class DB {
 		if(owner_slots.length > 0)
 			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
 
-        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals, minable, reissuable,
+        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, tokens.decimals, minable, reissuable,
 														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
 														IFNULL(txs_count, 0) as txs_count,
-														${in_slot} as in_slot
+														${in_slot} as in_slot,
+														cg_price/POW(10,tokens_price.decimals) as cg_price_usd ,
+														dex_price/POW(10,tokens_price.decimals) as dex_price_usd,
+														cg_price,
+														dex_price,
+														tokens_price.decimals as price_decimals											
 														FROM tokens 
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
+														LEFT JOIN tokens_price ON tokens.hash = tokens_price.tokens_hash
 														${where}
 														GROUP BY tokens.hash
 														ORDER BY token_holders_count DESC, token_hash LIMIT ?, ?`, [page_num * page_size, page_size]));
@@ -2122,14 +2134,14 @@ class DB {
 		return res;
 	}
 
-	async update_tokens_price(cg_data, dex_data){
+	async update_tokens_price(cg_data, dex_data, price_desimals){
 		let upd_cg_prices = [];
 		cg_data.forEach(item => {
-			upd_cg_prices.push(mysql.format("UPDATE tokens_price SET cg_price = ? WHERE tokens_hash = ?", [item.price, item.tokens_hash]));
+			upd_cg_prices.push(mysql.format("UPDATE tokens_price SET cg_price = ?, decimals = ? WHERE tokens_hash = ?", [item.price, price_desimals, item.tokens_hash]));
 		});
 		let upd_dex_prices = [];
 		dex_data.forEach(item => {
-			upd_dex_prices.push(mysql.format("INSERT INTO tokens_price (`tokens_hash`, `dex_price`) VALUES (?) ON DUPLICATE KEY UPDATE `dex_price` = VALUES(`dex_price`)", [[item.tokens_hash, item.calc_dex_price]]));
+			upd_dex_prices.push(mysql.format("INSERT INTO tokens_price (`tokens_hash`, `dex_price`, `decimals`) VALUES (?) ON DUPLICATE KEY UPDATE `dex_price` = VALUES(`dex_price`), `decimals` = VALUES(`decimals`)", [[item.tokens_hash, item.calc_dex_price, price_desimals]]));
 		});
 		return this.transaction([upd_cg_prices.join(';'),upd_dex_prices.join(';')].join(';'));
 	}

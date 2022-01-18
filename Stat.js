@@ -81,6 +81,7 @@ class Stat {
     async tokensPriceCaching() {
         let start = new Date();
         let tokens = await this.db.get_tokens_price();
+        let price_desimals = 10;
         try {
             let cg_data = [];
             let prices = await this.service.get_cg_tokens_usg(tokens.map(item => {
@@ -90,7 +91,7 @@ class Stat {
             let cg_request_time = request_time - start;
             console.debug({cg_request_time});
             tokens.forEach(item => {
-                cg_data.push({tokens_hash: item.tokens_hash, price: Math.round(prices[item.cg_id].usd * 1e10)})
+                cg_data.push({tokens_hash: item.tokens_hash, price: Math.round(prices[item.cg_id].usd * Math.pow(10, price_desimals))})
             });
 
             let dex_data = await this.db.get_dex_tokens_price(this.config.native_token_hash, cg_data[cg_data.findIndex(item => item.tokens_hash === this.config.native_token_hash)].price);
@@ -101,7 +102,7 @@ class Stat {
                 }
             }
             //let dex_data = await this.db.get_dex_tokens_price();
-            await this.db.update_tokens_price(cg_data, dex_data);
+            await this.db.update_tokens_price(cg_data, dex_data, price_desimals);
         } catch (e) {
             console.error(e);
         }

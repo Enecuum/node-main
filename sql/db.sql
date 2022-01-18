@@ -420,7 +420,8 @@ CREATE TABLE `tokens_price` (
   `tokens_hash` varchar(64) NOT NULL,
   `cg_id` varchar(64) NOT NULL,
   `cg_price` bigint(20) NOT NULL,
-  `dex_price` bigint(20) NOT NULL
+  `dex_price` bigint(20) NOT NULL,
+  `decimals` int(11) unsigned DEFAULT '10',
   PRIMARY KEY (`tokens_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;

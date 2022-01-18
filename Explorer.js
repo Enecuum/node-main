@@ -271,6 +271,18 @@ class Explorer {
 
         this.app.get('/api/v1/get_token_info_page', async (req, res) => {
             let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, req.query.type);
+            if(data.tokens) {
+				data.tokens.forEach(t => {
+					t.price_raw = {
+						cg_price: t.cg_price,
+						dex_price: t.dex_price,
+						decimals: t.price_decimals
+					};
+					delete t.cg_price;
+					delete t.dex_price;
+					delete t.price_decimals
+				});
+			}
             res.send({tokens : data.tokens, page_size : 20, page_count : data.page_count});
         });
 
@@ -331,6 +343,18 @@ class Explorer {
 			let hash = req.query.hash;
 			let data = await this.db.get_tokens_all([hash]);
 			console.trace(`token_info = `, JSON.stringify(data));
+			if(data) {
+				data.forEach(t => {
+					t.price_raw = {
+						cg_price: t.cg_price,
+						dex_price: t.dex_price,
+						decimals: t.price_decimals
+					};
+					delete t.cg_price;
+					delete t.dex_price;
+					delete t.price_decimals
+				});
+			}
 			res.send(data);
 		});
 

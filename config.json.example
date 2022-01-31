@@ -8,7 +8,7 @@
     "dbpass" : "root",
     "dbport": 4000,
     "loglevel" : "info",
-    "feeder_interval_ms" : 100,
+    "feeder_interval_ms" : 500,
     "cashier_interval_ms" : 0,
     "cashier_chunk_size" : 2,
     "pending_size" : 10,

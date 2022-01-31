@@ -25,11 +25,11 @@ class ExplorerService {
         return res.csup;
     }
     async get_tsup(){
-        let tsup = BigInt((await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0].total_supply);
+        let tsup = BigInt((await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0].total_supply);
         return tsup.toString();
     }
     async get_msup(){
-        let msup = BigInt((await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0].max_supply);
+        let msup = BigInt((await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0].max_supply);
         return msup.toString();
     }
     async get_network_hashrate(){

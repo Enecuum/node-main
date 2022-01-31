@@ -132,7 +132,7 @@ class Miner {
 			console.trace(`mblocks ${mblocks.length}, sblocks ${sblocks.length}, snapshot ${need_snapshot}`);
 			// Filter mblocks by min stakes
 			let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
-			let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
+			let tokens = await this.db.get_tokens(mblocks.map(m => m.token));
 			mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, false);
 			// Filter sblocks by min stakes
 			let pos_stakes = await this.db.get_pos_info(sblocks.map(s => s.publisher));

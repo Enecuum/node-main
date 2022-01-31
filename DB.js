@@ -1455,13 +1455,40 @@ class DB {
 		let res = await this.request(mysql.format('SELECT * FROM farmers WHERE farmer_id in (?)', [ids]));
 		return res;
 	}
-	async get_tokens_all(hashes){
+	async get_tokens(hashes){
 		if(!hashes.length)
 			return [];
-		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count
+		let res = await this.request(mysql.format(`SELECT tokens.*
+														FROM tokens
+														WHERE tokens.hash in (?)`, [hashes]));
+		return res;
+	}
+
+	async get_tokens_info(hashes){
+		if(!hashes.length)
+			return [];
+		let res = await this.request(mysql.format(`SELECT tokens.*, IFNULL(txs_count, 0) as txs_count,
+														cg_price/POW(10,tokens_price.decimals) as cg_price_usd,
+														dex_price/POW(10,tokens_price.decimals) as dex_price_usd,
+														cg_price,
+														dex_price,
+														tokens_price.decimals as price_decimals
 														FROM tokens
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash 
+														LEFT JOIN tokens_price ON tokens.hash = tokens_price.tokens_hash
 														WHERE tokens.hash in (?)`, [hashes]));
+		if(res) {
+			res.forEach(t => {
+				t.price_raw = {
+					cg_price: t.cg_price,
+					dex_price: t.dex_price,
+					decimals: t.price_decimals
+				};
+				delete t.cg_price;
+				delete t.dex_price;
+				delete t.price_decimals
+			});
+		}
 		return res;
 	}
 
@@ -1519,12 +1546,18 @@ class DB {
 		if(owner_slots.length > 0)
 			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
 
-        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, decimals, minable, reissuable,
+        let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, tokens.decimals, minable, reissuable,
 														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
 														IFNULL(txs_count, 0) as txs_count,
-														${in_slot} as in_slot
+														${in_slot} as in_slot,
+														cg_price/POW(10,tokens_price.decimals) as cg_price_usd ,
+														dex_price/POW(10,tokens_price.decimals) as dex_price_usd,
+														cg_price,
+														dex_price,
+														tokens_price.decimals as price_decimals											
 														FROM tokens 
 														LEFT JOIN tokens_index ON tokens.hash = tokens_index.hash
+														LEFT JOIN tokens_price ON tokens.hash = tokens_price.tokens_hash
 														${where}
 														GROUP BY tokens.hash
 														ORDER BY token_holders_count DESC, token_hash LIMIT ?, ?`, [page_num * page_size, page_size]));
@@ -1806,7 +1839,7 @@ class DB {
 
 	async get_pos_contract_info_page(page_num, page_size){
 		let count = (await this.get_pos_contract_count()).count;
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let i = page_size*page_num;
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
@@ -1826,7 +1859,7 @@ class DB {
     }
 
     async get_pos_contract_info(pos_id){
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
 		let {total_stake, active_total_stake, effective_total_stake} = await this.get_poses_stakes_info();
@@ -1844,7 +1877,7 @@ class DB {
     }
 
     async get_pos_contract_info_all(){
-		let token_enq = (await this.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+		let token_enq = (await this.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 		let pos_rew = (BigInt(token_enq.block_reward) * BigInt(this.app_config.reward_ratio.pos)) / Utils.PERCENT_FORMAT_SIZE;
 		let daily_pos_reward = pos_rew * 5760n;
 		let statistic_year_blocks_count = await this.get_statistic_year_blocks_count(1000);
@@ -2088,7 +2121,25 @@ class DB {
 	}
 
 	async get_tokens_price() {
-		let res = this.request(mysql.format("SELECT * FROM tokens_price"));
+		let res = this.request(mysql.format("SELECT * FROM tokens_price WHERE cg_id IS NOT NULL;"));
+		return res;
+	}
+
+	async get_dex_tokens_price(tokens_hash, price) {
+		let res = this.request(mysql.format(`SELECT asset_2 AS tokens_hash, ((volume_1/POW(10,T1.decimals))/(volume_2/POW(10,T2.decimals))) * ? AS calc_dex_price  
+												FROM dex_pools 
+												LEFT JOIN tokens AS T1 ON asset_1 = T1.hash
+												LEFT JOIN tokens AS T2 ON asset_2 = T2.hash
+												WHERE
+												asset_1 = ? 
+												UNION ALL
+												
+												SELECT asset_1  AS tokens_hash, ((volume_2/POW(10,T2.decimals))/(volume_1/POW(10,T1.decimals))) * ? AS calc_dex_price  
+												FROM dex_pools 
+												LEFT JOIN tokens AS T1 ON asset_1 = T1.hash
+												LEFT JOIN tokens AS T2 ON asset_2 = T2.hash
+												WHERE
+												asset_2 = ?`, [price, tokens_hash, price, tokens_hash]));
 		return res;
 	}
 
@@ -2100,8 +2151,20 @@ class DB {
 	}
 
 	async update_token_price(token_hash, price){
-		let res = this.request(mysql.format("UPDATE tokens_price SET price = ? WHERE tokens_hash = ?", [price, token_hash]));
+		let res = this.request(mysql.format("UPDATE tokens_price SET cg_price = ? WHERE tokens_hash = ?", [price, token_hash]));
 		return res;
+	}
+
+	async update_tokens_price(cg_data, dex_data, price_desimals){
+		let upd_cg_prices = [];
+		cg_data.forEach(item => {
+			upd_cg_prices.push(mysql.format("UPDATE tokens_price SET cg_price = ?, decimals = ? WHERE tokens_hash = ?", [item.price, price_desimals, item.tokens_hash]));
+		});
+		let upd_dex_prices = [];
+		dex_data.forEach(item => {
+			upd_dex_prices.push(mysql.format("INSERT INTO tokens_price (`tokens_hash`, `dex_price`, `decimals`) VALUES (?) ON DUPLICATE KEY UPDATE `dex_price` = VALUES(`dex_price`), `decimals` = VALUES(`decimals`)", [[item.tokens_hash, item.calc_dex_price, price_desimals]]));
+		});
+		return this.transaction([upd_cg_prices.join(';'),upd_dex_prices.join(';')].join(';'));
 	}
 
 	async get_rois(){

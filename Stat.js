@@ -81,18 +81,38 @@ class Stat {
     async tokensPriceCaching() {
         let start = new Date();
         let tokens = await this.db.get_tokens_price();
+        let price_desimals = 10;
         try {
-            for (let token of tokens) {
-                let price = Math.round((await this.service.get_cg_token_usg(token.cg_id))*1e10);
-                console.log(`price ${price}`)
-                await this.db.update_token_price(token.tokens_hash, price);
+            let cg_data = [];
+            let prices = await this.service.get_cg_tokens_usg(tokens.map(item => {
+                return item.cg_id
+            }));
+            let request_time = new Date();
+            let cg_request_time = request_time - start;
+            console.debug({cg_request_time});
+            tokens.forEach(item => {
+                cg_data.push({tokens_hash: item.tokens_hash, price: Math.round(prices[item.cg_id].usd * Math.pow(10, price_desimals))})
+            });
+
+            let dex_data = await this.db.get_dex_tokens_price(this.config.native_token_hash, cg_data[cg_data.findIndex(item => item.tokens_hash === this.config.native_token_hash)].price);
+            for (let i = 0; i < dex_data.length; i++) {
+                if(this.config.dex.DEX_TRUSTED_TOKENS.includes(dex_data[i].tokens_hash)){
+                    let trusted_dex_data = await this.db.get_dex_tokens_price(dex_data[i].tokens_hash, dex_data[i].calc_dex_price);
+                    dex_data = dex_data.concat(trusted_dex_data);
+                }
             }
+            //let dex_data = await this.db.get_dex_tokens_price();
+            await this.db.update_tokens_price(cg_data, dex_data, price_desimals);
         } catch (e) {
             console.error(e);
         }
         let end = new Date();
-        let calcTime = tokens_ptice_timeout - (end - start);
-        setTimeout(async () => { await this.tokensPriceCaching(); }, calcTime);
+        let calcTime = end - start;
+        console.debug({calcTime});
+        let timeout = tokens_ptice_timeout - calcTime;
+        setTimeout(async () => {
+            await this.tokensPriceCaching();
+        }, timeout);
     }
 
     async calcRoi(){

@@ -47,7 +47,8 @@ class ContractFactory{
             case "pool_create" :            return new Contracts[idx].PoolCreateContract(data);
             case "pool_add_liquidity" :     return new Contracts[idx].PoolLiquidityAddContract(data);
             case "pool_remove_liquidity":   return new Contracts[idx].PoolLiquidityRemoveContract(data);
-            case "pool_swap" :              return new Contracts[idx].PoolLiquiditySwapContract(data);
+            case "pool_sell_exact" :        return new Contracts[idx].PoolLiquiditySellExactContract(data);
+            case "pool_buy_exact" :         return new Contracts[idx].PoolLiquidityBuyExactContract(data);
             case "farm_create" :            return new Contracts[idx].FarmCreateContract(data);
             case "farm_increase_stake" :    return new Contracts[idx].FarmIncreaseStakeContract(data);
             case "farm_decrease_stake" :    return new Contracts[idx].FarmDecreaseStakeContract(data);
@@ -55,7 +56,8 @@ class ContractFactory{
             case "farm_get_reward" :        return new Contracts[idx].FarmGetRewardContract(data);
             case "farm_add_emission" :      return new Contracts[idx].FarmsAddEmissionContract(data);
             case "dex_cmd_distribute" :     return new Contracts[idx].DexCmdDistributeContract(data);
-            case "pool_swap_routed" :     return new Contracts[idx].PoolLiquiditySwapRoutedContract(data);
+            case "pool_sell_exact_routed" : return new Contracts[idx].PoolLiquiditySellExactRoutedContract(data);
+            case "pool_buy_exact_routed" :  return new Contracts[idx].PoolLiquidityBuyExactRoutedContract(data);
             default :                       return null;
         }
     }

@@ -22,8 +22,7 @@ let schema = {
     "pool_create" :     "1500",
     "pool_add_liquidity" :      "1600",
     "pool_remove_liquidity" :   "1700",
-    "pool_swap_exact" :         "1800",
-    "pool_swap_for_exact" :     "2100",
+    "pool_sell_exact" :         "1800",
     "farm_create" :             "1900",
     "farm_get_reward" :         "1a00",
     "farm_increase_stake" :     "1b00",
@@ -31,8 +30,9 @@ let schema = {
     "farm_decrease_stake" :     "1d00",
     "farm_add_emission" :       "1e00",
     "dex_cmd_distribute" :      "1f00",
-    "pool_swap_exact_routed" : "2000",
-    "pool_swap_for_exact_routed" : "2200",
+    "pool_sell_exact_routed" :  "2000",
+    "pool_buy_exact" :          "2100",
+    "pool_buy_exact_routed" :   "2200",
 };
 
 class ContractParser {

@@ -206,14 +206,14 @@ class Substate {
                 this.tokens.push(contract.data.parameters.lt);
                 this.lt_hashes.push(contract.data.parameters.lt);
                 break;
-            case "pool_swap_exact" :
+            case "pool_sell_exact" :
                 this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
                 this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(contract.data.parameters.asset_in);
                 this.tokens.push(contract.data.parameters.asset_out);
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
                 break;
-            case "pool_swap_for_exact" :
+            case "pool_buy_exact" :
                 this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
                 this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(contract.data.parameters.asset_in);

@@ -1050,7 +1050,7 @@ class PoolLiquidityRemoveContract extends Contract {
         };
     }
 }
-class PoolLiquiditySwapExactContract extends Contract {
+class PoolLiquiditySellExactContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1128,7 +1128,7 @@ class PoolLiquiditySwapExactContract extends Contract {
         let amount_out = volume_out - (k / (volume_in + (amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
 
         // Other formula
-        // amount_out =  (volume_out * amount_out) / (volume_in + amount_out)
+        //// amount_out =  (volume_out * amount_out) / (volume_in + amount_out)
         //let amount_out_wFee = (amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee));
         //let amount_out = (volume_out * amount_out_wFee) / ((volume_in * Utils.PERCENT_FORMAT_SIZE + amount_out_wFee));
 
@@ -1186,7 +1186,7 @@ class PoolLiquiditySwapExactContract extends Contract {
         };
     }
 }
-class PoolLiquiditySwapForExactContract extends Contract {
+class PoolLiquidityBuyExactContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1324,7 +1324,7 @@ class PoolLiquiditySwapForExactContract extends Contract {
         };
     }
 }
-class PoolLiquiditySwapExactRoutedContract extends Contract {
+class PoolLiquiditySellExactRoutedContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1395,7 +1395,7 @@ class PoolLiquiditySwapExactRoutedContract extends Contract {
 
             let amount_out_min = BigInt(0);
             let swap_object = {
-                type : "pool_swap_exact",
+                type : "pool_sell_exact",
                 parameters : {
                     asset_in : params[asset_in],
                     asset_out : params[asset_out],
@@ -1432,7 +1432,7 @@ class PoolLiquiditySwapExactRoutedContract extends Contract {
         };
     }
 }
-class PoolLiquiditySwapForExactRoutedContract extends Contract {
+class PoolLiquidityBuyExactRoutedContract extends Contract {
     constructor(data) {
         super();
         this.data = data;
@@ -1503,7 +1503,7 @@ class PoolLiquiditySwapForExactRoutedContract extends Contract {
 
             let amount_in_max = Utils.MAX_SUPPLY_LIMIT;
             let swap_object = {
-                type : "pool_swap_for_exact",
+                type : "pool_buy_exact",
                 parameters : {
                     asset_in : params[asset_in],
                     asset_out : params[asset_out],
@@ -1842,7 +1842,7 @@ class DexCmdDistributeContract extends Contract {
             throw new ContractError(`Token ${params.token_hash} insufficient balance`);
 
         let swap_object = {
-            type : "pool_swap_exact",
+            type : "pool_sell_exact",
             parameters : {
                 asset_in : params.token_hash,
                 asset_out : ENX_TOKEN_HASH,
@@ -2302,10 +2302,10 @@ module.exports.PosGetRewardContract = PosGetRewardContract;
 module.exports.PoolCreateContract = PoolCreateContract;
 module.exports.PoolLiquidityAddContract = PoolLiquidityAddContract;
 module.exports.PoolLiquidityRemoveContract = PoolLiquidityRemoveContract;
-module.exports.PoolLiquiditySwapExactContract = PoolLiquiditySwapExactContract;
-module.exports.PoolLiquiditySwapForExactContract = PoolLiquiditySwapForExactContract;
-module.exports.PoolLiquiditySwapExactRoutedContract = PoolLiquiditySwapExactRoutedContract;
-module.exports.PoolLiquiditySwapForExactRoutedContract = PoolLiquiditySwapForExactRoutedContract;
+module.exports.PoolLiquiditySellExactContract = PoolLiquiditySellExactContract;
+module.exports.PoolLiquidityBuyExactContract = PoolLiquidityBuyExactContract;
+module.exports.PoolLiquiditySellExactRoutedContract = PoolLiquiditySellExactRoutedContract;
+module.exports.PoolLiquidityBuyExactRoutedContract = PoolLiquidityBuyExactRoutedContract;
 
 module.exports.FarmCreateContract = FarmCreateContract;
 module.exports.FarmIncreaseStakeContract = FarmIncreaseStakeContract;

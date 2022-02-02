@@ -1200,7 +1200,7 @@ class DB {
 	}
 
 	async get_account_all(id, page_num, page_size){
-		let count = (await this.request(mysql.format("SELECT count(*) AS cnt FROM eindex WHERE `id` = ?", id)))[0].cnt - 1;
+		let count = (await this.request(mysql.format("SELECT max(i) AS cnt FROM eindex WHERE `id` = ?", id)))[0].cnt;
 		let balance = await this.request(mysql.format('SELECT amount FROM ledger WHERE `id`=? AND `token` = ?', [id, Utils.ENQ_TOKEN_NAME]));
 		balance = balance.length === 1 ? balance[0].amount : 0;
 		let records = await this.request(mysql.format(`SELECT I.i, I.rectype, I.hash, I.time as time, 

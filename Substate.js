@@ -390,7 +390,8 @@ class Substate {
     tokens_change(changes){
         let tok_idx = this.tokens.findIndex(a => a.hash === changes.hash);
         if(tok_idx > -1){
-            if(this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
+            if((this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
+                || (this.tokens[tok_idx].total_supply + changes.total_supply > Utils.MAX_SUPPLY_LIMIT))
                 throw new ContractError(`Negative tokens state`);
             this.tokens[tok_idx].total_supply += changes.total_supply;
             this.tokens[tok_idx].changed = true;

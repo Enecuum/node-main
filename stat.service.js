@@ -64,7 +64,7 @@ class StatService {
 
     // Can be changed by token info
     async get_tsup(){
-        let tsup = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0].total_supply;
+        let tsup = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0].total_supply;
         return tsup;
     };
 

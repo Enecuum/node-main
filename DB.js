@@ -1430,7 +1430,7 @@ class DB {
 	async get_dex_farms(farmer_id, farms){
 	    let where = '';
         if(farms !== undefined)
-            where = mysql.format(`WHERE farm_id IN (?)`, [farms]);
+            where = mysql.format(`WHERE F.farm_id IN (?)`, [farms]);
 		let res = await this.request(mysql.format(
 			`SELECT F.farm_id, 
 					stake_token as stake_token_hash, S.ticker as stake_token_name, S.decimals as stake_token_decimals,

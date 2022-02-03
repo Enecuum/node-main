@@ -1850,7 +1850,7 @@ class DB {
 											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
 											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
 											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
-											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4)*(1 - fee/${Utils.PERCENT_FORMAT_SIZE}),0),0) as roi,
 											IFNULL((uptime/5760),0) as uptime FROM (
 											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
 											(SELECT @i:= ?) AS iterator) LIMIT ?, ?`,[pos_rew, statistic_year_blocks_count, i, page_num * page_size, page_size]);
@@ -1869,7 +1869,7 @@ class DB {
 											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
 											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
 											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
-											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4)*(1 - fee/${Utils.PERCENT_FORMAT_SIZE}),0),0) as roi, 
 											IFNULL((uptime/5760),0) as uptime FROM (
 											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
 											(SELECT @i:= 0) AS iterator) WHERE pos_id = ?`,[pos_rew, statistic_year_blocks_count, pos_id]);
@@ -1888,7 +1888,7 @@ class DB {
 											stake * (uptime / 5760) / ${effective_total_stake} effective_stake_power,
 											IF(uptime > 0, (stake / ${active_total_stake}) , 0) as active_stake_power, 
 											IF(uptime > 0, 0,(stake / (${active_total_stake} + stake))) as active_stake_share, 
-											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4),0),0) as roi, 
+											IFNULL(ROUND(((? * ? * (stake * (uptime / 5760) / ${effective_total_stake})) / stake * 1e4)*(1 - fee/${Utils.PERCENT_FORMAT_SIZE}),0),0) as roi,
 											IFNULL((uptime/5760),0) as uptime FROM (
 											(SELECT id as pos_id, owner, name, fee, uptime, IFNULL((SELECT sum(amount) FROM delegates WHERE poses.id = delegates.pos_id),0) as stake FROM poses ORDER BY stake DESC) as t,										
 											(SELECT @i:= 0) AS iterator)`,[pos_rew, statistic_year_blocks_count]);

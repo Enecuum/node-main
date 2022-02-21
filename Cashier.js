@@ -12,6 +12,7 @@ class Cashier {
         this.srewards = BigInt(0);
         this.krewards = BigInt(0);
     }
+
     eindex_entry(arr, type, id, hash, value) {
         if(this.config.indexer_mode !== 1)
             return;
@@ -1310,6 +1311,7 @@ class Cashier {
     async start(run_once = false){
         await this.cashier(run_once);
     }
+
     async cashier(run_once) {
         try {
             let cur_hash = await this.db.get_cashier_pointer();
@@ -1322,13 +1324,24 @@ class Cashier {
                 block = await this.db.peek_tail();
             if (block === undefined)
                 return;
-            // if(block.n === 41000)
-            // 	return;
+
+            // Create temp snapshot (state) of current block
+            let tmp_snapshot_hash = await this.db.get_tmp_snapshot_hash(cur_hash);
+            if (!tmp_snapshot_hash) {
+                let time = process.hrtime();
+                let tmp_snapshot = await this.db.create_snapshot(cur_hash);
+                let hash = Utils.hash_snapshot(tmp_snapshot);
+                console.debug(`Temp snapshot hash of ${block.n} kblock: ${hash}`);
+                await this.db.put_tmp_snapshot(block.link, tmp_snapshot, hash);
+                time = process.hrtime(time);
+                console.debug(`cashier_timing: caching state(temp snapshot)`, Utils.format_time(time));
+            }
+
             // Create snapshot of current block if needed
             if ((block.n) % this.config.snapshot_interval === 0) {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);
                 if (!snapshot_hash) {
-                    let snapshot = await this.db.create_snapshot(cur_hash); //cur_hash);
+                    let snapshot = await this.db.create_snapshot(cur_hash);
                     let hash = Utils.hash_snapshot(snapshot);
                     console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                     await this.db.put_snapshot(snapshot, hash);

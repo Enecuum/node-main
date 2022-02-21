@@ -307,7 +307,7 @@ class Syncer {
 
     check_peer(socket) {
 		let index = this.peers.findIndex(p => p.socket === socket);
-		console.info(`check_peer peers:${JSON.stringify(this.peers)}`);
+		console.debug(`check_peer peers:${JSON.stringify(this.peers)}`);
 		if (index >= 0) {
 			if (this.peers[index].failures > Utils.SYNC_FAILURES_LIMIT) {
 				let item = this.peers.reduce(function(prev, curr) {
@@ -428,7 +428,7 @@ class Syncer {
 				console.silly(`remote.link !== tail.hash - ${remote.link !== tail.hash}`);
 				console.silly(`remote = ${JSON.stringify(remote)},  tail = ${JSON.stringify(tail)}`);
 				//check leader sign at fork block before removing chain tail
-				let { macroblock } = await this.transport.unicast(socket, "get_macroblock", {hash: fork_id});
+				let {macroblock} = await this.transport.unicast(socket, "get_macroblock", {hash: fork_id});
 				if (macroblock === undefined) {
 					console.warn(`Empty response 'get_macroblock'`);
 					this.peers[peer_index].failures++;
@@ -436,17 +436,17 @@ class Syncer {
 				}
 				let {kblock, mblocks} = macroblock;
 				kblock.hash = (Utils.hash_kblock(kblock, this.vm)).toString('hex');
-				if(local === undefined && local.length === 0 && local[0].link !== kblock.hash) {
+				if (local === undefined && local.length === 0 && local[0].link !== kblock.hash) {
 					console.warn(`Invalid fork macroblock, 'link' field is not equal`);
 					console.silly(` local.link - ${local[0].link}, kblocks.hash - ${kblock.hash}`);
 					this.peers[peer_index].failures++;
 					return;
 				}
 				let isValid_leader_sign = false;
-				if(fork >= this.config.FORKS.fork_block_002)
-                    isValid_leader_sign = Utils.valid_leader_sign_002(kblock.link, kblock.m_root, kblock.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
-                else
-                    isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
+				if (fork >= this.config.FORKS.fork_block_002)
+					isValid_leader_sign = Utils.valid_leader_sign_002(kblock.link, kblock.m_root, kblock.leader_sign, this.config.leader_id, this.ECC, this.config.ecc);
+				else
+					isValid_leader_sign = Utils.valid_leader_sign_000(mblocks, this.config.leader_id, this.ECC, this.config.ecc);
 				if (!isValid_leader_sign) {
 					console.warn(`Sync aborted. Invalid leader sign`);
 					this.peers[peer_index].failures++;
@@ -458,25 +458,37 @@ class Syncer {
 					console.warn(`Failed to delete blocks after fork at ${fork} kblock .Syncronization aborted`);
 					return;
 				}
-				//Reload from last snapshot before fork
-				let snapshot_info = await this.db.get_snapshot_before(fork - 1);
-				if(snapshot_info === undefined){
-					console.error(`Not found snapshot before ${fork-1} block`);
-					return;
-				}
-				let snapshot = await this.db.get_snapshot(snapshot_info.hash);
-				if (snapshot === undefined || snapshot.length < 1) {
-					console.error(`Not exist valid snapshot`);
-					return;
-				}
+
+				//temporary snapshot request
+				let snapshot_info;
 				let snapshot_json = '';
-				try {
-					snapshot_json = JSON.parse(snapshot.data);
-					snapshot_json.hash = snapshot.hash;
-				} catch (e) {
-					console.error(`Invalid snapshot data. Not parsed JSON:`, e);
-					return;
+				console.debug(`get temp snapshot at kblock hash = ${remote.link}`);
+				let snapshot = await this.db.get_tmp_snapshot(remote.link);
+				if (snapshot === undefined || snapshot.kblocks_hash !== remote.link) {
+					//Reload from last snapshot before fork
+					snapshot_info = await this.db.get_snapshot_before(fork - 1);
+					if (snapshot_info === undefined) {
+						console.error(`Not found snapshot before ${fork - 1} block`);
+						return;
+					}
+					snapshot = await this.db.get_snapshot(snapshot_info.hash);
+					if (snapshot === undefined || snapshot.length < 1) {
+						console.error(`Not exist valid snapshot`);
+						return;
+					}
+				} else {
+					console.debug(`Use temporary snapshot ${snapshot.hash}`);
+					snapshot_info = {n: fork-1};
 				}
+
+                try {
+                    snapshot_json = JSON.parse(snapshot.data);
+                    snapshot_json.hash = snapshot.hash;
+                } catch (e) {
+                    console.error(`Invalid snapshot data. Not parsed JSON:`, e);
+                    return;
+                }
+
 				//Rollback calculation
 				let result_rollback = await this.db.rollback_calculation(snapshot_info.n);
 				if (!result_rollback) {

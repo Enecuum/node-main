@@ -338,7 +338,8 @@ class Transport {
 	update_peers(peers){
 		console.silly(`update_peers ${JSON.stringify(peers)}`);
 		peers.forEach(p => {
-		    if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
+			//TODO: add ping pong
+		    //if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
 			    this.add_peer(p);
 		});
 	}

@@ -126,15 +126,15 @@ class DB {
             console.info(`Setting snapshot: ${snapshot.hash}`);
             //let locs = mysql.format(`LOCK TABLES sprouts WRITE, kblocks WRITE, mblocks WRITE, sblocks WRITE, ledger WRITE, tokens WRITE, poses WRITE, delegates WRITE, undelegates WRITE, eindex WRITE, tokens_index WRITE, poalist WRITE, stat WRITE, snapshots WRITE`);
             let truncate = mysql.format(`
-			TRUNCATE TABLE ledger;
-			TRUNCATE TABLE tokens;
-			TRUNCATE TABLE poses;
-			TRUNCATE TABLE delegates;
-			TRUNCATE TABLE undelegates;
-			TRUNCATE TABLE tokens_index;
-			TRUNCATE TABLE dex_pools;
-			TRUNCATE TABLE farms;
-			TRUNCATE TABLE farmers`);
+			DELETE FROM  ledger;
+			DELETE FROM  tokens;
+			DELETE FROM  poses;
+			DELETE FROM  delegates;
+			DELETE FROM  undelegates;
+			DELETE FROM  tokens_index;
+			DELETE FROM  dex_pools;
+			DELETE FROM  farms;
+			DELETE FROM  farmers`);
 
             let sprouts = '';
 			let kblock = '';
@@ -209,6 +209,7 @@ class DB {
             //let unlock = mysql.format(`UNLOCK TABLES`);
 			let sql_put_snapshot = "";
 			if(save_snapshot){
+				delete snapshot.kblock;
 				sql_put_snapshot = mysql.format("INSERT INTO snapshots SET ?", [{hash:snapshot.hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
 			}
 
@@ -249,20 +250,19 @@ class DB {
 		return 0;
 	};
 
-	set_status_undelegated_tx(hash){
-		console.debug("set status 3 for undelegated tx ", hash);
-		let upd_mblock = mysql.format(`UPDATE mblocks SET included = 1 WHERE hash in (SELECT mblocks_hash FROM transactions WHERE hash = ?)`,[hash]);
-		let upd_tx = mysql.format(`UPDATE transactions SET status = 3 WHERE hash = ?`,[hash]);
-
-		return this.transaction([upd_mblock, upd_tx].join(';'));
-	};
-
 	async put_snapshot(snapshot, hash){
 		console.debug("putting snapshot", hash);
 		let exist_hash = await this.get_snapshot_hash(snapshot.kblocks_hash);
 		if(exist_hash === hash)
 			return true;
 		return this.transaction(mysql.format("INSERT INTO snapshots SET ?", [{hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]));
+	};
+
+	async put_tmp_snapshot(link_hash, snapshot, hash){
+		console.debug("put database temp snapshot", hash);
+		let remove_rec = mysql.format(`DELETE FROM tmp_snapshots WHERE kblocks_hash != ?`, link_hash);
+		let current_snapshot_sql = mysql.format("INSERT INTO tmp_snapshots SET ?", [{hash, kblocks_hash:snapshot.kblocks_hash, data:JSON.stringify(snapshot)}]);
+		return this.transaction([remove_rec, current_snapshot_sql].join(';'));
 	};
 
 	put_kblock(block){
@@ -301,11 +301,6 @@ class DB {
 		return 0;
 	}
 
-	delete_snapshot(hash){
-		let sql = mysql.format(`DELETE FROM snapshots WHERE hash = ?`, hash);
-		return this.request(sql);
-	}
-
 	async get_snapshot_hash(kblocks_hash){
 		let snapshot_hash = undefined;
 		let data = await this.request(mysql.format('SELECT hash FROM snapshots WHERE ? ORDER BY hash', [{kblocks_hash}]));
@@ -315,12 +310,16 @@ class DB {
 		return snapshot_hash;
 	}
 
+	async get_tmp_snapshot_hash(kblocks_hash){
+		let snapshot_hash = undefined;
+		let data = await this.request(mysql.format('SELECT hash FROM tmp_snapshots WHERE ? ORDER BY hash', [{kblocks_hash}]));
+		if(data.length !== 0){
+			snapshot_hash = data[0].hash;
+		}
+		return snapshot_hash;
+	}
+
 	async get_snapshot_before(height){
-		/*return (await this.request(mysql.format(`SELECT n, snapshots.hash, snapshots.kblocks_hash, OCTET_LENGTH(snapshots.data) as size  FROM snapshots
-										left join kblocks ON kblocks.hash = snapshots.kblocks_hash 
-										where n < ?
-										order by n desc 
-										limit 1`, [height])))[0];*/
 		let n = Math.floor(height/this.app_config.snapshot_interval)*this.app_config.snapshot_interval;
 		return (await this.request(mysql.format(`SELECT CAST(? AS SIGNED) as n, snapshots.hash, snapshots.kblocks_hash, OCTET_LENGTH(snapshots.data) as size FROM snapshots
 										where kblocks_hash = (select hash from kblocks where  n = ?)`, [n, n])))[0];
@@ -329,6 +328,11 @@ class DB {
 	async get_snapshot(hash){
 		return (await this.request(mysql.format(`SELECT snapshots.hash, snapshots.kblocks_hash, snapshots.data  FROM snapshots
 										where snapshots.hash = ?`, [hash])))[0];
+	}
+
+	async get_tmp_snapshot(kblock_hash){
+		return (await this.request(mysql.format(`SELECT hash, kblocks_hash, data  FROM tmp_snapshots
+										where kblocks_hash = ?`, [kblock_hash])))[0];
 	}
 
 	async get_snapshot_chunk(hash, chunk_no, byte_size){

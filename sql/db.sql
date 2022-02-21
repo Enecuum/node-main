@@ -117,6 +117,21 @@ CREATE TABLE `snapshots` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `tmp_snapshots`
+--
+
+DROP TABLE IF EXISTS `tmp_snapshots`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tmp_snapshots` (
+  `hash` varchar(64) CHARACTER SET latin1 NOT NULL,
+  `kblocks_hash` varchar(64) NOT NULL,
+  `data` LONGBLOB DEFAULT NULL,
+  PRIMARY KEY (`hash`,`kblocks_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='  ';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `eindex`
 --
 

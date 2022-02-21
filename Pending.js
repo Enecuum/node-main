@@ -69,7 +69,7 @@ let Validator = {
 	txModel : ['amount','data','from','nonce','sign','ticker','to'],
 	enq_regexp : /^(02|03)[0-9a-fA-F]{64}$/i,
 	hash_regexp : /^[0-9a-fA-F]{64}$/i,
-	digit_regexp : /^\d+$/,
+	digit_regexp : /(^0$)|(^[1-9]\d*$)/,
 	hex_regexp : /^[A-Fa-f0-9]+$/,
 	name_regexp : /^[0-9a-zA-Z _\-/.]{0,512}$/,
 	tx : function(tx){

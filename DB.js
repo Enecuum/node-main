@@ -1028,6 +1028,16 @@ class DB {
 		return ind;
 	}
 
+    async update_tokens_holder_count(){
+        let sql = mysql.format(`INSERT INTO tokens_index(hash, holders_count)
+                                  SELECT HCount.token, HCount.holders_count
+                                  FROM
+                                  (SELECT count(amount) as holders_count, token FROM ledger
+                                  GROUP BY token) as HCount
+                                  ON DUPLICATE KEY UPDATE tokens_index.holders_count = HCount.holders_count`);
+        return await this.request(sql);
+    }
+
 	terminate_ledger_kblock(accounts, kblock, mblocks, sblocks, post_action, supply_change, rewards){
 		let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
 		let sw = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', (SELECT `hash` FROM kblocks WHERE `link` = ? AND `hash` <> `link`)) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", kblock.hash);
@@ -1551,7 +1561,7 @@ class DB {
 			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
 
         let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, tokens.decimals, minable, reissuable,
-														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
+														IFNULL(tokens_index.holders_count,0) as token_holders_count,
 														IFNULL(txs_count, 0) as txs_count,
 														${in_slot} as in_slot,
 														cg_price/POW(10,tokens_price.decimals) as cg_price_usd ,

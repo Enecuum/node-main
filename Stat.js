@@ -77,6 +77,14 @@ class Stat {
         this.recalcPosPowRew = setImmediate(async () => { await this.calcPosPowRew(); }, day);
 
         this.tokensPrice = setImmediate(async () => { await this.tokensPriceCaching(); }, tokens_ptice_timeout);
+        this.tokensHolders = setImmediate(async () => { await this.tokensHoldersCaching(); }, this.target_speed * 1000);
+    }
+
+    async tokensHoldersCaching(){
+        await this.db.update_tokens_holder_count();
+        setTimeout(async () => {
+            await this.tokensHoldersCaching();
+        }, this.target_speed * 1000);
     }
 
     async tokensPriceCaching() {

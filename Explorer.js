@@ -376,28 +376,62 @@ class Explorer {
 		});
 
 		this.app.get('/api/v1/search', async (req, res) => {
-			console.trace('requested search', req.query);
-			let resp;
+			console.trace('requested search', req.query);			
+			let resp = [];
 
 			let tx = await this.db.get_tx(req.query.value);
-			if (tx.length > 0){
-				resp = {type:'tx', link:req.query.value};
+			if (tx.length > 0) {
+				resp.push({type:'tx', info:tx});
 			} else {
 				let account = await this.db.get_accounts_all(req.query.value);
 				if (account.length > 0){
-					resp = {type:'account', link:req.query.value};
-				} else {
-					let kblock = await this.db.get_kblock(req.query.value);
-					if (kblock.length > 0) {
-						resp = {type:'kblock', link:req.query.value};
-					} else {
-						let mblock = await this.db.get_mblock(req.query.value);
-						if (mblock.length > 0) {
-							resp = {type:'mblock', link:req.query.value};
-						}
-					}
+					resp.push({type:'account', info:{balances: account}});
+				}
+
+				let kblock = await this.db.get_kblock(req.query.value);
+				if (kblock.length > 0) {
+					resp.push({type:'kblock', info:kblock});
+				}
+
+				let mblock = await this.db.get_mblock(req.query.value);
+				if (mblock.length > 0) {
+					resp.push({type:'mblock', info:mblock});
+				}
+
+				let sblock = await this.db.get_sblock_data(req.query.value);
+				if (sblock.header !== undefined) {
+					resp.push({type:'sblock', info:sblock});
 				}
 			}
+
+			let token = await this.db.get_tokens_info([req.query.value]);
+		 	if (token.length > 0 && token[0].hash !== undefined) {
+		 		resp.push({type:'token', info:token});
+
+			 	let pool = await this.db.dex_get_pools_all();
+			 	if (pool.length > 0 && pool[0].pair_id !== undefined) {
+			 		pool.forEach(item => {
+			 			if (item.token_hash === req.query.value)
+			 				resp.push({type:'pool', info:item});
+			 		})			 		
+			 	}
+		 	} else {
+				let pool = await this.db.dex_get_pools([req.query.value]);
+				if (pool.length > 0) {
+					resp.push({type:'pool', info:pool});
+				}		 		
+		 	}
+
+		 	let pos = await this.db.get_pos_contract_info(req.query.value);
+		 	if (pos.length > 0 && pos[0].pos_id !== undefined) {
+		 		resp.push({type:'pos', info:pos});
+		 	}
+
+		 	let farm = await this.db.get_dex_farms('',[req.query.value]);
+		 	if (farm.length > 0 && farm[0].farm_id !== undefined) {
+		 		resp.push({type:'farm', info:farm});
+		 	}
+
 			res.send(resp);
 		});
 

@@ -907,8 +907,9 @@ class PoolLiquidityAddContract extends Contract {
             throw new ContractError(`Token ${pool_info.token_hash} not found`);
 
         // liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
-        let lt_amount = Math.min((amount_1 * lt_info.total_supply / pool_info.amount_1),
-            (amount_2 * lt_info.total_supply / pool_info.amount_2));
+        let lt_amount_1 = amount_1 * lt_info.total_supply / pool_info.volume_1;
+        let lt_amount_2 = amount_2 * lt_info.total_supply / pool_info.volume_2;
+        let lt_amount = lt_amount_1 < lt_amount_2 ? lt_amount_1 : lt_amount_2;
 
         let pool_data = {
             pair_id : pair_id,

@@ -220,6 +220,24 @@ class Substate {
                 this.tokens.push(contract.data.parameters.asset_out);
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
                 break;
+            case "pool_sell_exact_routed" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                for (let i = 0; i < contract.data.parameters.plength; i++) {
+                    this.tokens.push(contract.data.parameters[`asset${i}`]);
+                    if (i)
+                        this.pools.push(Utils.getPairId(contract.data.parameters[`asset${i - 1}`], contract.data.parameters[`asset${i}`]).pair_id);
+                }
+                break;
+            case "pool_buy_exact_routed" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                for (let i = 0; i < contract.data.parameters.plength; i++) {
+                    this.tokens.push(contract.data.parameters[`asset${i}`]);
+                    if (i)
+                        this.pools.push(Utils.getPairId(contract.data.parameters[`asset${i - 1}`], contract.data.parameters[`asset${i}`]).pair_id);
+                }
+                break;
             case "farm_create" : {
                 // stake_token token info
                 // reward_token token info

@@ -1,0 +1,141 @@
+{
+  "leader_id" : "12345678",
+  "loglevel": "info",
+  "target_speed": 15,
+  "auto_id": true,
+  "explorer": 0,
+  "peek_limit": 100,
+  "mblock_interval_ms": 100,
+  "cashier_interval_ms": 10,
+  "cashier_chunk_size": 10,
+  "reward_ratio":{
+    "pos": 5500,
+    "poa": 3181,
+    "pow": 500,
+    "ref": 819
+  },
+  "block_reward": 96560000000,
+  "poa_hearbeat_interval_ms": 250,
+  "poa_min_interval_ms": 100,
+  "pending_timeout": 5,
+  "tail_timeout": 100,
+  "max_tps": 9999,
+  "max_mblocks_per_macroblock": 3,
+  "max_txs_per_macroblock": 9,
+  "max_txs_per_microblock": 3,
+  "min_txs_per_microblock": 1,
+  "dbhost": "localhost",
+  "dbport": 3306,
+  "dbpass": "root",
+  "difficulty": 0,
+  "mode": "verify",
+  "transfer_lock": 5,
+  "pos_min_stake": 25000000000,
+  "top_poses_count": 100,
+  "native_token_hash" : "0000000000000000000000000000000000000000000000000000000000000001",
+  "snapshot_interval": 100,
+  "snapshot_file": "snapshot_bit.json",
+  "TRUNK": "BITGENESIS",
+  "ORIGIN": {
+    "publisher": "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+    "reward": "417259582513106572"
+  },
+  "randomx": {
+    "mode" : "verify",
+    "key" : "0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62"
+  },
+  "fee_shares":  {
+      "gen_share": 300,
+      "pow_share": 50,
+      "ldr_share": 50,
+      "pos_share": 9600
+  },
+  "stake_limits": {
+    "min_stake": 25e10,
+    "max_stake": 1000e10,
+    "default_stake": 0
+  },
+  "stakes": [
+    25e10,
+    125e10,
+    250e10,
+    500e10,
+    750e10,
+    1000e10
+  ],
+  "contract_pricelist": {
+    "create_token" :    0,
+    "create_pos" :      0,
+    "delegate" :        0,
+    "undelegate" :      0,
+    "transfer" :        0,
+    "pos_reward" :      0,
+    "mint" :            0,
+    "burn" :            0,
+    "custom" :          20000000000,
+    "pool_create" :     0,
+    "pool_add_liquidity" :      0,
+    "pool_remove_liquidity" :   0,
+    "pool_sell_exact" :         0,
+    "farm_create" :             0,
+    "farm_get_reward" :         0,
+    "farm_increase_stake" :     0,
+    "farm_decrease_stake" :     0,
+    "farm_close_stake" :        0,
+    "farm_add_emission" :       0,
+    "dex_cmd_distribute" :      0,
+    "pool_sell_exact_routed" :  0,
+    "pool_buy_exact" :          0,
+    "pool_buy_exact_routed" :   0
+  },
+  "first_message_always_probe" : false,
+  "karma" : {
+    "init" : 1,
+    "dec" : 1,
+    "min" : 1,
+    "inc" : 2,
+    "max" : 1
+  },
+  "ecc": {
+    "ecc_mode": "long",
+    "short": {
+      "msk": 8,
+      "MPK" : {
+        "x" : 512,
+        "y" : 858
+      }
+    },
+    "long": {
+      "MPK" : {
+        "x" : "1 1887977886599394063028178950947279860127724050479032082036805996418912013153131127696715993837524647383570338355695255786360661495991220227612598684883028 3780267397673468252343519622281735554920859525529214838409547998448097213079684300112811104508239777017758612507356636174013439449215588949644233352733139",
+        "y" : "1 607218419856648654813472028821287383397295365990787484847671131205048590195733091420684296247120974745720384180519261046258140424163987254801646299078125 3574484102938033217678888696334982695759754668992496989785966938244090853405896393856377280681069520660874902711918462986779665727013338716276831662950626"
+      }
+    }
+  },
+  "FORKS" : {
+    "fork_block_000" : 0,
+    "fork_block_001" : 0,
+    "fork_block_002" : 0
+  },
+  "mblock_slots": {
+    "size": 2,
+    "count": 10,
+    "min_stake": 500000e10,
+    "reserve": [
+         "029dd222eeddd5c3340e8d46ae0a22e2c8e301bfee4903bcf8c899766c8ceb3a7d",
+         "random"
+    ]
+  },
+  "feeder_watchdog": 12,
+  "enable_post_tx": false,
+  "validation_try_count": 10,
+  "downloading_try_count": 10,
+    "dex" : {
+        "DEX_COMMANDER_ADDRESS" : "033333333333333333333333333333333333333333333333333333333333333333",
+        "DEX_BURN_ADDRESS" : "02dead000000000000000000000000000000000000000000000000000000000000",
+        "DEX_ENX_TOKEN_HASH" : "824e7b171c01e971337c1b25a055023dd53c003d4aa5aa8b58a503d7c622651e",
+        "DEX_SPACE_STATION_ID" : "90de269307abd0931602edc9ee0bff632c3a3b00610dcf5bdbe51fb5b1b50d83",
+        "DEX_COMMANDER_FEE" : 5,
+        "DEX_POOL_FEE" : 30
+    }
+}

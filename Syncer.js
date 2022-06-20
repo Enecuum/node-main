@@ -355,6 +355,8 @@ class Syncer {
 				this.peers[peer_index].failures++;
 				return;
 			}
+			if((tail.n + 1) >= remote.n)
+				return;
 
 			let local_chain_start = await this.db.get_chain_start_macroblock();
 			let remote_chain_start = await this.transport.unicast(socket, "get_chain_start");

@@ -1268,7 +1268,7 @@ class PoolLiquidityBuyExactContract extends Contract {
 
         // Other formula
         //// amount_in = (volume_in * amount_out) / (volume_out - amount_out)
-        let amount_in = (volume_in * amount_out * Utils.PERCENT_FORMAT_SIZE ) / ((volume_out * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee)) - amount_out);
+        let amount_in = ((volume_in * amount_out * Utils.PERCENT_FORMAT_SIZE ) / (((volume_out - amount_out) * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee))));
 
 
         if(amount_in > params.amount_in_max)

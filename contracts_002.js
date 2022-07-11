@@ -1765,8 +1765,9 @@ class FarmsAddEmissionContract extends Contract {
         let distributed = _d < farm.emission ? _d : farm.emission;
         // uprise  = (amount + accumulator) / total_stake
         // accumulator = (amount + accumulator) - uprise * total_stake
-        let uprise = (params.amount + farm.accumulator) * Utils.FARMS_LEVEL_PRECISION / farm.total_stake;
-        let accumulator = (params.amount + farm.accumulator) * Utils.FARMS_LEVEL_PRECISION - uprise * farm.total_stake;
+        
+        let uprise = (params.amount * Utils.FARMS_LEVEL_PRECISION + farm.accumulator) / farm.total_stake;
+        let accumulator = (params.amount * Utils.FARMS_LEVEL_PRECISION + farm.accumulator) - uprise * farm.total_stake;
 
         let new_level = BigInt(farm.level) + uprise;
 

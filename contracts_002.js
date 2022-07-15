@@ -1121,9 +1121,6 @@ class PoolLiquiditySellExactContract extends Contract {
         let volume_out = params.asset_in === pool_info.asset_2 ? pool_info.volume_1 : pool_info.volume_2;
         let k = volume_in * volume_out;
 
-        if(params.amount_in > k - volume_in)
-            throw new ContractError(`Too much liquidity for pool ${pair_id}`);
-
         let amount_in = params.amount_in;
         //// amount_out = volume_2 - k/(volume_1 + amount_in)
         let amount_out = volume_out - (k / (volume_in + (amount_in * (Utils.PERCENT_FORMAT_SIZE - pool_info.pool_fee) / Utils.PERCENT_FORMAT_SIZE)));
@@ -1769,8 +1766,9 @@ class FarmsAddEmissionContract extends Contract {
         let distributed = _d < farm.emission ? _d : farm.emission;
         // uprise  = (amount + accumulator) / total_stake
         // accumulator = (amount + accumulator) - uprise * total_stake
-        let uprise = (params.amount + farm.accumulator) * Utils.FARMS_LEVEL_PRECISION / farm.total_stake;
-        let accumulator = (params.amount + farm.accumulator) * Utils.FARMS_LEVEL_PRECISION - uprise * farm.total_stake;
+        
+        let uprise = (params.amount * Utils.FARMS_LEVEL_PRECISION + farm.accumulator) / farm.total_stake;
+        let accumulator = (params.amount * Utils.FARMS_LEVEL_PRECISION + farm.accumulator) - uprise * farm.total_stake;
 
         let new_level = BigInt(farm.level) + uprise;
 

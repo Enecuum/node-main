@@ -99,6 +99,8 @@ let Validator = {
 		try{
 			if(typeof tx.amount === 'string' && tx.amount.length <= 0)
 				return {err: 1, message: "Amount is not a valid Integer"};
+			if(typeof tx.amount === 'string' && tx.amount.charAt(0) === "0")
+				return {err: 1, message: "Amount is not a valid Integer"};
 			amount = BigInt(tx.amount)
 		}
 		catch(err){

@@ -1028,6 +1028,16 @@ class DB {
 		return ind;
 	}
 
+    async update_tokens_holder_count(){
+        let sql = mysql.format(`INSERT INTO tokens_index(hash, holders_count)
+                                  SELECT HCount.token, HCount.holders_count
+                                  FROM
+                                  (SELECT count(amount) as holders_count, token FROM ledger
+                                  GROUP BY token) as HCount
+                                  ON DUPLICATE KEY UPDATE tokens_index.holders_count = HCount.holders_count`);
+        return await this.request(sql);
+    }
+
 	terminate_ledger_kblock(accounts, kblock, mblocks, sblocks, post_action, supply_change, rewards){
 		let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
 		let sw = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', (SELECT `hash` FROM kblocks WHERE `link` = ? AND `hash` <> `link`)) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", kblock.hash);
@@ -1551,7 +1561,7 @@ class DB {
 			in_slot = mysql.format(`IF(owner in (?) AND minable = 1, 1, 0)`, [owner_slots.map(item => item.id)]);
 
         let res = await this.request(mysql.format(`SELECT tokens.hash as token_hash, total_supply, fee_type, fee_value, fee_min, tokens.decimals, minable, reissuable,
-														(SELECT count(amount) FROM ledger WHERE ledger.token = tokens.hash) as token_holders_count,
+														IFNULL(tokens_index.holders_count,0) as token_holders_count,
 														IFNULL(txs_count, 0) as txs_count,
 														${in_slot} as in_slot,
 														cg_price/POW(10,tokens_price.decimals) as cg_price_usd ,
@@ -1720,7 +1730,7 @@ class DB {
 	pending_peek(count, timeout_sec) {
 		let uid = Math.floor(Math.random() * 1e15);
 		console.silly(`pending uid = ${uid}`);
-		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter` DESC, `lastrequested` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
+		return this.request(mysql.format("UPDATE pending SET `counter` = `counter` + 1, `lastrequested` = NOW(), `uid` = ? WHERE ISNULL(`lastrequested`) OR `lastrequested` < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? SECOND) ORDER BY `counter` DESC, `timeadded` ASC LIMIT ?", [uid, timeout_sec || 60, count]))
 			.then((rows) => {
 				if (rows.affectedRows > 0){
 					return this.request(mysql.format("SELECT `hash`, `from`, `to`, `amount`, `nonce`, `sign`, `ticker`, `data` FROM pending WHERE `uid`=?", uid));
@@ -1837,7 +1847,7 @@ class DB {
 	async get_poses_stakes_info(){
 		let sql_poses_info = mysql.format(`SELECT (SELECT sum(amount) as total_stake FROM delegates) AS total_stake,
 												  (SELECT sum(amount) FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0) AS active_total_stake,
-												  (SELECT sum(effective_stake) FROM (SELECT (SELECT sum(amount) FROM delegates WHERE delegates.pos_id = poses.id ) * poses.uptime / 5760 as effective_stake FROM poses WHERE uptime > 0) as R) AS effective_total_stake`);
+												  ROUND((SELECT sum(effective_stake) FROM (SELECT (SELECT sum(amount) FROM delegates WHERE delegates.pos_id = poses.id ) * poses.uptime / 5760, 0) as effective_stake FROM poses WHERE uptime > 0) as R) AS effective_total_stake`);
 		return (await this.request(sql_poses_info))[0];
 	}
 

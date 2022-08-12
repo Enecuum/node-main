@@ -1847,7 +1847,7 @@ class DB {
 	async get_poses_stakes_info(){
 		let sql_poses_info = mysql.format(`SELECT (SELECT sum(amount) as total_stake FROM delegates) AS total_stake,
 												  (SELECT sum(amount) FROM delegates LEFT JOIN poses ON poses.id = delegates.pos_id WHERE uptime > 0) AS active_total_stake,
-												  ROUND((SELECT sum(effective_stake) FROM (SELECT (SELECT sum(amount) FROM delegates WHERE delegates.pos_id = poses.id ) * poses.uptime / 5760, 0) as effective_stake FROM poses WHERE uptime > 0) as R) AS effective_total_stake`);
+												  (SELECT sum(effective_stake) FROM (SELECT ROUND((SELECT sum(amount) FROM delegates WHERE delegates.pos_id = poses.id ) * poses.uptime / 5760, 0) as effective_stake FROM poses WHERE uptime > 0) as R) AS effective_total_stake`);
 		return (await this.request(sql_poses_info))[0];
 	}
 

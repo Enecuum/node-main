@@ -15,6 +15,9 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+SET sql_mode=(SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''));
+SET GLOBAL max_allowed_packet=134217728;
+
 --
 -- Table structure for table `agents`
 --
@@ -87,6 +90,7 @@ CREATE TABLE `farms` (
   `level` VARCHAR(64) NOT NULL,
   `total_stake` BIGINT(20) UNSIGNED NULL,
   `last_block` BIGINT(20) DEFAULT NULL,
+  `accumulator` BIGINT(20) UNSIGNED DEFAULT 0,
   PRIMARY KEY (`farm_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -108,6 +112,21 @@ DROP TABLE IF EXISTS `snapshots`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `snapshots` (
+  `hash` varchar(64) CHARACTER SET latin1 NOT NULL,
+  `kblocks_hash` varchar(64) NOT NULL,
+  `data` LONGBLOB DEFAULT NULL,
+  PRIMARY KEY (`hash`,`kblocks_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='  ';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tmp_snapshots`
+--
+
+DROP TABLE IF EXISTS `tmp_snapshots`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tmp_snapshots` (
   `hash` varchar(64) CHARACTER SET latin1 NOT NULL,
   `kblocks_hash` varchar(64) NOT NULL,
   `data` LONGBLOB DEFAULT NULL,
@@ -404,6 +423,7 @@ DROP TABLE IF EXISTS `tokens_index`;
 CREATE TABLE `tokens_index` (
   `hash` varchar(64) NOT NULL,
   `txs_count` bigint(20) DEFAULT '1',
+  `holders_count` bigint(20) DEFAULT '1',
   PRIMARY KEY (`hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
@@ -417,8 +437,10 @@ DROP TABLE IF EXISTS `tokens_price`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `tokens_price` (
   `tokens_hash` varchar(64) NOT NULL,
-  `cg_id` varchar(64) NOT NULL,
-  `price` bigint(20) NOT NULL,
+  `cg_id` varchar(64),
+  `cg_price` bigint(20),
+  `dex_price` bigint(20),
+  `decimals` int(11) unsigned DEFAULT '10',
   PRIMARY KEY (`tokens_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;

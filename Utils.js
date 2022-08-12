@@ -73,6 +73,7 @@ function apiRequest(options){
                     body = JSON.parse(body);
                 }
                 catch (err) {
+            		console.error(`body is not JSON: ${body}`);
                     return reject(new Error('apiRequest parse error : ' + err));
                 }
             return resolve(body);
@@ -89,9 +90,13 @@ let utils = {
 	},
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
-	DEX_COMMANDER_ADDRESS : "033333333333333333333333333333333333333333333333333333333333333333",
-	DEX_BURN_ADDRESS : "02dead000000000000000000000000000000000000000000000000000000000000",
-	DEX_COMMANDER_FEE : BigInt(5), // 0.05%
+	FARMS_LEVEL_PRECISION : BigInt('10000000000000000000'),
+	DEX_COMMANDER_ADDRESS : config.dex.DEX_COMMANDER_ADDRESS,
+	DEX_BURN_ADDRESS : config.dex.DEX_BURN_ADDRESS,
+	DEX_ENX_TOKEN_HASH : config.dex.DEX_ENX_TOKEN_HASH,
+	DEX_SPACE_STATION_ID : config.dex.DEX_SPACE_STATION_ID,
+	DEX_COMMANDER_FEE : BigInt(config.dex.DEX_COMMANDER_FEE),
+	DEX_POOL_FEE : BigInt(config.dex.DEX_POOL_FEE),
 	MINER_INTERVAL : 1000,
 	M_ROOT_RESEND_INTERVAL : 40000,
 	POS_MINER_RESEND_INTERVAL : 30000,
@@ -128,6 +133,20 @@ let utils = {
 		catch(err){
 			console.error("Verification error: ", err);
 			console.error({sign});
+			return false;
+		}
+	},
+	ecdsa_verify_jsrsasign : function(cpkey, sign, msg){
+		let sig = new rsasign.Signature({ "alg": 'SHA256withECDSA' });
+		try {
+			let pkey;
+			pkey = crypto.ECDH.convertKey(cpkey, 'secp256k1', 'hex', 'hex', 'uncompressed');
+			sig.init({ xy: pkey, curve: 'secp256k1' });
+			sig.updateString(msg);
+			return sig.verify(sign);
+		}
+		catch(err){
+			console.error("Verification error: ", err);
 			return false;
 		}
 	},
@@ -235,7 +254,7 @@ let utils = {
 	hash_farm : function(farm){
 		if (!farm)
 			return undefined;
-		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
+		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block', 'accumulator'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_farmer : function(farmer){
@@ -371,6 +390,53 @@ let utils = {
 		});
 		return mblocks;
 	},
+	leader_sign_000(LPoSID, leader_msk, mblock_data, ECC, cfg_ecc, debug_short, need_fail) {
+		let msk = enq.BigNumber(leader_msk);
+
+		let H, Q, m_hash;
+		let secret, leader_sign;
+		let weil_err = false;
+		let verified = true;
+		mblock_data.nonce = 0;
+
+		if (cfg_ecc.ecc_mode === "short") {
+			do {
+				mblock_data.nonce = mblock_data.nonce + 1;
+				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
+				m_hash = this.hash_mblock(mblock_data);
+				console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+
+				let PK_LPoS = enq.getHash(mblock_data.kblocks_hash.toString() + LPoSID.toString() + mblock_data.nonce.toString());
+				let H_hash = enq.getHash(m_hash.toString() + LPoSID.toString());
+				H = enq.toPoint(parseInt(H_hash.slice(0, 5), 16), ECC.G, ECC.curve);
+				Q = enq.toPoint(parseInt(PK_LPoS.slice(0, 5), 16), ECC.G, ECC.curve);
+				if (!H.isInfinity(ECC.curve) && !Q.isInfinity(ECC.curve)) {
+					secret = enq.mul(msk, Q, ECC.curve);
+					leader_sign = enq.sign(m_hash, LPoSID, ECC.G, ECC.G0, secret, ECC.curve);
+					weil_err = ((parseInt(H_hash.slice(0, 5), 16) % 13) === 7) && (leader_sign.r.x === 41) && (leader_sign.r.y === 164);
+				}
+			} while (need_fail ^ (H.isInfinity(ECC.curve) || Q.isInfinity(ECC.curve) || weil_err));
+		} else {
+			do {
+				mblock_data.nonce = mblock_data.nonce + 1;
+				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
+				m_hash = this.hash_mblock(mblock_data);
+				console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+				let PK_LPoS = enq.getHash(mblock_data.kblocks_hash.toString() + LPoSID.toString() + mblock_data.nonce.toString());
+				//Q = enq.toPoint(PK_LPoS, G, curve);
+				let bnPK_LPoS = enq.BigNumber(PK_LPoS);
+				let Q = enq.getQ(bnPK_LPoS, ECC.curve, ECC.e_fq);
+				secret = enq.mul(msk, Q, ECC.curve);
+				try {
+					leader_sign = enq.sign_tate(m_hash, LPoSID, ECC.G0_fq, secret, ECC.curve, ECC.e_fq);
+					//verified = enq.verify_tate(leader_sign, m_hash, PK_LPoS, G0_fq, MPK_fq, LPoSID, curve, e_fq);
+				} catch (e) {
+					console.error(e)
+				}
+			} while (need_fail ^ !verified);
+		}
+		return {m_hash, leader_sign};
+	},
 	leader_sign(leader_id, leader_msk, kblocks_hash, merkle_root, ECC, cfg_ecc, debug_short, need_fail) {
 		let LPoSID = leader_id;
 
@@ -384,11 +450,6 @@ let utils = {
 
 		if (cfg_ecc.ecc_mode === "short") {
 			do {
-				//mblock_data.nonce = mblock_data.nonce + 1;
-				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
-				//m_hash = Utils.hash_mblock(mblock_data);
-				//console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
-
 				let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
 				let H_hash = enq.getHash(merkle_root.toString() + LPoSID.toString());
 				H = enq.toPoint(parseInt(H_hash.slice(0, 5), 16), ECC.G, ECC.curve);

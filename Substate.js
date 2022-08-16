@@ -42,7 +42,7 @@ class Substate {
         this.accounts = this.accounts.filter(v => v !== null);
         this.accounts = await this.db.get_accounts_all(this.accounts);
 
-        // TODO: optimized drlrction
+        // TODO: optimized selection
         // this.pools = await this.db.dex_get_pools(this.pools);
         // let more_pools = await this.db.dex_get_pools_by_lt(this.lt_hashes);
         // if(more_pools.length > 0)
@@ -54,6 +54,10 @@ class Substate {
         this.lt_hashes = this.pools.map(h => h.token_hash);
         if(this.lt_hashes.length > 0)
             this.tokens = this.tokens.concat(this.lt_hashes);
+        let tokens_a = this.pools.map(h => h.asset_1);
+        let tokens_b = this.pools.map(h => h.asset_2);
+        this.tokens = this.tokens.concat(tokens_a);
+        this.tokens = this.tokens.concat(tokens_b);
         this.tokens = this.tokens.filter((v, i, a) => a.indexOf(v) === i);
         this.tokens = this.tokens.filter(v => v !== null);
         this.tokens = this.tokens.map(function (hash) {
@@ -61,7 +65,7 @@ class Substate {
             if (hash_regexp.test(hash))
                 return hash;
         });
-        this.tokens = await this.db.get_tokens_all(this.tokens);
+        this.tokens = await this.db.get_tokens(this.tokens);
 
         //this.poses = this.poses.filter((v, i, a) => a.indexOf(v) === i);
         //this.poses = this.poses.filter(v => v !== null);
@@ -90,11 +94,11 @@ class Substate {
             else
                 delete this.undelegates[und]
         }
-        // TODO farms
-        this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
-        this.farms = this.farms.filter(v => v !== null);
-        this.farms = await this.db.get_farms(this.farms);
-
+        // TODO: optimized selection
+        // this.farms = this.farms.filter((v, i, a) => a.indexOf(v) === i);
+        // this.farms = this.farms.filter(v => v !== null);
+        // this.farms = await this.db.get_farms(this.farms);
+        this.farms = await this.db.get_farms_all();
         // TODO farmers
         this.farmers = this.farmers.filter((v, i, a) => a.indexOf(v) === i);
         this.farmers = this.farmers.filter(v => v !== null);
@@ -202,12 +206,37 @@ class Substate {
                 this.tokens.push(contract.data.parameters.lt);
                 this.lt_hashes.push(contract.data.parameters.lt);
                 break;
-            case "pool_swap" :
+            case "pool_sell_exact" :
                 this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
                 this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(contract.data.parameters.asset_in);
                 this.tokens.push(contract.data.parameters.asset_out);
                 this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
+                break;
+            case "pool_buy_exact" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                this.tokens.push(contract.data.parameters.asset_in);
+                this.tokens.push(contract.data.parameters.asset_out);
+                this.pools.push(Utils.getPairId(contract.data.parameters.asset_in, contract.data.parameters.asset_out).pair_id);
+                break;
+            case "pool_sell_exact_routed" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                for (let i = 0; i < contract.data.parameters.plength; i++) {
+                    this.tokens.push(contract.data.parameters[`asset${i}`]);
+                    if (i)
+                        this.pools.push(Utils.getPairId(contract.data.parameters[`asset${i - 1}`], contract.data.parameters[`asset${i}`]).pair_id);
+                }
+                break;
+            case "pool_buy_exact_routed" :
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                for (let i = 0; i < contract.data.parameters.plength; i++) {
+                    this.tokens.push(contract.data.parameters[`asset${i}`]);
+                    if (i)
+                        this.pools.push(Utils.getPairId(contract.data.parameters[`asset${i - 1}`], contract.data.parameters[`asset${i}`]).pair_id);
+                }
                 break;
             case "farm_create" : {
                 // stake_token token info
@@ -235,6 +264,14 @@ class Substate {
             case "farm_get_reward" : {
                 this.farms.push(contract.data.parameters.farm_id);
                 this.farmers.push(tx.from);
+            }
+                break;
+            case "dex_cmd_distribute" : {
+                this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
+                // this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                this.tokens.push(Utils.DEX_ENX_TOKEN_HASH);
+                this.tokens.push(contract.data.parameters.token_hash);
+                this.farms.push(Utils.DEX_SPACE_STATION_ID);
             }
                 break;
             default : return false;
@@ -371,7 +408,8 @@ class Substate {
     tokens_change(changes){
         let tok_idx = this.tokens.findIndex(a => a.hash === changes.hash);
         if(tok_idx > -1){
-            if(this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
+            if((this.tokens[tok_idx].total_supply + changes.total_supply < BigInt(0))
+                || (this.tokens[tok_idx].total_supply + changes.total_supply > Utils.MAX_SUPPLY_LIMIT))
                 throw new ContractError(`Negative tokens state`);
             this.tokens[tok_idx].total_supply += changes.total_supply;
             this.tokens[tok_idx].changed = true;
@@ -402,6 +440,12 @@ class Substate {
                 if(changes.last_block < this.farms[farm_idx].last_block)
                     throw new ContractError(`Incorrect last_block`);
                 this.farms[farm_idx].last_block = changes.last_block;
+                this.farms[farm_idx].changed = true;
+            }
+            if(changes.hasOwnProperty("accumulator")){
+                if(changes.accumulator < BigInt(0))
+                    throw new ContractError(`Incorrect accumulator`);
+                this.farms[farm_idx].accumulator = changes.accumulator;
                 this.farms[farm_idx].changed = true;
             }
         }

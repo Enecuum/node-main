@@ -87,7 +87,8 @@ class LPOS {
             let kblocks_hash = tail.hash;
             console.debug(`re-broadcast sblock for kblock ${kblocks_hash}`);
             let sblocks = await this.db.get_statblocks(kblocks_hash);
-            if (sblocks.length > 0) {
+            let found = sblocks.some(s=> s.publisher === this.config.id);
+            if (sblocks.length > 0 && found) {
                 this.transport.broadcast("statblocks", sblocks);
             } else {
                 console.warn(`no found statblocks`);

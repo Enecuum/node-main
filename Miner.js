@@ -132,7 +132,7 @@ class Miner {
 			console.trace(`mblocks ${mblocks.length}, sblocks ${sblocks.length}, snapshot ${need_snapshot}`);
 			// Filter mblocks by min stakes
 			let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
-			let tokens = await this.db.get_tokens_all(mblocks.map(m => m.token));
+			let tokens = await this.db.get_tokens(mblocks.map(m => m.token));
 			mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, false);
 			// Filter sblocks by min stakes
 			let pos_stakes = await this.db.get_pos_info(sblocks.map(s => s.publisher));
@@ -282,11 +282,13 @@ class Miner {
 
 				let h;
 				let tries = 0;
+				let span;
 				do {
 					if (tries % 5000 === 0) {
 						now = new Date();
-						let span = now - start;
+						span = now - start;
 						if (span >= 1000) {
+							console.info(`hashrate ${tries/(span/1000)}`);
 							console.trace(`Miner not found hash in ${tries} tries`);
 							return;
 						}
@@ -295,6 +297,8 @@ class Miner {
 					candidate.nonce = Math.round(Math.random() * Utils.MAX_NONCE);
 					h = Utils.hash_kblock(candidate, this.vm);
 				} while (!Utils.difficulty_met(h, current_diff));
+				span = new Date() - start;
+				console.info(`hashrate ${tries/(span/1000)}`);
 
 				candidate.hash = h.toString('hex');
 				candidate.target_diff = current_diff;

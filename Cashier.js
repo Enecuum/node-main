@@ -12,6 +12,7 @@ class Cashier {
         this.srewards = BigInt(0);
         this.krewards = BigInt(0);
     }
+
     eindex_entry(arr, type, id, hash, value) {
         if(this.config.indexer_mode !== 1)
             return;
@@ -178,8 +179,8 @@ class Cashier {
              *
              */
             mblock_tokens = mblock_tokens.concat(mblocks.map(m => m.token));
-            let tokens = await this.db.get_tokens_all(mblock_tokens);
-            let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+            let tokens = await this.db.get_tokens(mblock_tokens);
+            let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 
             accounts = accounts.concat(tokens.map(tok => tok.owner));
             accounts = accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -518,8 +519,8 @@ class Cashier {
             if (hash_regexp.test(tx.ticker))
                 return tx.ticker;
         });
-        let tokens = await this.db.get_tokens_all(filtered_tickers);
-        let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+        let tokens = await this.db.get_tokens(filtered_tickers);
+        let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
         substate.accounts = substate.accounts.concat(tokens.map(token => token.owner));
 
         substate.tokens.push(Utils.ENQ_TOKEN_NAME);
@@ -585,7 +586,7 @@ class Cashier {
                 // Check if tx has contract
                 let contract = contracts[tx.hash] || null;
                 if (contract) {
-                    let res = await contract.execute(tx, substate_copy, kblock);
+                    let res = await contract.execute(tx, substate_copy, kblock, this.config);
                     // add eindex entry for claims
                     if(contract.type === 'pos_reward')
                         this.eindex_entry(rewards, 'ic', substate_copy.claims[tx.hash].delegator, tx.hash, substate_copy.claims[tx.hash].reward);
@@ -718,8 +719,8 @@ class Cashier {
              *
              */
             mblock_tokens = mblock_tokens.concat(mblocks.map(m => m.token));
-            let tokens = await this.db.get_tokens_all(mblock_tokens);
-            let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+            let tokens = await this.db.get_tokens(mblock_tokens);
+            let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
 
             accounts = accounts.concat(tokens.map(tok => tok.owner));
             accounts = accounts.filter((v, i, a) => a.indexOf(v) === i);
@@ -1055,8 +1056,8 @@ class Cashier {
             if (hash_regexp.test(tx.ticker))
                 return tx.ticker;
         });
-        let tokens = await this.db.get_tokens_all(filtered_tickers);
-        let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+        let tokens = await this.db.get_tokens(filtered_tickers);
+        let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
         accounts = accounts.concat(tokens.map(token => token.owner));
 
         let duplicates = await this.db.get_duplicates(chunk.txs.map(tx => tx.hash));
@@ -1310,6 +1311,7 @@ class Cashier {
     async start(run_once = false){
         await this.cashier(run_once);
     }
+
     async cashier(run_once) {
         try {
             let cur_hash = await this.db.get_cashier_pointer();
@@ -1322,13 +1324,24 @@ class Cashier {
                 block = await this.db.peek_tail();
             if (block === undefined)
                 return;
-            // if(block.n === 41000)
-            // 	return;
+
+            // Create temp snapshot (state) of current block
+            let tmp_snapshot_hash = await this.db.get_tmp_snapshot_hash(cur_hash);
+            if (!tmp_snapshot_hash) {
+                let time = process.hrtime();
+                let tmp_snapshot = await this.db.create_snapshot(cur_hash);
+                let hash = Utils.hash_snapshot(tmp_snapshot);
+                console.debug(`Temp snapshot hash of ${block.n} kblock: ${hash}`);
+                await this.db.put_tmp_snapshot(block.link, tmp_snapshot, hash);
+                time = process.hrtime(time);
+                console.debug(`cashier_timing: caching state(temp snapshot)`, Utils.format_time(time));
+            }
+
             // Create snapshot of current block if needed
             if ((block.n) % this.config.snapshot_interval === 0) {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);
                 if (!snapshot_hash) {
-                    let snapshot = await this.db.create_snapshot(cur_hash); //cur_hash);
+                    let snapshot = await this.db.create_snapshot(cur_hash);
                     let hash = Utils.hash_snapshot(snapshot);
                     console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                     await this.db.put_snapshot(snapshot, hash);

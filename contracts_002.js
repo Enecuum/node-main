@@ -8,6 +8,9 @@
  * Enecuum smart contracts logic
  *
  * Working with actual chain
+ * Added DEX contracts
+ * Added Farms contracts
+ * Added Commander ENEX contracts
  *
  * ******************************************
  *
@@ -26,6 +29,7 @@ class Contract{
     constructor() {
         this._mysql = require('mysql');
         this.type = null;
+        this.pricelist = require('./pricelist').fork_block_002;
     }
     get mysql(){
         return this._mysql;

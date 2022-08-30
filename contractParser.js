@@ -1,25 +1,25 @@
 let schema = {
-    "root" :            "0000",
-    "custom" :          "0100",
-    "create_token" :    "0200",
-    "delegate" :        "0300",
-    "undelegate" :      "0400",
-    "signature" :       "0500",
-    "hash" :            "0600",
-    "string" :          "0700",
-    "int" :             "0800",
-    "bigint" :          "0900",
-    "float" :           "0a00",
-    "object" :          "0c00",
-    "key" :             "0d00",
-    "procedure_name" :  "0e00",
-    "parameters" :      "0f00",
-    "create_pos" :      "1000",
-    "pos_reward" :      "1100",
-    "transfer" :        "1200",
-    "mint" :            "1300",
-    "burn" :            "1400",
-    "pool_create" :     "1500",
+    "root" :                    "0000",
+    "custom" :                  "0100",
+    "create_token" :            "0200",
+    "delegate" :                "0300",
+    "undelegate" :              "0400",
+    "signature" :               "0500",
+    "hash" :                    "0600",
+    "string" :                  "0700",
+    "int" :                     "0800",
+    "bigint" :                  "0900",
+    "float" :                   "0a00",
+    "object" :                  "0c00",
+    "key" :                     "0d00",
+    "procedure_name" :          "0e00",
+    "parameters" :              "0f00",
+    "create_pos" :              "1000",
+    "pos_reward" :              "1100",
+    "transfer" :                "1200",
+    "mint" :                    "1300",
+    "burn" :                    "1400",
+    "pool_create" :             "1500",
     "pool_add_liquidity" :      "1600",
     "pool_remove_liquidity" :   "1700",
     "pool_sell_exact" :         "1800",
@@ -34,14 +34,17 @@ let schema = {
     "pool_buy_exact" :          "2100",
     "pool_buy_exact_routed" :   "2200",
 };
-
+const contracts = [
+    "0100", "0200", "0300", "0400", "1000",
+    "1100", "1200", "1300", "1400", "1500",
+    "1600", "1700", "1800", "1900", "1a00",
+    "1b00", "1c00", "1d00", "1e00", "1f00",
+    "2000", "2100", "2200"
+];
 class ContractParser {
-    constructor(config) {
+    constructor() {
         this.schema = schema;
-        this.contract_pricelist = config.contract_pricelist;
-    }
-    get pricelist(){
-        return this.contract_pricelist;
+        this.contracts = contracts;
     }
     toHex(d) {
         let hex = Number(d).toString(16);
@@ -62,10 +65,12 @@ class ContractParser {
     }
     getChunk(bin){
         let size = parseInt(bin.substring(0, 4), 16);
-        let key = this.getkey(this.schema, bin.substring(4,8));
+        let code = bin.substring(4, 8);
+        let key = this.getkey(this.schema, code);
         return {
             size : size,
             key : key,
+            code : code,
             data : bin.substr(8, size - 8)
         }
     }
@@ -74,7 +79,7 @@ class ContractParser {
         if(raw === undefined || raw === null)
             return false;
         let chunk = this.getChunk(raw);
-        if((chunk.size === raw.length) && this.contract_pricelist.hasOwnProperty(chunk.key))
+        if((chunk.size === raw.length) && this.contracts.includes(chunk.code))
             return chunk.key;
         return false;
     }
@@ -132,7 +137,7 @@ class ContractParser {
         while(bin.length > 0){
             let chunk = this.getChunk(bin);
             if(bin.length === chunk.size){
-                if((!this.contract_pricelist.hasOwnProperty(chunk.key))
+                if((!this.contracts.includes(chunk.code))
                     && (chunk.key !== "parameters")
                     && (chunk.key !== "object")){
                     arr.push([chunk.key, chunk.data]);

@@ -19,6 +19,7 @@ const {ExplorerService, ExplorerServicePlain} = require('./explorer.service');
 const NodeapiService = require('./nodeapi.service').NodeapiService;
 const Utils = require('./Utils');
 const Transport = require('./Transport').Tip;
+const ContractMachine = require('./SmartContracts');
 //const swaggerJSDoc = require('swagger-jsdoc');
 let swaggerSpec;
 
@@ -586,7 +587,10 @@ class Explorer {
 
 		this.app.get('/api/v1/contract_pricelist', async (req, res) => {
 			console.trace('contract_pricelist');
-			res.send(this.config.contract_pricelist);
+			let n = (await this.db.get_mblocks_height()).height;
+			let CMachine = ContractMachine.getContractMachine(this.config.FORKS, n);
+			let cont = new CMachine.Contract();
+			res.send(cont.pricelist);
 		});
 
 		this.app.get('/api/v1/difficulty', async (req, res) => {

@@ -70,7 +70,7 @@ class ContractFactory{
         let contract = this.createContract(tx.data, kblock.n);
         if(!contract)
             return false;
-        if(tx.amount < BigInt(this.config.contract_pricelist[contract.type])){
+        if(tx.amount < BigInt(contract.pricelist[contract.type])){
             throw new ContractError("Invalid amount");
         }
         if(tx.to !== db.ORIGIN.publisher){

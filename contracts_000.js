@@ -8,6 +8,9 @@
  * Enecuum smart contracts logic
  *
  * Working with chain before 001 fork
+ * Token & POS contracts:
+ * - tokens creation, mint & burn
+ * - PoS creation, delegate, undelegate, transfer & get reward contracts
  *
  * ******************************************
  *
@@ -24,6 +27,7 @@ class Contract{
     constructor() {
         this._mysql = require('mysql');
         this.type = null;
+        this.pricelist = require('./pricelist').fork_block_000;
     }
     get mysql(){
         return this._mysql;

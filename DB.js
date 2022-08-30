@@ -617,7 +617,7 @@ class DB {
             console.error(`Snapshot is undefined`);
             return;
         }
-        snapshot.hash = Utils.hash_snapshot(snapshot);
+        snapshot.hash = Utils.hash_snapshot(snapshot, snapshot.kblock.n);
         let init_result = await this.init_snapshot(snapshot, true);
         if (!init_result) {
             console.error(`Failed initialize Database.`);

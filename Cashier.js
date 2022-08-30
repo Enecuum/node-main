@@ -1330,7 +1330,7 @@ class Cashier {
             if (!tmp_snapshot_hash) {
                 let time = process.hrtime();
                 let tmp_snapshot = await this.db.create_snapshot(cur_hash);
-                let hash = Utils.hash_snapshot(tmp_snapshot);
+                let hash = Utils.hash_snapshot(tmp_snapshot, block.n);
                 console.debug(`Temp snapshot hash of ${block.n} kblock: ${hash}`);
                 await this.db.put_tmp_snapshot(block.link, tmp_snapshot, hash);
                 time = process.hrtime(time);
@@ -1342,7 +1342,7 @@ class Cashier {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);
                 if (!snapshot_hash) {
                     let snapshot = await this.db.create_snapshot(cur_hash);
-                    let hash = Utils.hash_snapshot(snapshot);
+                    let hash = Utils.hash_snapshot(snapshot, block.n);
                     console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                     await this.db.put_snapshot(snapshot, hash);
                 }

@@ -232,15 +232,20 @@ let utils = {
 		let str = ['amount','from','nonce','sign','to'].map(v => crypto.createHash('sha256').update(tx[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	hash_snapshot : function(snapshot){
+	hash_snapshot : function(snapshot, height){
 		let ledger_accounts_hash = crypto.createHash('sha256').update(snapshot.ledger.map(account => this.hash_ledger(account)).sort().join("")).digest('hex');
 		let tokens_hash = crypto.createHash('sha256').update(snapshot.tokens.map(token => this.hash_token(token)).sort().join("")).digest('hex');
 		let poses_hash = crypto.createHash('sha256').update(snapshot.poses.map(pos => this.hash_pos(pos)).sort().join("")).digest('hex');
 		let delegates_hash = crypto.createHash('sha256').update(snapshot.delegates.map(delegate => this.hash_delegated(delegate)).sort().join("")).digest('hex');
-		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate)).sort().join("")).digest('hex');
-		let dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
-		let farms_hash = crypto.createHash('sha256').update(snapshot.farms.map(farm => this.hash_farm(farm)).sort().join("")).digest('hex');
-		let farmers_hash = crypto.createHash('sha256').update(snapshot.farmers.map(farmer => this.hash_farmer(farmer)).sort().join("")).digest('hex');
+		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate, height)).sort().join("")).digest('hex');
+		let dex_pools_hash = "";
+		let farms_hash = "";
+		let farmers_hash = "";
+		if (height >= this.config.FORKS.fork_block_002) {
+			dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
+			farms_hash = crypto.createHash('sha256').update(snapshot.farms.map(farm => this.hash_farm(farm)).sort().join("")).digest('hex');
+			farmers_hash = crypto.createHash('sha256').update(snapshot.farmers.map(farmer => this.hash_farmer(farmer)).sort().join("")).digest('hex');
+		}
 		return crypto.createHash('sha256').update(snapshot.kblocks_hash.toLowerCase() +
 			ledger_accounts_hash.toLowerCase() +
 			tokens_hash.toLowerCase() +
@@ -300,10 +305,14 @@ let utils = {
 		let str = ['pos_id','delegator','amount','reward'].map(v => crypto.createHash('sha256').update(delegate[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	hash_undelegated : function(undelegate){
+	hash_undelegated : function(undelegate, height){
 		if (!undelegate)
 			return undefined;
-		let str = ['id','delegator','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
+		let str;
+		if (height >= this.config.FORKS.fork_block_002)
+			str = ['id','delegator','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
+		else
+			str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	merkle_root_000 : function (mblocks, sblocks, snapshot_hash) {

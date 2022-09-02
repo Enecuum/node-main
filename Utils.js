@@ -241,7 +241,7 @@ let utils = {
 		let dex_pools_hash = "";
 		let farms_hash = "";
 		let farmers_hash = "";
-		if (height >= this.config.FORKS.fork_block_002) {
+		if (height >= config.FORKS.fork_block_002) {
 			dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
 			farms_hash = crypto.createHash('sha256').update(snapshot.farms.map(farm => this.hash_farm(farm)).sort().join("")).digest('hex');
 			farmers_hash = crypto.createHash('sha256').update(snapshot.farmers.map(farmer => this.hash_farmer(farmer)).sort().join("")).digest('hex');
@@ -309,7 +309,7 @@ let utils = {
 		if (!undelegate)
 			return undefined;
 		let str;
-		if (height >= this.config.FORKS.fork_block_002)
+		if (height >= config.FORKS.fork_block_002)
 			str = ['id','delegator','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
 		else
 			str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");

@@ -553,7 +553,7 @@ class Cashier {
                     let _tx = Object.assign({}, tx);
                     _tx.amount -= token_enq.fee_value;
                     // Create contract to get it's params. Without execution
-                    contracts[tx.hash] = await CFactory.create(_tx, this.db);
+                    contracts[tx.hash] = await CFactory.create(_tx, this.db, kblock);
                     // Pass contract's params to substate to add data
                     substate.fillByContract(contracts[tx.hash], tx);
 

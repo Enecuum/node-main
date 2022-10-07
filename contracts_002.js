@@ -1145,8 +1145,11 @@ class PoolLiquiditySellExactContract extends Contract {
         let cmd_lt_amount_den = Utils.DEX_COMMANDER_FEE * (Utils.sqrt(K_new)) + Utils.sqrt(k);
         let cmd_lt_amount = lt_info.total_supply * cmd_lt_amount_num / cmd_lt_amount_den;
 
-        let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
-        let lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
+        let lt_pool_exist = false
+        if (ENX_TOKEN_HASH) {
+            let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
+            lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
+        }
         substate.accounts_change({
             id : lt_pool_exist ? CMD_ADDRESS : BURN_ADDRESS,
             amount : cmd_lt_amount,
@@ -1283,8 +1286,11 @@ class PoolLiquidityBuyExactContract extends Contract {
         let cmd_lt_amount_den = Utils.DEX_COMMANDER_FEE * (Utils.sqrt(K_new)) + Utils.sqrt(k);
         let cmd_lt_amount = lt_info.total_supply * cmd_lt_amount_num / cmd_lt_amount_den;
 
-        let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
-        let lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
+        let lt_pool_exist = false
+        if (ENX_TOKEN_HASH) {
+            let lt_assets = Utils.getPairId(ENX_TOKEN_HASH, pool_info.token_hash);
+            lt_pool_exist = await substate.dex_check_pool_exist(lt_assets.pair_id);
+        }
         substate.accounts_change({
             id : lt_pool_exist ? CMD_ADDRESS : BURN_ADDRESS,
             amount : cmd_lt_amount,

@@ -19,7 +19,7 @@
 
 const Utils = require('./Utils');
 const {ContractError} = require('./errors');
-const {ContractFactory} = require('./SmartContracts');
+const ContractMachine = require('./SmartContracts');
 const ContractParser = require('./contractParser').ContractParser;
 
 let MAX_DECIMALS = BigInt(10);
@@ -1392,7 +1392,7 @@ class PoolLiquiditySellExactRoutedContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let cfactory = new ContractFactory(config);
+        let cfactory = new ContractMachine.ContractFactory(config);
         let cparser = new ContractParser(config);
 
         let amount_in = params.amount_in;
@@ -1500,7 +1500,7 @@ class PoolLiquidityBuyExactRoutedContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let cfactory = new ContractFactory(config);
+        let cfactory = new ContractMachine.ContractFactory(config);
         let cparser = new ContractParser(config);
 
         let amount_out = params.amount_out;
@@ -1839,7 +1839,7 @@ class DexCmdDistributeContract extends Contract {
             return null;
         let params = this.data.parameters;
 
-        let cfactory = new ContractFactory(config);
+        let cfactory = new ContractMachine.ContractFactory(config);
         let cparser = new ContractParser(config);
 
         let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;

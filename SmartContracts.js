@@ -100,7 +100,10 @@ function getContractMachine(forks, n){
     }
     return Contracts[idx];
 }
-module.exports = {
-    getContractMachine,
-    ContractFactory
-};
+
+// module.exports = {
+//     getContractMachine,
+//     ContractFactory
+// };
+module.exports.getContractMachine = getContractMachine;
+module.exports.ContractFactory = ContractFactory;

@@ -1056,10 +1056,11 @@ class PoolLiquidityRemoveContract extends Contract {
     }
 }
 class PoolLiquiditySellExactContract extends Contract {
-    constructor(data) {
+    constructor(data, enx_hash) {
         super();
         this.data = data;
         this.type = this.data.type;
+        this.enx_hash = enx_hash
         if(!this.validate())
             throw new ContractError("Incorrect contract");
     }
@@ -1110,7 +1111,7 @@ class PoolLiquiditySellExactContract extends Contract {
 
         let BURN_ADDRESS = Utils.DEX_BURN_ADDRESS;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
-        let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
+        let ENX_TOKEN_HASH = this.enx_hash;
 
         let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
@@ -1192,10 +1193,11 @@ class PoolLiquiditySellExactContract extends Contract {
     }
 }
 class PoolLiquidityBuyExactContract extends Contract {
-    constructor(data) {
+    constructor(data, enx_hash) {
         super();
         this.data = data;
         this.type = this.data.type;
+        this.enx_hash = enx_hash
         if(!this.validate())
             throw new ContractError("Incorrect contract");
     }
@@ -1247,7 +1249,7 @@ class PoolLiquidityBuyExactContract extends Contract {
 
         let BURN_ADDRESS = Utils.DEX_BURN_ADDRESS;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
-        let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
+        let ENX_TOKEN_HASH = this.enx_hash;
 
         let assets = Utils.getPairId(params.asset_in, params.asset_out);
         let pair_id = assets.pair_id;
@@ -1805,10 +1807,11 @@ class FarmsAddEmissionContract extends Contract {
 }
 
 class DexCmdDistributeContract extends Contract {
-    constructor(data) {
+    constructor(data, enx_hash) {
         super();
         this.data = data;
         this.type = this.data.type;
+        this.enx_hash = enx_hash
         if(!this.validate())
             throw new ContractError("Incorrect contract");
     }
@@ -1842,7 +1845,7 @@ class DexCmdDistributeContract extends Contract {
         let cfactory = new ContractFactory(config);
         let cparser = new ContractParser(config);
 
-        let ENX_TOKEN_HASH = Utils.DEX_ENX_TOKEN_HASH;
+        let ENX_TOKEN_HASH = this.enx_hash;
         let ENX_FARM_ID = Utils.DEX_SPACE_STATION_ID;
         let CMD_ADDRESS = Utils.DEX_COMMANDER_ADDRESS;
 

@@ -545,6 +545,15 @@ let utils = {
 				return false;
 			}
 
+			mblock.txs = mblock.txs.filter((tx)=>{
+				let hash = this.hash_tx_fields(tx);
+				if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
+					console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
+					return false;
+				}else
+					return true;
+			});
+
 			let recalc_hash = this.hash_mblock(mblock);
 		 	let signed_msg = recalc_hash + (mblock.referrer ? (mblock.referrer) : "") + mblock.token;
 
@@ -553,14 +562,6 @@ let utils = {
 		 		if (!check_txs_sign)
 		 		    return true;
 		 		total_tx_count += mblock.txs.length;
-				mblock.txs = mblock.txs.filter((tx)=>{
-					let hash = this.hash_tx_fields(tx);
-					if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
-						console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
-						return false;
-					}else
-						return true;
-				});
 				if(mblock.txs.length === 0){
 					console.warn(`Ignore empty mblock ${mblock.hash}`);
 					return false;

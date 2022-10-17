@@ -86,7 +86,8 @@
 	  "FORKS" : {
         "fork_block_000" : 0,
         "fork_block_001" : 0,
-        "fork_block_002" : 0
+        "fork_block_002" : 0,
+        "enx_fork_block" : 0
     },
 	  "mblock_slots": {
         "size": 2,

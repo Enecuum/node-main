@@ -184,8 +184,8 @@ let utils = {
 		for(let i = 0; i < len; i++){
 			let value = Object.values(param_obj)[i];
 			const parsed = parseInt(value, 10);
-  			if (isNaN(parsed) || parsed < 0) 
-  				return false; 
+  			if (isNaN(parsed) || parsed < 0)
+  				return false;
   			sum += BigInt(parsed);
 		}
 		return sum === this.PERCENT_FORMAT_SIZE;
@@ -204,7 +204,7 @@ let utils = {
 	},
 	compareBlocksByHash(a, b) {
 		if (a.hash < b.hash) return -1;
-  		return a.hash > b.hash ? 1 : 0;		
+  		return a.hash > b.hash ? 1 : 0;
 	},
 	hash_kblock : function(kblock, vm){
 		if (!kblock)
@@ -368,7 +368,7 @@ let utils = {
 	get_txhash : function(tx){
 		if (!tx)
 			return undefined;
-		let model = ['amount','data','from','nonce','sign','ticker','to'];		
+		let model = ['amount','data','from','nonce','sign','ticker','to'];
 		let str;
 		try{
 			str = model.map(v => crypto.createHash('sha256').update(tx[v].toString().toLowerCase()).digest('hex')).join("");
@@ -539,6 +539,20 @@ let utils = {
 				console.trace(`ignoring mblock ${JSON.stringify(mblock)} due to low stake`);
 				return false;
 			}
+			let regexAddress = /^(02|03)[0-9a-fA-F]{64}$/
+			if (mblock.referrer != undefined && !regexAddress.test(mblock.referrer)) {
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} referrer not correct`);
+				return false;
+			}
+
+			mblock.txs = mblock.txs.filter((tx)=>{
+				let hash = this.hash_tx_fields(tx);
+				if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
+					console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
+					return false;
+				}else
+					return true;
+			});
 
 			let recalc_hash = this.hash_mblock(mblock);
 		 	let signed_msg = recalc_hash + (mblock.referrer ? (mblock.referrer) : "") + mblock.token;
@@ -548,14 +562,6 @@ let utils = {
 		 		if (!check_txs_sign)
 		 		    return true;
 		 		total_tx_count += mblock.txs.length;
-				mblock.txs = mblock.txs.filter((tx)=>{
-					let hash = this.hash_tx_fields(tx);
-					if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
-						console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
-						return false;
-					}else
-						return true;
-				});
 				if(mblock.txs.length === 0){
 					console.warn(`Ignore empty mblock ${mblock.hash}`);
 					return false;

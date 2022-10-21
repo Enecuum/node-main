@@ -30,7 +30,7 @@ class ContractFactory{
         let Contracts = getContractMachine(this.config.FORKS, n);
 
         let ENX_TOKEN_HASH = ""
-        if (this.config.FORKS.enx_fork_block > n)
+        if (this.config.FORKS.fork_block_003 < n)
             ENX_TOKEN_HASH = this.config.dex.DEX_ENX_TOKEN_HASH
 
         switch(type) {

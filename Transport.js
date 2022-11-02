@@ -27,6 +27,7 @@ class Transport {
 	constructor(config, db) {
 		this.forks = config.FORKS;
 		this.fork_versions = config.PROTOCOL_VERSIONS;
+		this.native_token_hash = config.native_token_hash;
 		this.PROTOCOL_VERSION = 4;
 		this.peers = [];
 		this.methods_map = {query : "on_query"};
@@ -207,6 +208,7 @@ class Transport {
 			request.ver = version.version
 			request.height = version.block
 			request.port = this.port;
+			request.chainid = this.native_token_hash;
 
 			let post_data = JSON.stringify(request);
 
@@ -271,6 +273,13 @@ class Transport {
 						response.error = {
 							code: 1,
 							message: `Protocol version mismatch, ${block_version} requiered. MAX version ${this.get_max_protocol_version()}`
+						};
+						res.write(JSON.stringify(response));
+					} else if(request.chainid !== this.native_token_hash){
+						console.warn("Ignore request, incorrect native token", request.chainid);
+						response.error = {
+							code: 1,
+							message: `ChainID mismatch`
 						};
 						res.write(JSON.stringify(response));
 					} else if (request.data === undefined) {

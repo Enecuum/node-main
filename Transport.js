@@ -275,7 +275,7 @@ class Transport {
 							message: `Protocol version mismatch, ${block_version} requiered. MAX version ${this.get_max_protocol_version()}`
 						};
 						res.write(JSON.stringify(response));
-					} else if(request.chainid !== this.native_token_hash){
+					} else if(request.chainid === undefined || request.chainid !== this.native_token_hash){
 						console.warn("Ignore request, incorrect native token", request.chainid);
 						response.error = {
 							code: 1,

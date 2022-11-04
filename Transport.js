@@ -71,7 +71,7 @@ class Transport {
 				version = this.fork_versions[fork];
 			}
 		}
-		return version;
+		return { version: version };
 	}
 
 	get_max_protocol_version(){
@@ -268,11 +268,11 @@ class Transport {
 
 					let block_version = this.check_protocol_version(request.height);
 
-					if (request.ver !== block_version) {
-						console.warn("Ignore request, incorrect protocol version", request.ver);
+					if (request.ver !== block_version.version) {
+						console.warn(`Ignore request, incorrect protocol version ${request.ver} expected version ${block_version.version}`);
 						response.error = {
 							code: 1,
-							message: `Protocol version mismatch, ${block_version} requiered. MAX version ${this.get_max_protocol_version()}`
+							message: `Protocol version mismatch, ${block_version.version} requiered. MAX version ${this.get_max_protocol_version()}`
 						};
 						res.write(JSON.stringify(response));
 					} else if(request.chainid === undefined || request.chainid !== this.native_token_hash){

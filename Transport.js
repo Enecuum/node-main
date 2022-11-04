@@ -266,7 +266,7 @@ class Transport {
 
 					res.writeHead(200, "OK", {'Content-Type': 'application/json'});
 
-					let block_version = this.check_protocol_version(req.height);
+					let block_version = this.check_protocol_version(request.height);
 
 					if (request.ver !== block_version) {
 						console.warn("Ignore request, incorrect protocol version", request.ver);

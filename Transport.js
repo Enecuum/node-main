@@ -64,14 +64,18 @@ class Transport {
 		return {version, block};
 	}
 
-	check_protocol_version(block){
+	check_protocol_version(block, chainid){
 		let version = 1;
+		if(block === undefined && chainid === undefined){
+			console.log("Legacy code message")
+			return { version: 2, legacy_flag: true}
+		}
 		for(let fork in this.forks){
 			if(block >= this.forks[fork]){
 				version = this.fork_versions[fork];
 			}
 		}
-		return { version: version };
+		return { version: version,  legacy_flag: false };
 	}
 
 	get_max_protocol_version(){
@@ -266,16 +270,16 @@ class Transport {
 
 					res.writeHead(200, "OK", {'Content-Type': 'application/json'});
 
-					let block_version = this.check_protocol_version(request.height);
+					let block_version = this.check_protocol_version(request.height, request.chainid);
 
-					if (request.ver !== block_version.version) {
+					if ( !block_version.legacy_flag && request.ver !== block_version.version) {
 						console.warn(`Ignore request, incorrect protocol version ${request.ver} expected version ${block_version.version}`);
 						response.error = {
 							code: 1,
 							message: `Protocol version mismatch, ${block_version.version} requiered. MAX version ${this.get_max_protocol_version()}`
 						};
 						res.write(JSON.stringify(response));
-					} else if(request.chainid === undefined || request.chainid !== this.native_token_hash){
+					} else if( !block_version.legacy_flag && (request.chainid === undefined || request.chainid !== this.native_token_hash)){
 						console.warn("Ignore request, incorrect native token", request.chainid);
 						response.error = {
 							code: 1,

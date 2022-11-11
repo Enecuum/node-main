@@ -2246,10 +2246,10 @@ class DB {
 			Функция выполняется перед блоком форка. Она меняет структуру таблиц для получения единообразного
 			хеша снепшота и корректной работы fastsync. Также проводит удаление нулевых записей для оптимизации места.
 		 */
-		let sql1 = mysql.format(`DELETE FROM test_undelegates WHERE amount = 0;`);
-		let sql2 = mysql.format(`DELETE FROM test_delegates WHERE amount = 0 AND reward = 0;`);
-		let sql3 = mysql.format(`UPDATE test_undelegates U
-									INNER JOIN test_transactions T ON U.id = T.hash and T.status = 3
+		let sql1 = mysql.format(`DELETE FROM undelegates WHERE amount = 0;`);
+		let sql2 = mysql.format(`DELETE FROM delegates WHERE amount = 0 AND reward = 0;`);
+		let sql3 = mysql.format(`UPDATE undelegates U
+									INNER JOIN transactions T ON U.id = T.hash and T.status = 3
 									SET U.delegator = T.from;`);
 		let sql = [sql1, sql2, sql3];
 		return this.transaction(sql.join(';'));

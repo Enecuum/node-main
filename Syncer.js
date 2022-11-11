@@ -279,7 +279,30 @@ class Syncer {
 			//parse snapshot
 			snapshot_json = JSON.parse(str);
 			snapshot_json.hash = remote_snapshot.hash;
-
+			if(remote_snapshot.n < this.config.FORKS.fork_block_002) {
+				//putting kblocks with undelegate transactions
+				let i = 0;
+				let undelegates = snapshot_json.undelegates.filter(item => item.amount > 0);
+				undelegates.sort((a, b) => (a.height > b.height) ? 1 : ((b.height > a.height) ? -1 : 0));
+				for (let und of undelegates) {
+					i++;
+					console.info(`loading und: ${i}/${undelegates.length}`);
+					let und_height = Number(und.height);
+					if (!und.delegator) {
+						//get macroblock
+						let res = false;
+						for (let j = 0; j < this.config.downloading_try_count; j++) {
+							if (await this.add_looped_macroblock(socket, und_height)) {
+								res = true;
+								break;
+							}
+						}
+						if (!res)
+							return result;
+						await this.db.set_status_undelegated_tx(und.id);
+					}
+				}
+			}
 			//put macroblock
 			let put_kblock_result = await this.add_looped_macroblock(socket, remote_snapshot.n);
 			if (!put_kblock_result) {

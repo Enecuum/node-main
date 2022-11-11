@@ -250,6 +250,14 @@ class DB {
 		return 0;
 	};
 
+    set_status_undelegated_tx(hash){
+        console.debug("set status 3 for undelegated tx ", hash);
+        let upd_mblock = mysql.format(`UPDATE mblocks SET included = 1 WHERE hash in (SELECT mblocks_hash FROM transactions WHERE hash = ?)`,[hash]);
+        let upd_tx = mysql.format(`UPDATE transactions SET status = 3 WHERE hash = ?`,[hash]);
+
+        return this.transaction([upd_mblock, upd_tx].join(';'));
+    };
+
 	async put_snapshot(snapshot, hash){
 		console.debug("putting snapshot", hash);
 		let exist_hash = await this.get_snapshot_hash(snapshot.kblocks_hash);

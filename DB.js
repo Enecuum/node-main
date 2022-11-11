@@ -1119,25 +1119,33 @@ class DB {
 		for( let pos in substate.delegation_ledger){
 			for( let del in substate.delegation_ledger[pos]){
 				if(substate.delegation_ledger[pos][del].changed === true){
-					state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
-						pos_id : pos,
-						delegator : del,
-						amount : substate.delegation_ledger[pos][del].delegated,
-						reward : substate.delegation_ledger[pos][del].reward
-					}]));
+					if(substate.delegation_ledger[pos][del].delegated === 0n && substate.delegation_ledger[pos][del].reward === 0n){
+						state_sql.push(	mysql.format(`DELETE FROM delegates WHERE pos_id = ? AND delegator = ?;`, [pos, del]));
+					}
+					else
+						state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
+							pos_id : pos,
+							delegator : del,
+							amount : substate.delegation_ledger[pos][del].delegated,
+							reward : substate.delegation_ledger[pos][del].reward
+						}]));
 				}
 			}
 		}
 
 		for( let und in substate.undelegates){
 			if(substate.undelegates[und].changed === true){
-				state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
-					id : substate.undelegates[und].id,
-					delegator : substate.undelegates[und].delegator,
-					pos_id : substate.undelegates[und].pos_id,
-					amount : substate.undelegates[und].amount,
-					height : substate.undelegates[und].height
-				}]));
+				if(BigInt(substate.undelegates[und].amount) === BigInt(0)){
+					state_sql.push(	mysql.format(`DELETE FROM undelegates WHERE id = ?;`, [substate.undelegates[und].id]));
+				}
+				else
+					state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
+						id : substate.undelegates[und].id,
+						delegator : substate.undelegates[und].delegator,
+						pos_id : substate.undelegates[und].pos_id,
+						amount : substate.undelegates[und].amount,
+						height : substate.undelegates[und].height
+					}]));
 			}
 		}
 
@@ -2232,6 +2240,19 @@ class DB {
 			return {};
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash = ?`, [hash])));
 		return res;
+	}
+	async prefork_002(){
+		/*
+			Функция выполняется перед блоком форка. Она меняет структуру таблиц для получения единообразного
+			хеша снепшота и корректной работы fastsync. Также проводит удаление нулевых записей для оптимизации места.
+		 */
+		let sql1 = mysql.format(`DELETE FROM test_undelegates WHERE amount = 0;`);
+		let sql2 = mysql.format(`DELETE FROM test_delegates WHERE amount = 0 AND reward = 0;`);
+		let sql3 = mysql.format(`UPDATE test_undelegates U
+									INNER JOIN test_transactions T ON U.id = T.hash and T.status = 3
+									SET U.delegator = T.from;`);
+		let sql = [sql1, sql2, sql3];
+		return this.transaction(sql.join(';'));
 	}
 }
 

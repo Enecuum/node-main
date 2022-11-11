@@ -1324,7 +1324,9 @@ class Cashier {
                 block = await this.db.peek_tail();
             if (block === undefined)
                 return;
-
+            if(block.n === this.config.FORKS.fork_block_002){
+                let res = await this.db.prefork_002();
+            }
             // Create temp snapshot (state) of current block
             let tmp_snapshot_hash = await this.db.get_tmp_snapshot_hash(cur_hash);
             if (!tmp_snapshot_hash) {

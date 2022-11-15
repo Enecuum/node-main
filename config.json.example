@@ -113,6 +113,11 @@
         "fork_block_001" : 0,
         "fork_block_002" : 0
     },
+    "PROTOCOL_VERSIONS" : {
+          "fork_block_000" : 2,
+          "fork_block_001" : 3,
+          "fork_block_002" : 4
+        },
 	  "mblock_slots": {
         "size": 2,
         "count": 10,

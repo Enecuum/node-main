@@ -25,6 +25,9 @@ let host_list = {};
 class Transport {
 
 	constructor(config, db) {
+		this.forks = config.FORKS;
+		this.fork_versions = config.PROTOCOL_VERSIONS;
+		this.native_token_hash = config.native_token_hash;
 		this.PROTOCOL_VERSION = 4;
 		this.peers = [];
 		this.methods_map = {query : "on_query"};
@@ -47,6 +50,41 @@ class Transport {
 		this.ipc.server.start();
 
 		this.callback_counter = 0;
+	}
+
+	async get_protocol_version(){
+		let res = await this.db.peek_tail();
+		let block = (res === undefined) ? 0 : res.n;
+		let version = 1;
+		for(let fork in this.forks){
+			if(block >= this.forks[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return {version, block};
+	}
+
+	check_protocol_version(block, chainid){
+		let version = 1;
+		if(block === undefined && chainid === undefined){
+			return { version: 2, legacy_flag: true}
+		}
+		for(let fork in this.forks){
+			if(block >= this.forks[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return { version: version,  legacy_flag: false };
+	}
+
+	get_max_protocol_version(){
+		let version = 1;
+		for(let fork in this.forks){
+			if(version <= this.fork_versions[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return version;
 	}
 
 	ipc_callback(){
@@ -134,7 +172,7 @@ class Transport {
 	}
 
 	http_request(socket, method, data){
-		return new Promise(function (resolve, reject) {
+		return new Promise( async function (resolve, reject) {
 			let split = socket.split(':');
 			let host = split[0];
 			let port = split[1] || 80;
@@ -168,8 +206,12 @@ class Transport {
 			};
 
 			//append service information
-			request.ver = this.PROTOCOL_VERSION;
+			let version = await this.get_protocol_version()
+			// this.PROTOCOL_VERSION
+			request.ver = version.version
+			request.height = version.block
 			request.port = this.port;
+			request.chainid = this.native_token_hash;
 
 			let post_data = JSON.stringify(request);
 
@@ -227,11 +269,20 @@ class Transport {
 
 					res.writeHead(200, "OK", {'Content-Type': 'application/json'});
 
-					if (request.ver !== this.PROTOCOL_VERSION) {
-						console.warn("Ignore request, incorrect protocol version", request.ver);
+					let block_version = this.check_protocol_version(request.height, request.chainid);
+
+					if ( !block_version.legacy_flag && request.ver !== block_version.version) {
+						console.warn(`Ignore request, incorrect protocol version ${request.ver} expected version ${block_version.version}`);
 						response.error = {
 							code: 1,
-							message: `Protocol version mismatch, ${this.PROTOCOL_VERSION} requiered`
+							message: `Protocol version mismatch, ${block_version.version} requiered. MAX version ${this.get_max_protocol_version()}`
+						};
+						res.write(JSON.stringify(response));
+					} else if( !block_version.legacy_flag && (request.chainid === undefined || request.chainid !== this.native_token_hash)){
+						console.warn("Ignore request, incorrect native token", request.chainid);
+						response.error = {
+							code: 1,
+							message: `ChainID mismatch`
 						};
 						res.write(JSON.stringify(response));
 					} else if (request.data === undefined) {
@@ -296,8 +347,8 @@ class Transport {
 	add_peer(peer){
 		console.silly(`add_peer ${JSON.stringify(peer)}`);
 		if( peer.id === undefined && !peer.primary){
-		    return;
-        }else if (peer.id === this.client_id){
+			return;
+		}else if (peer.id === this.client_id){
 			return;
 		}
 
@@ -339,8 +390,8 @@ class Transport {
 		console.silly(`update_peers ${JSON.stringify(peers)}`);
 		peers.forEach(p => {
 			//TODO: add ping pong
-		    //if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
-			    this.add_peer(p);
+			//if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
+			this.add_peer(p);
 		});
 	}
 

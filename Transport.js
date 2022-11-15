@@ -53,8 +53,8 @@ class Transport {
 	}
 
 	async get_protocol_version(){
-		let block = (await this.db.peek_tail()).n;
-		block = block !== undefined ? block : 0;
+		let res = await this.db.peek_tail();
+		let block = (res === undefined) ? 0 : res.n;
 		let version = 1;
 		for(let fork in this.forks){
 			if(block >= this.forks[fork]){
@@ -67,7 +67,6 @@ class Transport {
 	check_protocol_version(block, chainid){
 		let version = 1;
 		if(block === undefined && chainid === undefined){
-			console.log("Legacy code message")
 			return { version: 2, legacy_flag: true}
 		}
 		for(let fork in this.forks){

@@ -553,7 +553,7 @@ class Cashier {
                     let _tx = Object.assign({}, tx);
                     _tx.amount -= token_enq.fee_value;
                     // Create contract to get it's params. Without execution
-                    contracts[tx.hash] = await CFactory.create(_tx, this.db);
+                    contracts[tx.hash] = await CFactory.create(_tx, this.db, kblock);
                     // Pass contract's params to substate to add data
                     substate.fillByContract(contracts[tx.hash], tx);
 
@@ -1324,13 +1324,15 @@ class Cashier {
                 block = await this.db.peek_tail();
             if (block === undefined)
                 return;
-
+            if(block.n === this.config.FORKS.fork_block_002){
+                let res = await this.db.prefork_002();
+            }
             // Create temp snapshot (state) of current block
             let tmp_snapshot_hash = await this.db.get_tmp_snapshot_hash(cur_hash);
             if (!tmp_snapshot_hash) {
                 let time = process.hrtime();
                 let tmp_snapshot = await this.db.create_snapshot(cur_hash);
-                let hash = Utils.hash_snapshot(tmp_snapshot);
+                let hash = Utils.hash_snapshot(tmp_snapshot, block.n);
                 console.debug(`Temp snapshot hash of ${block.n} kblock: ${hash}`);
                 await this.db.put_tmp_snapshot(block.link, tmp_snapshot, hash);
                 time = process.hrtime(time);
@@ -1342,7 +1344,7 @@ class Cashier {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);
                 if (!snapshot_hash) {
                     let snapshot = await this.db.create_snapshot(cur_hash);
-                    let hash = Utils.hash_snapshot(snapshot);
+                    let hash = Utils.hash_snapshot(snapshot, block.n);
                     console.info(`Snapshot hash of ${block.n} kblock: ${hash}`);
                     await this.db.put_snapshot(snapshot, hash);
                 }

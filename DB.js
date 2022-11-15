@@ -250,6 +250,14 @@ class DB {
 		return 0;
 	};
 
+    set_status_undelegated_tx(hash){
+        console.debug("set status 3 for undelegated tx ", hash);
+        let upd_mblock = mysql.format(`UPDATE mblocks SET included = 1 WHERE hash in (SELECT mblocks_hash FROM transactions WHERE hash = ?)`,[hash]);
+        let upd_tx = mysql.format(`UPDATE transactions SET status = 3 WHERE hash = ?`,[hash]);
+
+        return this.transaction([upd_mblock, upd_tx].join(';'));
+    };
+
 	async put_snapshot(snapshot, hash){
 		console.debug("putting snapshot", hash);
 		let exist_hash = await this.get_snapshot_hash(snapshot.kblocks_hash);
@@ -617,7 +625,7 @@ class DB {
             console.error(`Snapshot is undefined`);
             return;
         }
-        snapshot.hash = Utils.hash_snapshot(snapshot);
+        snapshot.hash = Utils.hash_snapshot(snapshot, snapshot.kblock.n);
         let init_result = await this.init_snapshot(snapshot, true);
         if (!init_result) {
             console.error(`Failed initialize Database.`);
@@ -1119,25 +1127,33 @@ class DB {
 		for( let pos in substate.delegation_ledger){
 			for( let del in substate.delegation_ledger[pos]){
 				if(substate.delegation_ledger[pos][del].changed === true){
-					state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
-						pos_id : pos,
-						delegator : del,
-						amount : substate.delegation_ledger[pos][del].delegated,
-						reward : substate.delegation_ledger[pos][del].reward
-					}]));
+					if(substate.delegation_ledger[pos][del].delegated === 0n && substate.delegation_ledger[pos][del].reward === 0n){
+						state_sql.push(	mysql.format(`DELETE FROM delegates WHERE pos_id = ? AND delegator = ?;`, [pos, del]));
+					}
+					else
+						state_sql.push(	mysql.format("INSERT INTO delegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount), `reward` = VALUES(reward)", [{
+							pos_id : pos,
+							delegator : del,
+							amount : substate.delegation_ledger[pos][del].delegated,
+							reward : substate.delegation_ledger[pos][del].reward
+						}]));
 				}
 			}
 		}
 
 		for( let und in substate.undelegates){
 			if(substate.undelegates[und].changed === true){
-				state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
-					id : substate.undelegates[und].id,
-					delegator : substate.undelegates[und].delegator,
-					pos_id : substate.undelegates[und].pos_id,
-					amount : substate.undelegates[und].amount,
-					height : substate.undelegates[und].height
-				}]));
+				if(BigInt(substate.undelegates[und].amount) === BigInt(0)){
+					state_sql.push(	mysql.format(`DELETE FROM undelegates WHERE id = ?;`, [substate.undelegates[und].id]));
+				}
+				else
+					state_sql.push(	mysql.format("INSERT INTO undelegates SET ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [{
+						id : substate.undelegates[und].id,
+						delegator : substate.undelegates[und].delegator,
+						pos_id : substate.undelegates[und].pos_id,
+						amount : substate.undelegates[und].amount,
+						height : substate.undelegates[und].height
+					}]));
 			}
 		}
 
@@ -2232,6 +2248,19 @@ class DB {
 			return {};
 		let res = (await this.request(mysql.format(`SELECT * FROM dex_pools WHERE token_hash = ?`, [hash])));
 		return res;
+	}
+	async prefork_002(){
+		/*
+			Функция выполняется перед блоком форка. Она меняет структуру таблиц для получения единообразного
+			хеша снепшота и корректной работы fastsync. Также проводит удаление нулевых записей для оптимизации места.
+		 */
+		let sql1 = mysql.format(`DELETE FROM undelegates WHERE amount = 0;`);
+		let sql2 = mysql.format(`DELETE FROM delegates WHERE amount = 0 AND reward = 0;`);
+		let sql3 = mysql.format(`UPDATE undelegates U
+									INNER JOIN transactions T ON U.id = T.hash and T.status = 3
+									SET U.delegator = T.from;`);
+		let sql = [sql1, sql2, sql3];
+		return this.transaction(sql.join(';'));
 	}
 }
 

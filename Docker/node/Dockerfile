@@ -65,7 +65,7 @@ ENV EXPLORER_INSTANCES 1
 CMD if [ "$B_VAR" = "POW" ] ; then \
 	pm2 start isyncer.js --name "syncer" -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY --fastsync.lag_interval_b=$LAG_INTERVAL --fastsync.sync_interval_b=$SYNC_INTERVAL ;\
 	pm2 start itransport.js --name "transport" -- --port=$PORT --peer=$PEER --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
-	pm2 start iminer.js --name "miner" -i $MINER_INSTANCES -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
+	pm2 start iminer.js --name "miner" -i $MINER_INSTANCES -- --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY --randomx.mode="mine" --randomx.key=0410591dc8b3bba89f949212982f05deeb4a1947e939c62679dfc7610c62 ;\
 	pm2 start inodeapi.js --name "nodeapi" -- --enable_post_tx=$POST_TX --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS --id=$PUB_KEY ;\
 	pm2-runtime icashier.js --name "cashier"  -- --cashier_interval_ms 10 --dbhost=$DB_HOST --dbport=$DB_PORT --dbpass=$DB_PASS ;\
 elif [ "$B_VAR" = "POS" ] ; then \

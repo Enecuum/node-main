@@ -1060,12 +1060,16 @@ class DB {
 			sb.push(mysql.format("UPDATE sblocks SET `calculated` = 1, `reward` = ? WHERE `hash` = ?", [s.reward, s.hash]));
 		});
 		for(let hash in supply_change) {
-			let ts = await this.request(mysql.format("select total_supply from tokens WHERE hash = ?", [hash]));
-			//console.warn(ts[0].total_supply, supply_change[hash])
-			ts = BigInt(ts[0].total_supply) + BigInt(supply_change[hash]);
-			let sql = mysql.format("UPDATE tokens SET total_supply = ? WHERE hash = ?", [ts, hash])
-			//console.warn(sql)
-			sc.push(sql);
+			if (kblock.n >= this.app_config.FORKS.fork_block_002){
+				let ts = await this.request(mysql.format("select total_supply from tokens WHERE hash = ?", [hash]));
+				//console.warn(ts[0].total_supply, supply_change[hash])
+				ts = BigInt(ts[0].total_supply) + BigInt(supply_change[hash]);
+				let sql = mysql.format("UPDATE tokens SET total_supply = ? WHERE hash = ?", [ts, hash])
+				//console.warn(sql)
+				sc.push(sql);
+			}else{
+				sc.push(mysql.format("UPDATE tokens SET total_supply = total_supply + ? WHERE hash = ?", [supply_change[hash], hash]));
+			}
 		}
 
 		let ind = this.generate_eindex(rewards, kblock.time);

@@ -221,7 +221,7 @@ class DB {
 	};
 
 	async rollback_calculation(height){
-		let kblocks = await this.request(mysql.format('SELECT hash FROM kblocks WHERE n >= ?', [height]));
+		let kblocks = await this.request(mysql.format('SELECT hash FROM kblocks WHERE n >= ? AND n <= (SELECT n FROM kblocks WHERE hash = (SELECT `value` FROM stat WHERE `key` = \'cashier_ptr\'))', [height]));
 		let kblock_hashes = kblocks.map(k => k.hash);
 		if (kblock_hashes.length > 0) {
 			/*
@@ -1046,7 +1046,7 @@ class DB {
         return await this.request(sql);
     }
 
-	terminate_ledger_kblock(accounts, kblock, mblocks, sblocks, post_action, supply_change, rewards){
+	async terminate_ledger_kblock(accounts, kblock, mblocks, sblocks, post_action, supply_change, rewards){
 		let ins = mysql.format("INSERT INTO ledger (`id`, `amount`, `token`) VALUES ? ON DUPLICATE KEY UPDATE `amount` = VALUES(amount)", [accounts.map(a => [a.id, a.amount, a.token])]);
 		let sw = mysql.format("INSERT INTO stat (`key`, `value`) VALUES ('cashier_ptr', (SELECT `hash` FROM kblocks WHERE `link` = ? AND `hash` <> `link`)) ON DUPLICATE KEY UPDATE `value` = VALUES(value)", kblock.hash);
 		let krew = 	mysql.format("UPDATE kblocks SET `reward` = ? WHERE `hash` = ?", [kblock.reward, kblock.hash]);
@@ -1061,8 +1061,14 @@ class DB {
 		sblocks.forEach(function (s) {
 			sb.push(mysql.format("UPDATE sblocks SET `calculated` = 1, `reward` = ? WHERE `hash` = ?", [s.reward, s.hash]));
 		});
-		for(let hash in supply_change)
-			sc.push(mysql.format("UPDATE tokens SET total_supply = total_supply + ? WHERE hash = ?", [supply_change[hash], hash]));
+		for(let hash in supply_change) {
+			let ts = await this.request(mysql.format("select total_supply from tokens WHERE hash = ?", [hash]));
+			//console.warn(ts[0].total_supply, supply_change[hash])
+			ts = BigInt(ts[0].total_supply) + BigInt(supply_change[hash]);
+			let sql = mysql.format("UPDATE tokens SET total_supply = ? WHERE hash = ?", [ts, hash])
+			//console.warn(sql)
+			sc.push(sql);
+		}
 
 		let ind = this.generate_eindex(rewards, kblock.time);
 
@@ -1851,7 +1857,10 @@ class DB {
 
 	async get_statistic_year_blocks_count(blocks_interval){
 		let year_blocks_count = 60 / this.app_config.target_speed * 60 * 24 * 365;
-		let last_blocks_time = (await this.request(mysql.format(`SELECT (UNIX_TIMESTAMP() - kblocks.time) as time FROM kblocks WHERE n = (SELECT n - ${blocks_interval} FROM kblocks WHERE hash = (SELECT stat.value FROM stat WHERE stat.key = 'cashier_ptr'))`)))[0].time;
+		let last_blocks_time;
+		let res = (await this.request(mysql.format(`SELECT (UNIX_TIMESTAMP() - kblocks.time) as time FROM kblocks WHERE n = (SELECT n - ${blocks_interval} FROM kblocks WHERE hash = (SELECT stat.value FROM stat WHERE stat.key = 'cashier_ptr'))`)))[0];
+		if(res != undefined)
+			last_blocks_time = res.time;
 		let statistic_year_blocks_count = 0;
 		if (last_blocks_time !== null)
 			statistic_year_blocks_count = 60 * 60 * 24 * blocks_interval * 365 / Number(last_blocks_time);

@@ -268,7 +268,7 @@ class Substate {
                 break;
             case "dex_cmd_distribute" : {
                 this.accounts.push(Utils.DEX_COMMANDER_ADDRESS);
-                // this.accounts.push(Utils.DEX_BURN_ADDRESS);
+                this.accounts.push(Utils.DEX_BURN_ADDRESS);
                 this.tokens.push(Utils.DEX_ENX_TOKEN_HASH);
                 this.tokens.push(contract.data.parameters.token_hash);
                 this.farms.push(Utils.DEX_SPACE_STATION_ID);

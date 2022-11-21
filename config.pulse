@@ -66,17 +66,6 @@
     12500e10,
     25000e10
   ],
-  "contract_pricelist": {
-    "create_token" :    10000000000000,
-    "create_pos" :      5000000000000,
-    "delegate" :        0,
-    "undelegate" :      0,
-    "transfer" :        0,
-    "pos_reward" :      0,
-    "mint" :            0,
-    "burn" :            0,
-    "custom" :          20000000000
-},
   "first_message_always_probe" : false,
   "karma" : {
         "init" : 1,
@@ -102,7 +91,10 @@
     }
   },
   "FORKS" : {
-    "fork_block_001" : 41000
+    "fork_block_000" : 0,
+    "fork_block_001" : 41000,
+    "fork_block_002" : 1270000,
+    "fork_block_003" : 0
   },
   "mblock_slots": {
       "size": 2,
@@ -114,7 +106,7 @@
           "random"
       ]
   },
-  "feader_watchdog": 12,
+  "feeder_watchdog": 12,
   "enable_post_tx": false,
   "sync_validation_try_count": 10
 }

@@ -119,5 +119,8 @@
       "reward" : 0
     }],
   "undelegates" : [],
-  "tokens_index" : []
+  "tokens_index" : [],
+  "dex_pools" : [],
+  "farms" : [],
+  "farmers" : []
 }

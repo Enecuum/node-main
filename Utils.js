@@ -73,6 +73,7 @@ function apiRequest(options){
                     body = JSON.parse(body);
                 }
                 catch (err) {
+            		console.error(`body is not JSON: ${body}`);
                     return reject(new Error('apiRequest parse error : ' + err));
                 }
             return resolve(body);
@@ -89,14 +90,23 @@ let utils = {
 	},
 	MAX_SUPPLY_LIMIT : BigInt('18446744073709551615'),
 	PERCENT_FORMAT_SIZE : BigInt(10000),
+	FARMS_LEVEL_PRECISION : BigInt('10000000000000000000'),
+	DEX_COMMANDER_ADDRESS : config.dex.DEX_COMMANDER_ADDRESS,
+	DEX_BURN_ADDRESS : config.dex.DEX_BURN_ADDRESS,
+	DEX_ENX_TOKEN_HASH : config.dex.DEX_ENX_TOKEN_HASH,
+	DEX_SPACE_STATION_ID : config.dex.DEX_SPACE_STATION_ID,
+	DEX_COMMANDER_FEE : BigInt(config.dex.DEX_COMMANDER_FEE),
+	DEX_POOL_FEE : BigInt(config.dex.DEX_POOL_FEE),
 	MINER_INTERVAL : 1000,
-	POS_MINER_RESEND_INTERVAL : 15000,
+	M_ROOT_RESEND_INTERVAL : 40000,
+	POS_MINER_RESEND_INTERVAL : 30000,
 	MINER_CHECK_TARGET_INTERVAL : 100,
-	MAX_COUNT_NOT_COMPLETE_BLOCK : 20,
+	MAX_COUNT_NOT_COMPLETE_BLOCK : 200,
 	PID_TIMEOUT : 10, //sec
 	SYNC_CHUNK_SIZE : 1000000, //byte
 	SYNC_FAILURES_LIMIT : 5,
 	SYNC_IGNORE_TIMEOUT : 7200000, //ms  2 hours
+	MAX_NONCE : 2147483647, //Maximum Value Signed Int
 
 	pid_cached : 0,
 	lastTime : Date.now(),
@@ -123,6 +133,20 @@ let utils = {
 		catch(err){
 			console.error("Verification error: ", err);
 			console.error({sign});
+			return false;
+		}
+	},
+	ecdsa_verify_jsrsasign : function(cpkey, sign, msg){
+		let sig = new rsasign.Signature({ "alg": 'SHA256withECDSA' });
+		try {
+			let pkey;
+			pkey = crypto.ECDH.convertKey(cpkey, 'secp256k1', 'hex', 'hex', 'uncompressed');
+			sig.init({ xy: pkey, curve: 'secp256k1' });
+			sig.updateString(msg);
+			return sig.verify(sign);
+		}
+		catch(err){
+			console.error("Verification error: ", err);
 			return false;
 		}
 	},
@@ -160,8 +184,8 @@ let utils = {
 		for(let i = 0; i < len; i++){
 			let value = Object.values(param_obj)[i];
 			const parsed = parseInt(value, 10);
-  			if (isNaN(parsed) || parsed < 0) 
-  				return false; 
+  			if (isNaN(parsed) || parsed < 0)
+  				return false;
   			sum += BigInt(parsed);
 		}
 		return sum === this.PERCENT_FORMAT_SIZE;
@@ -180,7 +204,7 @@ let utils = {
 	},
 	compareBlocksByHash(a, b) {
 		if (a.hash < b.hash) return -1;
-  		return a.hash > b.hash ? 1 : 0;		
+  		return a.hash > b.hash ? 1 : 0;
 	},
 	hash_kblock : function(kblock, vm){
 		if (!kblock)
@@ -208,18 +232,47 @@ let utils = {
 		let str = ['amount','from','nonce','sign','to'].map(v => crypto.createHash('sha256').update(tx[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	hash_snapshot : function(snapshot){
+	hash_snapshot : function(snapshot, height){
 		let ledger_accounts_hash = crypto.createHash('sha256').update(snapshot.ledger.map(account => this.hash_ledger(account)).sort().join("")).digest('hex');
 		let tokens_hash = crypto.createHash('sha256').update(snapshot.tokens.map(token => this.hash_token(token)).sort().join("")).digest('hex');
 		let poses_hash = crypto.createHash('sha256').update(snapshot.poses.map(pos => this.hash_pos(pos)).sort().join("")).digest('hex');
 		let delegates_hash = crypto.createHash('sha256').update(snapshot.delegates.map(delegate => this.hash_delegated(delegate)).sort().join("")).digest('hex');
-		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate)).sort().join("")).digest('hex');
+		let undelegates_hash = crypto.createHash('sha256').update(snapshot.undelegates.map(undelegate => this.hash_undelegated(undelegate, height)).sort().join("")).digest('hex');
+		let dex_pools_hash = "";
+		let farms_hash = "";
+		let farmers_hash = "";
+		if (height >= config.FORKS.fork_block_002) {
+			dex_pools_hash = crypto.createHash('sha256').update(snapshot.dex_pools.map(dex_pool => this.hash_dex_pool(dex_pool)).sort().join("")).digest('hex');
+			farms_hash = crypto.createHash('sha256').update(snapshot.farms.map(farm => this.hash_farm(farm)).sort().join("")).digest('hex');
+			farmers_hash = crypto.createHash('sha256').update(snapshot.farmers.map(farmer => this.hash_farmer(farmer)).sort().join("")).digest('hex');
+		}
 		return crypto.createHash('sha256').update(snapshot.kblocks_hash.toLowerCase() +
 			ledger_accounts_hash.toLowerCase() +
 			tokens_hash.toLowerCase() +
 			poses_hash.toLowerCase() +
 			delegates_hash.toLowerCase() +
-			undelegates_hash.toLowerCase()).digest('hex');
+			undelegates_hash.toLowerCase() +
+			dex_pools_hash.toLowerCase() +
+			farms_hash.toLowerCase() +
+			farmers_hash.toLowerCase()).digest('hex');
+	},
+	hash_farm : function(farm){
+		if (!farm)
+			return undefined;
+		let str = [	'farm_id', 'stake_token', 'reward_token', 'emission', 'block_reward', 'level', 'total_stake', 'last_block', 'accumulator'].map(v => crypto.createHash('sha256').update(farm[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
+	},
+	hash_farmer : function(farmer){
+		if (!farmer)
+			return undefined;
+		let str = [	'farm_id', 'farmer_id', 'stake', 'level'].map(v => crypto.createHash('sha256').update(farmer[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
+	},
+	hash_dex_pool : function(dex_pool){
+		if (!dex_pool)
+			return undefined;
+		let str = ['pair_id','asset_1','volume_1','asset_2','volume_2','pool_fee','token_hash'].map(v => crypto.createHash('sha256').update(dex_pool[v].toString().toLowerCase()).digest('hex')).join("");
+		return crypto.createHash('sha256').update(str).digest('hex');
 	},
 	hash_token : function(token){
 		if (!token)
@@ -252,13 +305,17 @@ let utils = {
 		let str = ['pos_id','delegator','amount','reward'].map(v => crypto.createHash('sha256').update(delegate[v].toString().toLowerCase()).digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	hash_undelegated : function(undelegate){
+	hash_undelegated : function(undelegate, height){
 		if (!undelegate)
 			return undefined;
-		let str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v].toString().toLowerCase()).digest('hex')).join("");
+		let str;
+		if (height >= config.FORKS.fork_block_002)
+			str = ['id','delegator','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
+		else
+			str = ['id','pos_id','amount','height'].map(v => crypto.createHash('sha256').update(undelegate[v] != undefined ? undelegate[v].toString().toLowerCase() : '').digest('hex')).join("");
 		return crypto.createHash('sha256').update(str).digest('hex');
 	},
-	merkle_root : function (mblocks, sblocks, snapshot_hash) {
+	merkle_root_000 : function (mblocks, sblocks, snapshot_hash) {
 		let acc = "";
 		mblocks.sort(this.compareBlocksByHash);
 		mblocks.forEach((mblock) => {
@@ -285,10 +342,42 @@ let utils = {
 				.toString('hex');
 		return acc;
 	},
+	merkle_root_002 : function (mblocks, sblocks, snapshot_hash) {
+		mblocks.sort(this.compareBlocksByHash);
+		sblocks.sort(this.compareBlocksByHash);
+		let m_root = this.merkle_tree(mblocks.map(m=> m.hash));
+		let s_root = this.merkle_tree(sblocks.map(s=> s.hash));
+		if(!snapshot_hash)
+			snapshot_hash = '';
+		return crypto.createHmac('sha256', '')
+			.update(m_root)
+			.update(s_root)
+			.update(snapshot_hash)
+			.digest()
+			.toString('hex');
+	},
+	merkle_tree : function(array) {
+		if (array.length === 1)
+			return array[0];
+		else {
+			let new_arr = [];
+			let j = 0;
+			for (let i = 0; i < array.length; i=i+2) {
+				new_arr[j] = this.merkle_node(array[i], ((i + 1) < array.length) ? array[i+1] : array[i]);
+				j++;
+			}
+			return this.merkle_tree(new_arr);
+		}
+	},
+	merkle_node : function(hash_a, hash_b) {
+		return crypto.createHash('sha256').update(
+			hash_a + hash_b
+		).digest('hex');
+	},
 	get_txhash : function(tx){
 		if (!tx)
 			return undefined;
-		let model = ['amount','data','from','nonce','sign','ticker','to'];		
+		let model = ['amount','data','from','nonce','sign','ticker','to'];
 		let str;
 		try{
 			str = model.map(v => crypto.createHash('sha256').update(tx[v].toString().toLowerCase()).digest('hex')).join("");
@@ -310,7 +399,97 @@ let utils = {
 		});
 		return mblocks;
 	},
-	valid_leader_sign(mblocks, LPoSID, ECC, cfg_ecc){
+	leader_sign_000(LPoSID, leader_msk, mblock_data, ECC, cfg_ecc, debug_short, need_fail) {
+		let msk = enq.BigNumber(leader_msk);
+
+		let H, Q, m_hash;
+		let secret, leader_sign;
+		let weil_err = false;
+		let verified = true;
+		mblock_data.nonce = 0;
+
+		if (cfg_ecc.ecc_mode === "short") {
+			do {
+				mblock_data.nonce = mblock_data.nonce + 1;
+				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
+				m_hash = this.hash_mblock(mblock_data);
+				console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+
+				let PK_LPoS = enq.getHash(mblock_data.kblocks_hash.toString() + LPoSID.toString() + mblock_data.nonce.toString());
+				let H_hash = enq.getHash(m_hash.toString() + LPoSID.toString());
+				H = enq.toPoint(parseInt(H_hash.slice(0, 5), 16), ECC.G, ECC.curve);
+				Q = enq.toPoint(parseInt(PK_LPoS.slice(0, 5), 16), ECC.G, ECC.curve);
+				if (!H.isInfinity(ECC.curve) && !Q.isInfinity(ECC.curve)) {
+					secret = enq.mul(msk, Q, ECC.curve);
+					leader_sign = enq.sign(m_hash, LPoSID, ECC.G, ECC.G0, secret, ECC.curve);
+					weil_err = ((parseInt(H_hash.slice(0, 5), 16) % 13) === 7) && (leader_sign.r.x === 41) && (leader_sign.r.y === 164);
+				}
+			} while (need_fail ^ (H.isInfinity(ECC.curve) || Q.isInfinity(ECC.curve) || weil_err));
+		} else {
+			do {
+				mblock_data.nonce = mblock_data.nonce + 1;
+				//mblock_data.txs[0].nonce = mblock_data.txs[0].nonce + 1;
+				m_hash = this.hash_mblock(mblock_data);
+				console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+				let PK_LPoS = enq.getHash(mblock_data.kblocks_hash.toString() + LPoSID.toString() + mblock_data.nonce.toString());
+				//Q = enq.toPoint(PK_LPoS, G, curve);
+				let bnPK_LPoS = enq.BigNumber(PK_LPoS);
+				let Q = enq.getQ(bnPK_LPoS, ECC.curve, ECC.e_fq);
+				secret = enq.mul(msk, Q, ECC.curve);
+				try {
+					leader_sign = enq.sign_tate(m_hash, LPoSID, ECC.G0_fq, secret, ECC.curve, ECC.e_fq);
+					//verified = enq.verify_tate(leader_sign, m_hash, PK_LPoS, G0_fq, MPK_fq, LPoSID, curve, e_fq);
+				} catch (e) {
+					console.error(e)
+				}
+			} while (need_fail ^ !verified);
+		}
+		return {m_hash, leader_sign};
+	},
+	leader_sign(leader_id, leader_msk, kblocks_hash, merkle_root, ECC, cfg_ecc, debug_short, need_fail) {
+		let LPoSID = leader_id;
+
+		let msk = enq.BigNumber(leader_msk);
+
+		let H, Q, m_hash;
+		let secret, leader_sign;
+		let weil_err = false;
+		let verified = true;
+		// mblock_data.nonce = 0;
+
+		if (cfg_ecc.ecc_mode === "short") {
+			do {
+				let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+				let H_hash = enq.getHash(merkle_root.toString() + LPoSID.toString());
+				H = enq.toPoint(parseInt(H_hash.slice(0, 5), 16), ECC.G, ECC.curve);
+				Q = enq.toPoint(parseInt(PK_LPoS.slice(0, 5), 16), ECC.G, ECC.curve);
+				if (!H.isInfinity(ECC.curve) && !Q.isInfinity(ECC.curve)) {
+					secret = enq.mul(msk, Q, ECC.curve);
+					leader_sign = enq.sign(merkle_root, LPoSID, ECC.G, ECC.G0, secret, ECC.curve);
+					weil_err = ((parseInt(H_hash.slice(0, 5), 16) % 13) === 7) && (leader_sign.r.x === 41) && (leader_sign.r.y === 164);
+				}
+			} while (need_fail ^ (H.isInfinity(ECC.curve) || Q.isInfinity(ECC.curve) || weil_err));
+
+		} else {
+			do {
+				//m_hash = Utils.hash_mblock(mblock_data);
+				//console.silly(`recreating block, nonce = ${mblock_data.nonce}, m_hash = ${m_hash}`);
+				let PK_LPoS = enq.getHash(kblocks_hash.toString() + LPoSID.toString());
+				//Q = enq.toPoint(PK_LPoS, G, curve);
+				let bnPK_LPoS = enq.BigNumber(PK_LPoS);
+				let Q = enq.getQ(bnPK_LPoS, ECC.curve, ECC.e_fq);
+				secret = enq.mul(msk, Q, ECC.curve);
+				try {
+					leader_sign = enq.sign_tate(merkle_root, LPoSID, ECC.G0_fq, secret, ECC.curve, ECC.e_fq);
+					//verified = enq.verify_tate(leader_sign, m_hash, PK_LPoS, G0_fq, MPK_fq, LPoSID, curve, e_fq);
+				} catch (e) {
+					console.error(e)
+				}
+			} while (need_fail ^ !verified);
+		}
+		return leader_sign;
+	},
+	valid_leader_sign_000(mblocks, LPoSID, ECC, cfg_ecc){
 		mblocks = mblocks.sort(this.compareBlocksByHash);
 		let ecc_mode = cfg_ecc.ecc_mode;
 		let mblock_data = mblocks[0];
@@ -323,6 +502,24 @@ let utils = {
 			}
 			else{
 				isValid = enq.verify_tate(mblock_data.leader_sign, mblock_data.hash, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
+			}
+		}
+		catch(e){
+			console.error(e);
+		}
+		return isValid;
+	},
+	valid_leader_sign_002(kblock_hash, m_root, leader_sign, LPoSID, ECC, cfg_ecc){
+		let ecc_mode = cfg_ecc.ecc_mode;
+		let PK_LPoS = enq.getHash(kblock_hash.toString() + LPoSID.toString());
+		let isValid = false;
+		try{
+			if(ecc_mode === "short"){
+				let MPK = enq.Point(enq.BigNumber(cfg_ecc[ecc_mode].MPK.x), enq.BigNumber(cfg_ecc[ecc_mode].MPK.y), ECC.curve);
+				isValid = enq.verify(leader_sign, m_root, PK_LPoS, ECC.G, ECC.G0, MPK, LPoSID, ECC.p, ECC.curve);
+			}
+			else{
+				isValid = enq.verify_tate(leader_sign, m_root, PK_LPoS, ECC.G0_fq, cfg_ecc[ecc_mode].MPK, LPoSID, ECC.curve, ECC.e_fq);
 			}
 		}
 		catch(e){
@@ -351,6 +548,20 @@ let utils = {
 				console.trace(`ignoring mblock ${JSON.stringify(mblock)} due to low stake`);
 				return false;
 			}
+			let regexAddress = /^(02|03)[0-9a-fA-F]{64}$/
+			if (mblock.referrer != undefined && !regexAddress.test(mblock.referrer)) {
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} referrer not correct`);
+				return false;
+			}
+
+			mblock.txs = mblock.txs.filter((tx)=>{
+				let hash = this.hash_tx_fields(tx);
+				if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
+					console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
+					return false;
+				}else
+					return true;
+			});
 
 			let recalc_hash = this.hash_mblock(mblock);
 		 	let signed_msg = recalc_hash + (mblock.referrer ? (mblock.referrer) : "") + mblock.token;
@@ -360,14 +571,6 @@ let utils = {
 		 		if (!check_txs_sign)
 		 		    return true;
 		 		total_tx_count += mblock.txs.length;
-				mblock.txs = mblock.txs.filter((tx)=>{
-					let hash = this.hash_tx_fields(tx);
-					if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
-						console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
-						return false;
-					}else
-						return true;
-				});
 				if(mblock.txs.length === 0){
 					console.warn(`Ignore empty mblock ${mblock.hash}`);
 					return false;
@@ -507,6 +710,9 @@ let utils = {
 				return BigInt(tokendata.fee_min);
 			return fee;
 		}
+		if(tokendata.fee_type === 2){
+			return BigInt(0);
+		}
 	},
 	understandable_difficulty : function(int32){
 		let ceil = (int32 >> 24);
@@ -598,10 +804,37 @@ let utils = {
 			return integerPart + delimiter + fractionalPart.substring(0, fixed);
 		}
 		else return '';
+	},
+	getPairId : function(asset_1, asset_2){
+		if(BigInt(`0x${asset_1}`) < BigInt(`0x${asset_2}`))
+			return {
+				pair_id : `${asset_1}${asset_2}`,
+				asset_1 : asset_1,
+				asset_2 : asset_2
+			};
+		else return {
+			pair_id : `${asset_2}${asset_1}`,
+			asset_1 : asset_2,
+			asset_2 : asset_1
+		};
+	},
+	sqrt : function(value) {
+		if (value < BigInt(0)) {
+			throw 'square root of negative numbers is not supported'
+		}
+		if (value < BigInt(2)) {
+			return value;
+		}
+		function newtonIteration(n, x0) {
+			const x1 = ((n / x0) + x0) >> BigInt(1);
+			if (x0 === x1 || x0 === (x1 - BigInt(1))) {
+				return x0;
+			}
+			return newtonIteration(n, x1);
+		}
+		return newtonIteration(value, BigInt(1));
 	}
 };
-
-
 
 module.exports = utils;
 module.exports.ECC = ECC;

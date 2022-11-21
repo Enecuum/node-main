@@ -16,7 +16,7 @@ const argv = require('yargs').argv;
 const fs = require('fs');
 
 const DB = require('./DB').DB;
-const Cashier = require('./Cashier');
+const Cashier = require('./Cashier').Cashier;
 
 const CONFIG_FILENAME = 'config.json';
 

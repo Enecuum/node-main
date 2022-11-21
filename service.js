@@ -124,7 +124,7 @@ let service = async function(config, db) {
                 let included_mblocks = await db.get_included_microblocks(kblocks[i].link);
                 let included_sblocks = await db.get_included_statblocks(kblocks[i].link);
                 let snapshot_hash = await db.get_snapshot_hash(kblocks[i].link);
-                let recalc_m_root = Utils.merkle_root(included_mblocks, included_sblocks, snapshot_hash);
+                let recalc_m_root = Utils.merkle_root_000(included_mblocks, included_sblocks, snapshot_hash);
 
                 if(recalc_m_root !== kblocks[i].m_root)
                     console.warn(`${i} | After recalc block, changed m_root: before ${kblocks[i].m_root}, after ${recalc_m_root}`);

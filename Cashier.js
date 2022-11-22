@@ -547,7 +547,7 @@ class Cashier {
         for(let i = 0; i < chunk.txs.length; i++){
             let tx = chunk.txs[i];
 
-            if (CFactory.isContract(tx.data)) {
+            if (CFactory.isContract(tx.data, kblock.n)) {
                 try {
                     // Clone tx object so we can pass amount without fee
                     let _tx = Object.assign({}, tx);
@@ -1077,7 +1077,7 @@ class Cashier {
                 i--;
                 continue;
             }
-            if (CFactory.isContract(tx.data)) {
+            if (CFactory.isContract(tx.data, kblock.n)) {
                 try {
                     // Clone tx object so we can pass amount without fee
                     let _tx = Object.assign({}, tx);

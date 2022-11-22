@@ -34,7 +34,11 @@ let schema = {
     "pool_buy_exact" :          "2100",
     "pool_buy_exact_routed" :   "2200",
 };
-const contracts = [
+const contracts_000 = [
+    "0100", "0200", "0300", "0400", "1000",
+    "1100", "1200", "1300", "1400"
+];
+const contracts_002 = [
     "0100", "0200", "0300", "0400", "1000",
     "1100", "1200", "1300", "1400", "1500",
     "1600", "1700", "1800", "1900", "1a00",
@@ -44,7 +48,7 @@ const contracts = [
 class ContractParser {
     constructor() {
         this.schema = schema;
-        this.contracts = contracts;
+        this.contracts = contracts_002;
     }
     toHex(d) {
         let hex = Number(d).toString(16);
@@ -74,12 +78,24 @@ class ContractParser {
             data : bin.substr(8, size - 8)
         }
     }
+    getContractsId(forks, n){
+        let Contracts = [contracts_000, contracts_000, contracts_002]; // first duplicate contracts_000 but fork_001 didn`t change the contracts list
+        let fork_keys = Object.keys(forks);
+        let idx = fork_keys.length - 1;
+        for(let i = 0; i < fork_keys.length; i++){
+            if(forks[fork_keys[i]] > n)
+                break;
+            idx = i;
+        }
+        return Contracts[idx];
+    }
     // TODO: possible false-positive results because of data field format
-    isContract(raw) {
+    isContract(raw, FORKS, n) {
+        let contracts = (FORKS === undefined || n === undefined) ? this.contracts : this.getContractsId(FORKS, n);
         if(raw === undefined || raw === null)
             return false;
         let chunk = this.getChunk(raw);
-        if((chunk.size === raw.length) && this.contracts.includes(chunk.code))
+        if((chunk.size === raw.length) && contracts.includes(chunk.code))
             return chunk.key;
         return false;
     }

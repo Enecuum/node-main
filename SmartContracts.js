@@ -25,13 +25,13 @@ class ContractFactory{
         this.config = config
     }
     createContract(raw, n = Utils.MAX_SUPPLY_LIMIT){
-        let type = this.parser.isContract(raw);
+        let type = this.parser.isContract(raw, this.config.FORKS, n);
         let data = this.parser.parse(raw);
         let Contracts = getContractMachine(this.config.FORKS, n);
 
-        let ENX_TOKEN_HASH = ""
+        let ENX_TOKEN_HASH = "";
         if (this.config.FORKS.fork_block_003 < n)
-            ENX_TOKEN_HASH = this.config.dex.DEX_ENX_TOKEN_HASH
+            ENX_TOKEN_HASH = this.config.dex.DEX_ENX_TOKEN_HASH;
 
         switch(type) {
             case "create_token" :           return new Contracts.TokenCreateContract(data);
@@ -86,8 +86,8 @@ class ContractFactory{
         }
         return contract;
     }
-    isContract(raw) {
-        return this.parser.isContract(raw);
+    isContract(raw, n) {
+        return this.parser.isContract(raw, this.config.FORKS, n);
     }
     parse(raw){
         return this.parser.parse(raw);

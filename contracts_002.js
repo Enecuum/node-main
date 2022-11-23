@@ -869,9 +869,13 @@ class PoolLiquidityAddContract extends Contract {
         assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
         assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
 
+        let lt_info = (await substate.get_token_info(pool_info.token_hash));
+        if(!lt_info)
+            throw new ContractError(`Token ${pool_info.token_hash} not found`);
+       
         if((BigInt(assets.amount_1) * BigInt(assets.amount_2)) === BigInt(0))
             throw new ContractError(`amount_1 * amount_2 cannot be 0`);
-
+        
         let token_1_info = (await substate.get_token_info(assets.asset_1));
         if(!token_1_info)
             throw new ContractError(`Token ${assets.asset_1} not found`);
@@ -882,39 +886,48 @@ class PoolLiquidityAddContract extends Contract {
         let pool_exist = (await substate.dex_check_pool_exist(pair_id));
         if(!pool_exist)
             throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
-
+        
         let pool_info = await substate.dex_get_pool_info(pair_id);
+        let amount_1, amount_2, lt_amount;
 
-        let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
-        let required_2 = pool_info.volume_2 * assets.amount_1 / pool_info.volume_1;
+        if (!lt_info.total_supply) {
+            let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
+            if(BigInt(balance_1.amount) - BigInt(assets.amount_1) < BigInt(0))
+               throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
+            let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
+            if(BigInt(balance_2.amount) - BigInt(assets.amount_2) < BigInt(0))
+               throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
+            amount_1 = assets.amount_1
+            amount_2 = assets.amount_2
+            // lt = sqrt(amount_1 * amount_2)
+            lt_amount = Utils.sqrt(assets.amount_1 * assets.amount_2);
+        } else {
+                        let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
+            let required_2 = pool_info.volume_2 * assets.amount_1 / pool_info.volume_1;
 
-        let amount_1, amount_2;
+           
+            if(assets.amount_1 >= required_1){
+                amount_1 = required_1;
+                amount_2 = assets.amount_2;
+            }
+            else{
+                amount_1 = assets.amount_1;
+                amount_2 = required_2
+            }
 
-        if(assets.amount_1 >= required_1){
-            amount_1 = required_1;
-            amount_2 = assets.amount_2;
+            let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
+            if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
+                throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
+            let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
+            if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
+                throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
+
+            // liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
+            let lt_amount_1 = amount_1 * lt_info.total_supply / pool_info.volume_1;
+            let lt_amount_2 = amount_2 * lt_info.total_supply / pool_info.volume_2;
+            lt_amount = lt_amount_1 < lt_amount_2 ? lt_amount_1 : lt_amount_2;
         }
-        else{
-            amount_1 = assets.amount_1;
-            amount_2 = required_2
-        }
-
-        let balance_1 = (await substate.get_balance(tx.from, assets.asset_1));
-        if(BigInt(balance_1.amount) - BigInt(amount_1) < BigInt(0))
-            throw new ContractError(`Token ${assets.asset_1} insufficient balance`);
-        let balance_2 = (await substate.get_balance(tx.from, assets.asset_2));
-        if(BigInt(balance_2.amount) - BigInt(amount_2) < BigInt(0))
-            throw new ContractError(`Token ${assets.asset_2} insufficient balance`);
-
-        let lt_info = (await substate.get_token_info(pool_info.token_hash));
-        if(!lt_info)
-            throw new ContractError(`Token ${pool_info.token_hash} not found`);
-
-        // liquidity = Math.min(amount0.mul(_totalSupply) / _reserve0, amount1.mul(_totalSupply) / _reserve1);
-        let lt_amount_1 = amount_1 * lt_info.total_supply / pool_info.volume_1;
-        let lt_amount_2 = amount_2 * lt_info.total_supply / pool_info.volume_2;
-        let lt_amount = lt_amount_1 < lt_amount_2 ? lt_amount_1 : lt_amount_2;
-
+      
         let pool_data = {
             pair_id : pair_id,
             asset_1 : assets.asset_1,

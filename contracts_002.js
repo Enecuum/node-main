@@ -868,6 +868,8 @@ class PoolLiquidityAddContract extends Contract {
         let pair_id = assets.pair_id;
         assets.amount_1 = (params.asset_1 === assets.asset_1) ? params.amount_1 : params.amount_2;
         assets.amount_2 = (params.asset_2 === assets.asset_2) ? params.amount_2 : params.amount_1;
+        
+        let pool_info = await substate.dex_get_pool_info(pair_id);
 
         let lt_info = (await substate.get_token_info(pool_info.token_hash));
         if(!lt_info)
@@ -887,7 +889,6 @@ class PoolLiquidityAddContract extends Contract {
         if(!pool_exist)
             throw new ContractError(`Pool ${assets.asset_1}_${assets.asset_2} not exist`);
         
-        let pool_info = await substate.dex_get_pool_info(pair_id);
         let amount_1, amount_2, lt_amount;
 
         if (!lt_info.total_supply) {
@@ -902,7 +903,7 @@ class PoolLiquidityAddContract extends Contract {
             // lt = sqrt(amount_1 * amount_2)
             lt_amount = Utils.sqrt(assets.amount_1 * assets.amount_2);
         } else {
-                        let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
+            let required_1 = pool_info.volume_1 * assets.amount_2 / pool_info.volume_2;
             let required_2 = pool_info.volume_2 * assets.amount_1 / pool_info.volume_1;
 
            

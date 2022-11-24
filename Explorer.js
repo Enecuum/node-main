@@ -318,6 +318,16 @@ class Explorer {
 			console.trace('requested balances', req.query);
 			let id = req.query.id;
 			let data = await this.db.get_balance_all(id);
+			let that = this;
+			data = data.filter(item => that.config.tokens_white_list.includes(item.token));
+			console.trace(`balances = `, JSON.stringify(data));
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/balance_all_unfiltered', async (req, res) => {
+			console.trace('requested balance all unfiltered', req.query);
+			let id = req.query.id;
+			let data = await this.db.get_balance_all(id);
 			console.trace(`balances = `, JSON.stringify(data));
 			res.send(data);
 		});
@@ -638,9 +648,16 @@ class Explorer {
 		this.app.get('/api/v1/get_tickers_all', async (req, res) => {
 			console.trace('get_tickers_all', req.query);
 			let ticker_all = await this.db.get_tickers_all();
+			let that = this;
+			ticker_all.filter(item => that.config.tokens_white_list.includes(item.hash));
 			res.send(ticker_all);
 		});
 
+		this.app.get('/api/v1/get_tickers_all_unfiltered', async (req, res) => {
+			console.trace('get_tickers_all_unfiltered', req.query);
+			let ticker_all = await this.db.get_tickers_all();
+			res.send(ticker_all);
+		});
 
 		/**
 		* @swagger

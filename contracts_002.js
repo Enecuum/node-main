@@ -2112,7 +2112,7 @@ class FarmDecreaseStakeContract extends Contract {
             new_level = BigInt(farm.level) + (distributed * Utils.FARMS_LEVEL_PRECISION) / farm.total_stake;
         }
 
-        let farmer_reward = farmer.stake * (new_level - BigInt(farmer.level)) / Utils.FARMS_LEVEL_PRECISION;
+        let farmer_reward = params.amount * (new_level - BigInt(farmer.level)) / Utils.FARMS_LEVEL_PRECISION;
 
         let farm_data = {
             farm_id : params.farm_id,

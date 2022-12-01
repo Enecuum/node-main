@@ -79,7 +79,7 @@ class ContractParser {
         }
     }
     getContractsId(forks, n){
-        let Contracts = [contracts_000, contracts_000, contracts_002]; // first duplicate contracts_000 but fork_001 didn`t change the contracts list
+        let Contracts = [contracts_000, contracts_000, contracts_002, contracts_002]; // first duplicate contracts_000 but fork_001 didn`t change the contracts list
         let fork_keys = Object.keys(forks);
         let idx = fork_keys.length - 1;
         for(let i = 0; i < fork_keys.length; i++){

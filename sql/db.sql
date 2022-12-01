@@ -15,6 +15,9 @@
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
+SET sql_mode=(SELECT REPLACE(@@sql_mode, 'ONLY_FULL_GROUP_BY', ''));
+SET GLOBAL max_allowed_packet=134217728;
+
 --
 -- Table structure for table `agents`
 --
@@ -65,6 +68,42 @@ CREATE TABLE `delegates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
+DROP TABLE IF EXISTS `dex_pools`;
+CREATE TABLE `dex_pools` (
+  `pair_id` VARCHAR(128) NOT NULL,
+  `asset_1` VARCHAR(64) NOT NULL,
+  `volume_1` BIGINT(20) UNSIGNED NULL,
+  `asset_2` VARCHAR(64) NOT NULL,
+  `volume_2` BIGINT(20) UNSIGNED NULL,
+  `pool_fee` BIGINT(20) UNSIGNED NULL,
+  `token_hash` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`pair_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+DROP TABLE IF EXISTS `farms`;
+CREATE TABLE `farms` (
+  `farm_id` VARCHAR(64) NOT NULL,
+  `stake_token` VARCHAR(64) NOT NULL,
+  `reward_token` VARCHAR(64) NOT NULL,
+  `emission` BIGINT(20)  UNSIGNED NULL,
+  `block_reward` BIGINT(20) UNSIGNED NULL,
+  `level` VARCHAR(64) NOT NULL,
+  `total_stake` BIGINT(20) UNSIGNED NULL,
+  `last_block` BIGINT(20) DEFAULT NULL,
+  `accumulator` BIGINT(20) UNSIGNED DEFAULT 0,
+  PRIMARY KEY (`farm_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+DROP TABLE IF EXISTS `farmers`;
+CREATE TABLE `farmers` (
+  `farm_id` VARCHAR(64) NOT NULL,
+  `farmer_id` VARCHAR(66) NOT NULL,
+  `stake` BIGINT(20) NULL,
+  `level` VARCHAR(64) NOT NULL,
+  PRIMARY KEY (`farm_id`, `farmer_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 --
 -- Table structure for table `snapshots`
 --
@@ -73,6 +112,21 @@ DROP TABLE IF EXISTS `snapshots`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `snapshots` (
+  `hash` varchar(64) CHARACTER SET latin1 NOT NULL,
+  `kblocks_hash` varchar(64) NOT NULL,
+  `data` LONGBLOB DEFAULT NULL,
+  PRIMARY KEY (`hash`,`kblocks_hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='  ';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tmp_snapshots`
+--
+
+DROP TABLE IF EXISTS `tmp_snapshots`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `tmp_snapshots` (
   `hash` varchar(64) CHARACTER SET latin1 NOT NULL,
   `kblocks_hash` varchar(64) NOT NULL,
   `data` LONGBLOB DEFAULT NULL,
@@ -149,6 +203,7 @@ CREATE TABLE `kblocks` (
   `link` varchar(64) NOT NULL,
   `sprout` varchar(64) NOT NULL,
   `m_root` varchar(64) NOT NULL,
+  `leader_sign` BLOB NULL,
   `reward` bigint(20) DEFAULT NULL,
   `target_diff` int(16) DEFAULT '10',
   PRIMARY KEY (`hash`),
@@ -170,7 +225,7 @@ DROP TABLE IF EXISTS `ledger`;
 CREATE TABLE `ledger` (
   `id` varchar(130) CHARACTER SET latin1 NOT NULL,
   `amount` bigint(20) unsigned DEFAULT NULL,
-  `token` varchar(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `token` varchar(64) NOT NULL,
   PRIMARY KEY (`id`,`token`),
   KEY `i_amount` (`amount`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -190,8 +245,8 @@ CREATE TABLE `mblocks` (
   `reward` bigint(20) DEFAULT NULL,
   `nonce` bigint(20) NOT NULL,
   `sign` varchar(150) NOT NULL,
-  `leader_sign` BLOB NOT NULL,
-  `token` varchar(64) NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `leader_sign` BLOB NULL,
+  `token` varchar(64) NOT NULL,
   `included` tinyint(4) DEFAULT '0',
   `calculated` tinyint(4) DEFAULT '0',
   `indexed` tinyint(4) DEFAULT '0',
@@ -354,8 +409,7 @@ CREATE TABLE `tokens` (
   `min_stake` bigint(20) unsigned DEFAULT NULL,
   `referrer_stake` bigint(20) unsigned DEFAULT NULL,
   `ref_share` int(11) unsigned DEFAULT NULL,
-  PRIMARY KEY (`hash`),
-  UNIQUE KEY `ticker_UNIQUE` (`ticker`)
+  PRIMARY KEY (`hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -369,7 +423,25 @@ DROP TABLE IF EXISTS `tokens_index`;
 CREATE TABLE `tokens_index` (
   `hash` varchar(64) NOT NULL,
   `txs_count` bigint(20) DEFAULT '1',
+  `holders_count` bigint(20) DEFAULT '1',
   PRIMARY KEY (`hash`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `tokens_price`
+--
+
+DROP TABLE IF EXISTS `tokens_price`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `tokens_price` (
+  `tokens_hash` varchar(64) NOT NULL,
+  `cg_id` varchar(64),
+  `cg_price` bigint(20),
+  `dex_price` bigint(20),
+  `decimals` int(11) unsigned DEFAULT '10',
+  PRIMARY KEY (`tokens_hash`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -389,7 +461,7 @@ CREATE TABLE `transactions` (
   `nonce` bigint(20) NOT NULL,
   `status` int(11) DEFAULT NULL,
   `sign` varchar(150) DEFAULT NULL,
-  `ticker` varchar(64) DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  `ticker` varchar(64) NOT NULL,
   `data` varchar(512) DEFAULT NULL,
   PRIMARY KEY (`hash`,`mblocks_hash`),
   KEY `fk_transactions_mblocks1_idx` (`mblocks_hash`),
@@ -424,6 +496,7 @@ DROP TABLE IF EXISTS `undelegates`;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `undelegates` (
   `id` varchar(64) NOT NULL,
+  `delegator` varchar(66) DEFAULT NULL,
   `pos_id` varchar(64) DEFAULT NULL,
   `amount` bigint(20) unsigned DEFAULT NULL,
   `height` bigint(20) DEFAULT NULL,

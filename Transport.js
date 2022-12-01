@@ -25,7 +25,10 @@ let host_list = {};
 class Transport {
 
 	constructor(config, db) {
-		this.PROTOCOL_VERSION = 2;
+		this.forks = config.FORKS;
+		this.fork_versions = config.PROTOCOL_VERSIONS;
+		this.native_token_hash = config.native_token_hash;
+		this.PROTOCOL_VERSION = 4;
 		this.peers = [];
 		this.methods_map = {query : "on_query"};
 		this.events_map = {};
@@ -49,12 +52,56 @@ class Transport {
 		this.callback_counter = 0;
 	}
 
+	async get_protocol_version(){
+		let res = await this.db.peek_tail();
+		let block = (res === undefined) ? 0 : res.n;
+		let version = 1;
+		for(let fork in this.forks){
+			if(block >= this.forks[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return {version, block};
+	}
+
+	check_protocol_version(block, chainid){
+		let version = 1;
+		if(block === undefined && chainid === undefined){
+			return { version: 2, legacy_flag: true}
+		}
+		for(let fork in this.forks){
+			if(block >= this.forks[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return { version: version,  legacy_flag: false };
+	}
+
+	get_max_protocol_version(){
+		let version = 1;
+		for(let fork in this.forks){
+			if(version <= this.fork_versions[fork]){
+				version = this.fork_versions[fork];
+			}
+		}
+		return version;
+	}
+
 	ipc_callback(){
-		// TODO: destroyedSocketID is always = false
+		let that = this;
 		this.ipc.server.on('socket.disconnected', function(socket, destroyedSocketID) {
 				console.debug(' ipc client ' + destroyedSocketID + ' has disconnected!');
+				for(let method in that.events_map){
+					let index = that.events_map[method].findIndex(item => item.id === destroyedSocketID);
+					if(index > -1)
+						that.events_map[method].splice(index, 1);
+				}
 			}
 		);
+
+		this.ipc.server.on('client.id', function(id, socket) {
+			socket.id = id;
+		});
 
 		this.ipc.server.on('broadcast', function(message){
 				let {method, data} = message;
@@ -83,6 +130,10 @@ class Transport {
 
 		this.ipc.server.on('on', function(message, socket){
 				console.trace(`ipc ${this.hubid} got ${JSON.stringify(message)}`);
+				if(!socket.id){
+					console.debug(`undefined socket id`);
+					return;
+				}
 				let {method} = message;
 
 				let f = function (data) {
@@ -109,17 +160,19 @@ class Transport {
 					}.bind(this));
 				};
 
-				this.on(method, f.bind(this));
+				this.on(method, socket.id, f.bind(this));
 			}.bind(this)
 		);
 	}
 
-	on(name, callback) {
-		this.events_map[name] = callback;
+	on(name, id, callback) {
+		if(this.events_map[name] === undefined)
+			this.events_map[name] = [];
+		this.events_map[name].push({id, callback});
 	}
 
 	http_request(socket, method, data){
-		return new Promise(function (resolve, reject) {
+		return new Promise( async function (resolve, reject) {
 			let split = socket.split(':');
 			let host = split[0];
 			let port = split[1] || 80;
@@ -153,8 +206,12 @@ class Transport {
 			};
 
 			//append service information
-			request.ver = this.PROTOCOL_VERSION;
+			let version = await this.get_protocol_version()
+			// this.PROTOCOL_VERSION
+			request.ver = version.version
+			request.height = version.block
 			request.port = this.port;
+			request.chainid = this.native_token_hash;
 
 			let post_data = JSON.stringify(request);
 
@@ -174,103 +231,113 @@ class Transport {
 				request += chunk;
 			});
 
-			let req_timeout = setTimeout(()=> {
+			let req_timeout = setTimeout(() => {
 				response.error = {
-					code : 1,
-					message : "Request time exceeded"
+					code: 1,
+					message: "Request time exceeded"
 				};
 				res.write(JSON.stringify(response));
 				res.end();
-			} , 20000);
+			}, 20000);
 
 			let callback = (async function () {
 				call_count++;
 				console.debug(`call_count = ${call_count}`);
 				try {
 					request = JSON.parse(request);
-				} catch (e) {
-					console.warn(e.message);
-					res.end();
-					return;
-				}
-				// TODO: заменить по коду data на params
-				request.data = request.params;
-				delete(request.params);
+					// TODO: заменить по коду data на params
+					request.data = request.params;
+					delete (request.params);
 
-				if(call_list[request.method])
-                    call_list[request.method]++;
-				else
-                    call_list[request.method]=1;
+					if (call_list[request.method])
+						call_list[request.method]++;
+					else
+						call_list[request.method] = 1;
 
-                console.debug(`call_list ${JSON.stringify(call_list)}`);
+					console.debug(`call_list ${JSON.stringify(call_list)}`);
 
-				request.host = req.socket.remoteAddress;
-				if (request.host.substr(0, 7) === "::ffff:") {
-					request.host = request.host.substr(7);
-				}
-
-				if(host_list[request.host])
-					host_list[request.host]++;
-				else
-					host_list[request.host]=1;
-				console.debug(`host_list ${JSON.stringify(host_list)}`);
-
-				res.writeHead(200, "OK", {'Content-Type': 'application/json'});
-
-				if(request.ver !== this.PROTOCOL_VERSION) {
-					console.warn("Ignore request, incorrect protocol version", request.ver);
-					response.error = {
-						code : 1,
-						message : `Protocol version mismatch, ${this.PROTOCOL_VERSION} requiered`
-					};
-					res.write(JSON.stringify(response));
-				}
-				else if (request.data === undefined) {
-					console.debug(`Ignore request, no params field provided. method ${request.method}, from ${request.host}:${request.port}`);
-					response.error = {
-						code : 1,
-						message : `No 'params' field provided`
-					};
-					res.write(JSON.stringify(response));
-				}
-				else if (this.events_map[request.method]) {
-					console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
-					let result = '';
-					try {
-						result = await this.events_map[request.method](request);
-					} catch (e) {
-						result = e;
+					request.host = req.socket.remoteAddress;
+					if (request.host.substr(0, 7) === "::ffff:") {
+						request.host = request.host.substr(7);
 					}
-					response.result = result;
-					res.write(JSON.stringify(response));
+
+					if (host_list[request.host])
+						host_list[request.host]++;
+					else
+						host_list[request.host] = 1;
+					console.debug(`host_list ${JSON.stringify(host_list)}`);
+
+					res.writeHead(200, "OK", {'Content-Type': 'application/json'});
+
+					let block_version = this.check_protocol_version(request.height, request.chainid);
+
+					if ( !block_version.legacy_flag && request.ver !== block_version.version) {
+						console.warn(`Ignore request, incorrect protocol version ${request.ver} expected version ${block_version.version}`);
+						response.error = {
+							code: 1,
+							message: `Protocol version mismatch, ${block_version.version} requiered. MAX version ${this.get_max_protocol_version()}`
+						};
+						res.write(JSON.stringify(response));
+					} else if( !block_version.legacy_flag && (request.chainid === undefined || request.chainid !== this.native_token_hash)){
+						console.warn("Ignore request, incorrect native token", request.chainid);
+						response.error = {
+							code: 1,
+							message: `ChainID mismatch`
+						};
+						res.write(JSON.stringify(response));
+					} else if (request.data === undefined) {
+						console.debug(`Ignore request, no params field provided. method ${request.method}, from ${request.host}:${request.port}`);
+						response.error = {
+							code: 1,
+							message: `No 'params' field provided`
+						};
+						res.write(JSON.stringify(response));
+					} else if (this.events_map[request.method]) {
+						console.silly(`got request ${request.method} from ${request.host}:${request.port}`);
+						let result = '';
+						try {
+							console.debug(`callback '${request.method}' count ${this.events_map[request.method].length}`);
+							if(this.events_map[request.method]) {
+								let clone_events_map = this.events_map[request.method].map(a => {return a});
+								for (let item of clone_events_map) {
+									result = await item.callback(request);
+								}
+							}
+						} catch (e) {
+							console.warn(`error call - ${JSON.stringify(e)}`);
+							result = e;
+						}
+						response.result = result;
+						res.write(JSON.stringify(response));
+					} else if (this.methods_map[request.method]) {
+						console.silly('method called', request.method);
+						let result = this[this.methods_map[request.method]](request);
+						response.result = result;
+						res.write(JSON.stringify(response));
+					} else {
+						console.trace("Method not implemented", request.method);
+						response.error = {
+							code: 1,
+							message: "Method not implemented"
+						};
+						res.write(JSON.stringify(response));
+					}
+				} catch (e) {
+					console.error(`Callback error: ${e.message}`);
+				} finally {
+					clearTimeout(req_timeout);
+					call_list[request.method]--;
+					host_list[request.host]--;
+					call_count--;
+					res.end();
 				}
-				else if (this.methods_map[request.method]) {
-					console.silly('method called', request.method);
-					let result = this[this.methods_map[request.method]](request);
-					response.result = result;
-					res.write(JSON.stringify(response));
-				}
-				else {
-					console.trace("Method not implemented", request.method);
-					response.error = {
-						code : 1,
-						message : "Method not implemented"
-					};
-					res.write(JSON.stringify(response));
-				}
-				clearTimeout(req_timeout);
-                call_list[request.method]--;
-				host_list[request.host]--;
-				call_count--;
-				res.end();
 			}).bind(this);
 
 			req.on('end', callback);
-		}
-		else{
+		} else {
 			response.error = {
-				code : 1,
-				message : "Only post requests are supported"
+				code: 1,
+				message: "Only post requests are supported"
 			};
 			res.write(JSON.stringify(response));
 			res.end();
@@ -280,8 +347,8 @@ class Transport {
 	add_peer(peer){
 		console.silly(`add_peer ${JSON.stringify(peer)}`);
 		if( peer.id === undefined && !peer.primary){
-		    return;
-        }else if (peer.id === this.client_id){
+			return;
+		}else if (peer.id === this.client_id){
 			return;
 		}
 
@@ -304,7 +371,10 @@ class Transport {
 			console.info(`add peer ${peer.socket}`);
 			this.db.add_client(peer.socket, peer.id, 1, 0);
 			if (this.events_map['new_peer']){
-				this.events_map['new_peer'](peer.socket);
+				let clone_events_map = this.events_map['new_peer'].map(a => {return a});
+				for(let item of clone_events_map){
+					item.callback(peer.socket);
+				}
 			}
 		}
 	}
@@ -319,8 +389,9 @@ class Transport {
 	update_peers(peers){
 		console.silly(`update_peers ${JSON.stringify(peers)}`);
 		peers.forEach(p => {
-		    if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
-			    this.add_peer(p);
+			//TODO: add ping pong
+			//if(!p.socket.startsWith("172.") && !p.socket.startsWith("127.") && !p.socket.startsWith("localhost"))
+			this.add_peer(p);
 		});
 	}
 
@@ -355,7 +426,7 @@ class Transport {
 				.catch((ex)=>{
 					this.db.set_client_state(peer.socket, peer.id, 0);
 					peer.failures++;
-					console.debug("Query failed, cannot connect to", peer.socket);
+					console.warn("Query failed, cannot connect to", peer.socket);
 				});
 		});
 
@@ -413,6 +484,7 @@ class Tip {
 	connect_func() {
 		this.ipc.of[this.hubid].on('connect', function () {
 			console.silly(`ipc ${this.ipc.config.id} connected to ${this.hubid}`);
+			this.ipc.of[this.hubid].emit('client.id', {id: this.ipc.config.id});
 			Object.keys(this.events_map).forEach(e => this.ipc.of[this.hubid].emit('on', {method: e}));
 		}.bind(this));
 

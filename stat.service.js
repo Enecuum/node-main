@@ -54,7 +54,7 @@ class StatService {
             '0270a88ea6f7c5ea2a2ec3878008d878a70fd5d4ca27d5866d0eec3594cab0b912',
             '026df0aa41967d8d47082c36b29a164aa1c90cdd07cb02d373daaba90b8eca5301'
         ];
-        let circ = BigInt((await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0].total_supply);
+        let circ = BigInt((await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0].total_supply);
         for(let wallet of exclude){
             let balance = await this.db.get_balance(wallet, Utils.ENQ_TOKEN_NAME);
             circ -= BigInt(balance.amount);
@@ -64,12 +64,12 @@ class StatService {
 
     // Can be changed by token info
     async get_tsup(){
-        let tmp = await this.db.get_total_supply();
-        return tmp.amount;
+        let tsup = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0].total_supply;
+        return tsup;
     };
 
     // async get_msup(){
-    //     let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+    //     let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
     //     return token_enq.max_supply;
     // };
 
@@ -98,6 +98,24 @@ class StatService {
                 vs_currencies : 'eth'
             });
         return tmp['enq-enecuum'].eth;
+    };
+    
+    async get_cg_token_usg(cg_id){
+        let tmp = await Utils.http.get('https://api.coingecko.com/api/v3/simple/price',
+            {
+                ids : cg_id,
+                vs_currencies : 'usd'
+            });
+        return tmp[cg_id].usd;
+    };
+
+    async get_cg_tokens_usg(cg_ids){
+        let data = await Utils.http.get('https://api.coingecko.com/api/v3/simple/price',
+            {
+                ids : cg_ids.join(','),
+                vs_currencies : 'usd'
+            });
+        return data;
     };
 
     async get_accounts_count(){
@@ -174,7 +192,7 @@ class StatService {
     }
 
     async get_proposed_inflation(){
-        let token_enq = (await this.db.get_tokens_all([Utils.ENQ_TOKEN_NAME]))[0];
+        let token_enq = (await this.db.get_tokens([Utils.ENQ_TOKEN_NAME]))[0];
         let year_bloock_count = 60 * 60 * 24 * 365 / this.db.app_config.target_speed;
         return year_bloock_count * token_enq.block_reward / token_enq.total_supply;
     }

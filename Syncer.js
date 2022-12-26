@@ -749,7 +749,11 @@ class Syncer {
 		let start = new Date().getTime();
 		let accounts = await this.db.get_accounts_all(mblocks.map(m => m.publisher));
 		let tokens = await this.db.get_tokens(mblocks.map(m => m.token));
-		let valid_mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
+		let valid_mblocks = 0;
+		if(n >= this.config.FORKS.fork_block_002)
+			valid_mblocks = Utils.valid_full_microblocks(mblocks, accounts, tokens, true);
+		else
+			valid_mblocks = Utils.valid_full_microblocks_000(mblocks, accounts, tokens, true);
 		if (valid_mblocks.length !== mblocks.length) {
 			console.warn(`Valid mblock count change: before ${mblocks.length}, after ${valid_mblocks.length}`);
 			return false;

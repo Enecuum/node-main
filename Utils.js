@@ -527,6 +527,57 @@ let utils = {
 		}
 		return isValid;
 	},
+	valid_full_microblocks_000(mblocks, accounts, tokens, check_txs_sign){
+		let total_tx_count = 0;
+		mblocks = mblocks.filter((mblock)=>{
+			let tok_idx = tokens.findIndex(t => t.hash === mblock.token);
+			if(tok_idx < 0){
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} : token not found`);
+				return false;
+			}
+			if(tokens[tok_idx].minable !== 1){
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} : token not minable`);
+				return false;
+			}
+			let pub = accounts.findIndex(a => ((a.id === mblock.publisher) && ((a.token === mblock.token))));
+			if (pub < 0){
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} : publisher not found`);
+				return false;
+			}
+			if ((accounts[pub].amount < tokens[tok_idx].min_stake)){
+				console.trace(`ignoring mblock ${JSON.stringify(mblock)} due to low stake`);
+				return false;
+			}
+
+			let recalc_hash = this.hash_mblock(mblock);
+			let signed_msg = recalc_hash + (mblock.referrer ? (mblock.referrer) : "") + mblock.token;
+
+			if(this.ecdsa_verify(mblock.publisher, mblock.sign, signed_msg)){
+				console.trace(`mblock sign valid`);
+				if (!check_txs_sign)
+					return true;
+				total_tx_count += mblock.txs.length;
+				mblock.txs = mblock.txs.filter((tx)=>{
+					let hash = this.hash_tx_fields(tx);
+					if(!this.ecdsa_verify(tx.from, tx.sign, hash)){
+						console.warn(`Invalid sign (${tx.sign}) tx ${hash}`);
+						return false;
+					}else
+						return true;
+				});
+				if(mblock.txs.length === 0){
+					console.warn(`Ignore empty mblock ${mblock.hash}`);
+					return false;
+				}
+				return true;
+			} else{
+				console.warn(`Invalid sign mblock ${mblock.hash}`);
+				return false;
+			}
+		});
+		console.trace(`total tx count = ${total_tx_count}`);
+		return mblocks;
+	},
 	valid_full_microblocks(mblocks, accounts, tokens, check_txs_sign){
 		let total_tx_count = 0;
 		mblocks = mblocks.filter((mblock)=>{

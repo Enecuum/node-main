@@ -1,0 +1,44 @@
+module.exports = {
+  apps: [
+    {
+      "name": "pow_cashier",
+      "script": "icashier.js",
+      "watch": false,
+      "args": "--cashier_interval_ms 10",
+      "merge_logs": true,
+      "namespace": "pow",
+      "log_file": "log/pm2-pow-cashier.log"
+    }, {
+      "name": "pow_miner",
+      "script": "iminer.js",
+      "watch": false,
+      "args": "--id <your pow id>",
+      "merge_logs": true,
+      "namespace": "pow",
+      "log_file": "log/pm2-pow-miner.log"
+    }, {
+      "name": "pow_syncer",
+      "script": "isyncer.js",
+      "watch": false,
+      "args": "--id <your pow id> --fastsync.lag_interval_b=300 --fastsync.sync_interval_b=258",
+      "merge_logs": true,
+      "namespace": "pow",
+      "log_file": "log/pm2-pow-syncer.log"
+    }, {
+      "name": "pow_nodeapi",
+      "script": "inodeapi.js",
+      "args": "--id <your pow id>",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pow",
+      "log_file": "log/pm2-pow-nodeapi.log"
+    }, {
+      "name": "pow_transport",
+      "script": "itransport.js",
+      "args": "--port 7000 --peer 95.216.246.116:7000 --id <your pow id>",
+      "watch": false,
+      "merge_logs": true,
+      "namespace": "pow",
+      "log_file": "log/pm2-pow-transport.log"
+    }]
+};

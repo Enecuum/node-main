@@ -14,12 +14,12 @@
 
 const express = require('express');
 const cors = require('cors');
-const Contracts = require('./SmartContracts');
 const {ContractError} = require('./errors');
 const {ExplorerService, ExplorerServicePlain} = require('./explorer.service');
 const NodeapiService = require('./nodeapi.service').NodeapiService;
 const Utils = require('./Utils');
 const Transport = require('./Transport').Tip;
+const ContractMachine = require('./SmartContracts');
 //const swaggerJSDoc = require('swagger-jsdoc');
 let swaggerSpec;
 
@@ -29,6 +29,7 @@ class Explorer {
 		this.app = express();
 		this.app.use(cors());
 		this.db = db;
+		this.config = config;
 		this.pending = pending;
 		this.stake_limits = stake_limits;
 		this.service = new ExplorerService(db);
@@ -78,7 +79,7 @@ class Explorer {
 
 		this.app.get('/api/v1/network_info', async (req, res) => {
 			console.trace('requested network_info', req.query);
-			let native_token = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let native_token = (await this.db.get_tokens_info([this.config.native_token_hash]))[0];
 			let data = {
 				target_speed: this.config.target_speed,
 				reward_ratio: this.config.reward_ratio,
@@ -94,14 +95,14 @@ class Explorer {
 					count:this.config.mblock_slots.count,
 					min_stake:this.config.mblock_slots.min_stake
 				},
-				enex : this.config.dex
+				dex : this.config.dex
 			};
 			res.send(data);
 		});
 
 		this.app.get('/api/v1/native_token', async (req, res) => {
 			console.trace('requested native_token', req.query);
-			let data = (await this.db.get_tokens_all([this.config.native_token_hash]))[0];
+			let data = (await this.db.get_tokens_info([this.config.native_token_hash]))[0];
 			res.send(data);
 		});
 
@@ -150,7 +151,6 @@ class Explorer {
 		this.app.get('/api/v1/tps', async (req, res) => {
 			console.trace('requested tps', req.query);
 			let data = await this.db.get_tps(300);
-			data.tps = Math.round(data.tps);
 			await this.db.update_max_tps(data.tps);
 			res.send(data);
 		});
@@ -271,6 +271,18 @@ class Explorer {
 
         this.app.get('/api/v1/get_token_info_page', async (req, res) => {
             let data = await this.db.get_token_info_page(parseInt(req.query.page), 20, req.query.type);
+            if(data.tokens) {
+				data.tokens.forEach(t => {
+					t.price_raw = {
+						cg_price: t.cg_price,
+						dex_price: t.dex_price,
+						decimals: t.price_decimals
+					};
+					delete t.cg_price;
+					delete t.dex_price;
+					delete t.price_decimals
+				});
+			}
             res.send({tokens : data.tokens, page_size : 20, page_count : data.page_count});
         });
 
@@ -306,6 +318,16 @@ class Explorer {
 			console.trace('requested balances', req.query);
 			let id = req.query.id;
 			let data = await this.db.get_balance_all(id);
+			let that = this;
+			data = data.filter(item => that.config.tokens_white_list.includes(item.token));
+			console.trace(`balances = `, JSON.stringify(data));
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/balance_all_unfiltered', async (req, res) => {
+			console.trace('requested balance all unfiltered', req.query);
+			let id = req.query.id;
+			let data = await this.db.get_balance_all(id);
 			console.trace(`balances = `, JSON.stringify(data));
 			res.send(data);
 		});
@@ -329,7 +351,7 @@ class Explorer {
 		this.app.get('/api/v1/token_info', async (req, res) => {
 			console.trace('requested token_info', req.query);
 			let hash = req.query.hash;
-			let data = await this.db.get_tokens_all([hash]);
+			let data = await this.db.get_tokens_info([hash]);
 			console.trace(`token_info = `, JSON.stringify(data));
 			res.send(data);
 		});
@@ -337,7 +359,7 @@ class Explorer {
 		this.app.get('/api/v1/tx', async (req, res) => {
 			console.trace(`requested tx ${JSON.stringify(req.query)}`);
 			let tx = (await this.db.get_tx(req.query.hash))[0];
-			if(tx !== undefined) {
+			if(tx !== undefined && tx.fee_type !== null) {
 				let tokendata = { fee_type: tx.fee_type, fee_value: tx.fee_value, fee_min: tx.fee_min};
 				tx.fee = (Utils.calc_fee(tokendata, tx.total_amount));
 				tx.amount = (BigInt(tx.total_amount) - tx.fee).toString();
@@ -365,28 +387,62 @@ class Explorer {
 		});
 
 		this.app.get('/api/v1/search', async (req, res) => {
-			console.trace('requested search', req.query);
-			let resp;
+			console.trace('requested search', req.query);			
+			let resp = [];
 
 			let tx = await this.db.get_tx(req.query.value);
-			if (tx.length > 0){
-				resp = {type:'tx', link:req.query.value};
+			if (tx.length > 0) {
+				resp.push({type:'tx', info:tx});
 			} else {
 				let account = await this.db.get_accounts_all(req.query.value);
 				if (account.length > 0){
-					resp = {type:'account', link:req.query.value};
-				} else {
-					let kblock = await this.db.get_kblock(req.query.value);
-					if (kblock.length > 0) {
-						resp = {type:'kblock', link:req.query.value};
-					} else {
-						let mblock = await this.db.get_mblock(req.query.value);
-						if (mblock.length > 0) {
-							resp = {type:'mblock', link:req.query.value};
-						}
-					}
+					resp.push({type:'account', info:{balances: account}});
+				}
+
+				let kblock = await this.db.get_kblock(req.query.value);
+				if (kblock.length > 0) {
+					resp.push({type:'kblock', info:kblock});
+				}
+
+				let mblock = await this.db.get_mblock(req.query.value);
+				if (mblock.length > 0) {
+					resp.push({type:'mblock', info:mblock});
+				}
+
+				let sblock = await this.db.get_sblock_data(req.query.value);
+				if (sblock.header !== undefined) {
+					resp.push({type:'sblock', info:sblock});
 				}
 			}
+
+			let token = await this.db.get_tokens_info([req.query.value]);
+		 	if (token.length > 0 && token[0].hash !== undefined) {
+		 		resp.push({type:'token', info:token});
+
+			 	let pool = await this.db.dex_get_pools_all();
+			 	if (pool.length > 0 && pool[0].pair_id !== undefined) {
+			 		pool.forEach(item => {
+			 			if (item.token_hash === req.query.value)
+			 				resp.push({type:'pool', info:item});
+			 		})			 		
+			 	}
+		 	} else {
+				let pool = await this.db.dex_get_pools([req.query.value]);
+				if (pool.length > 0) {
+					resp.push({type:'pool', info:pool});
+				}		 		
+		 	}
+
+		 	let pos = await this.db.get_pos_contract_info(req.query.value);
+		 	if (pos.length > 0 && pos[0].pos_id !== undefined) {
+		 		resp.push({type:'pos', info:pos});
+		 	}
+
+		 	let farm = await this.db.get_dex_farms('',[req.query.value]);
+		 	if (farm.length > 0 && farm[0].farm_id !== undefined) {
+		 		resp.push({type:'farm', info:farm});
+		 	}
+
 			res.send(resp);
 		});
 
@@ -467,7 +523,6 @@ class Explorer {
 			console.trace('requested height');
 			let data = await this.db.get_mblocks_height();
 			let result = {};
-			console.warn(data)
 			if(data.height){
 				result.height = parseInt(data.height);
 			}
@@ -542,7 +597,10 @@ class Explorer {
 
 		this.app.get('/api/v1/contract_pricelist', async (req, res) => {
 			console.trace('contract_pricelist');
-			res.send(Contracts.contract_pricelist);
+			let n = (await this.db.get_mblocks_height()).height;
+			let CMachine = ContractMachine.getContractMachine(this.config.FORKS, n);
+			let cont = new CMachine.Contract();
+			res.send(cont.pricelist);
 		});
 
 		this.app.get('/api/v1/difficulty', async (req, res) => {
@@ -590,9 +648,16 @@ class Explorer {
 		this.app.get('/api/v1/get_tickers_all', async (req, res) => {
 			console.trace('get_tickers_all', req.query);
 			let ticker_all = await this.db.get_tickers_all();
+			let that = this;
+			ticker_all.filter(item => that.config.tokens_white_list.includes(item.hash));
 			res.send(ticker_all);
 		});
 
+		this.app.get('/api/v1/get_tickers_all_unfiltered', async (req, res) => {
+			console.trace('get_tickers_all_unfiltered', req.query);
+			let ticker_all = await this.db.get_tickers_all();
+			res.send(ticker_all);
+		});
 
 		/**
 		* @swagger
@@ -866,6 +931,104 @@ class Explorer {
 			console.trace('get_pos_names', req.query);
 			let data = await this.db.get_pos_names();
             res.send(data);
+		});
+
+		this.app.get('/api/v1/get_dex_pools', async (req, res) => {
+			console.trace('get_dex_pools', req.query);
+			let data = await this.db.dex_get_pools_all();
+			for (let rec of data) {
+				let tokens_info = await this.db.get_tokens_info([rec.asset_1, rec.asset_2]);
+				let price_token_1 = ((tokens_info.find(t => t.hash === rec.asset_1)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_1)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_1)).dex_price_usd;
+				let price_token_2 = ((tokens_info.find(t => t.hash === rec.asset_2)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_2)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_2)).dex_price_usd;
+				if( price_token_1 && price_token_2 ){
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * price_token_1 +
+									rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * price_token_2;
+				} else if (price_token_1) {
+					rec.liquidity = rec.volume_1 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_1).decimals) * price_token_1 * 2;
+				} else if (price_token_2) {
+					rec.liquidity = rec.volume_2 / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_2).decimals) * price_token_2 * 2;
+				} else
+					rec.liquidity = null;
+			}
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/get_sstation_pools', async (req, res) => {
+			console.trace('get_sstation_pools', req.query);
+			let data = await this.db.dex_get_sstation_pools();
+			for (let rec of data) {
+				let tokens_info = await this.db.get_tokens_info([rec.asset_LP, rec.asset_ENX]);
+				let LP_price_token = ((tokens_info.find(t => t.hash === rec.asset_LP)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_LP)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_LP)).dex_price_usd;
+				let ENX_price_token = ((tokens_info.find(t => t.hash === rec.asset_ENX)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.asset_ENX)).cg_price_usd : (tokens_info.find(t => t.hash === rec.asset_ENX)).dex_price_usd;
+				rec.decimals_LP = tokens_info.find(t => t.hash === rec.asset_LP).decimals;
+				rec.ticker_LP = tokens_info.find(t => t.hash === rec.asset_LP).ticker;
+				rec.decimals_ENX = tokens_info.find(t => t.hash === rec.asset_ENX).decimals;
+				rec.ticker_ENX = tokens_info.find(t => t.hash === rec.asset_ENX).ticker;
+				if( LP_price_token && ENX_price_token ){
+					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * LP_price_token +
+						rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * ENX_price_token;
+				} else if (LP_price_token) {
+					rec.liquidity = rec.volume_LP / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_LP).decimals) * LP_price_token * 2;
+				} else if (ENX_price_token) {
+					rec.liquidity = rec.volume_ENX / Math.pow(10, tokens_info.find(t => t.hash === rec.asset_ENX).decimals) * ENX_price_token * 2;
+				} else
+					rec.liquidity = null;
+			}
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/get_farms', async (req, res) => {
+			console.trace('get_farms', req.query);
+			let data = await this.db.get_farms_all();
+			res.send(data);
+		});
+
+		this.app.get('/api/v1/get_dex_farms', async (req, res) => {
+			console.trace('get_dex_farms', req.query);
+			//filter white list
+			let data = await this.db.get_dex_farms(req.query.farmer_id, req.query.farms);
+			let n = (await this.db.get_mblocks_height()).height;
+			for (let rec of data) {
+				rec.apy = null;
+				rec.liquidity = null;
+				rec.earned = null;
+				rec.blocks_left = null;
+				if(rec.total_stake > 0) {
+					//Token Price
+					let tokens_info = await this.db.get_tokens_info([rec.reward_token_hash, rec.stake_token_hash]);
+					let reward_token_price = ((tokens_info.find(t => t.hash === rec.reward_token_hash)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.reward_token_hash)).cg_price_usd : (tokens_info.find(t => t.hash === rec.reward_token_hash)).dex_price_usd;
+					reward_token_price = reward_token_price === undefined ? 0 : reward_token_price / 1e10;
+					let stake_token_price = ((tokens_info.find(t => t.hash === rec.stake_token_hash)).cg_price_usd !== null) ? (tokens_info.find(t => t.hash === rec.stake_token_hash)).cg_price_usd : (tokens_info.find(t => t.hash === rec.stake_token_hash)).dex_price_usd;
+					stake_token_price = stake_token_price === undefined ? 0 : stake_token_price / 1e10;
+
+					//Liquidity
+					let total_stake_usd = rec.total_stake / Math.pow(10, rec.stake_token_decimals) * stake_token_price;
+					rec.liquidity = total_stake_usd;
+
+					//Earned
+					if (rec.stake > 0) {
+						let _d = (BigInt(n) - BigInt(rec.last_block)) * BigInt(rec.block_reward);
+						let distributed = _d < BigInt(rec.emission) ? _d : BigInt(rec.emission);
+						let new_level = BigInt(rec.level) + (distributed * Utils.FARMS_LEVEL_PRECISION) / BigInt(rec.total_stake);
+						rec.new_level = new_level;
+						rec.earned = BigInt(rec.stake) * (new_level - BigInt(rec.farmer_level)) / Utils.FARMS_LEVEL_PRECISION;
+					}
+					//Blocks left
+					let max_n = Number(BigInt(rec.emission) / BigInt(rec.block_reward));
+					rec.blocks_left = max_n - (n - rec.last_block);
+
+					//APY
+					let block_reward_usd = (rec.block_reward / Math.pow(10, rec.reward_token_decimals)) * reward_token_price;
+					console.debug(`block_reward_usd - rec.block_reward = ${rec.block_reward}, rec.reward_token_decimals = ${rec.reward_token_decimals}, reward_token_price = ${reward_token_price}`);
+					console.debug(`roi - block_reward_usd = ${block_reward_usd}, total_stake_usd = ${total_stake_usd}`);
+					if(block_reward_usd > 0 && total_stake_usd > 0){
+						let roi = BigInt(Math.round(block_reward_usd / total_stake_usd * 365 * 5760)) * Utils.PERCENT_FORMAT_SIZE;
+						rec.apy = roi;
+					}
+
+				}
+			}
+			res.send(data);
 		});
 
 		// TODO: Move to separate route

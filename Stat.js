@@ -17,6 +17,7 @@ const StakeCalc = require('./stakecalc.js').StakeCalc;
 
 const day = 24*60*60*1000;
 const check_type_timeout = 10*60*1000;
+const tokens_ptice_timeout = 5000;
 
 const FULL_NODE = 0;
 const POW = 1;
@@ -43,6 +44,7 @@ class Stat {
             'reward_pow' :              this.service.get_pow_reward.bind(this),
             'reward_pos' :              this.service.get_pos_reward.bind(this),
             'csup' :                    this.service.get_csup.bind(this),
+            'tsup' :                    this.service.get_tsup.bind(this),
             'full_count' :              this.service.get_peer_count.bind(this, FULL_NODE),
             'pow_count' :               this.service.get_peer_count.bind(this, POW),
             'poa_count' :               this.service.get_peer_count.bind(this, POA),
@@ -72,7 +74,54 @@ class Stat {
         this.statsInt = setTimeout(async () => { await this.calсStat(); }, 2000);
         this.recalcRoi = setImmediate(async () => { await this.calcRoi(); }, day);
         this.redefNodesType = setImmediate(async () => { await this.redefNodes(); }, check_type_timeout);
-        this.recalcPosPowRew = setImmediate(async () => { await this.calcPosPowRew(); }, day)
+        this.recalcPosPowRew = setImmediate(async () => { await this.calcPosPowRew(); }, day);
+
+        this.tokensPrice = setImmediate(async () => { await this.tokensPriceCaching(); }, tokens_ptice_timeout);
+        this.tokensHolders = setImmediate(async () => { await this.tokensHoldersCaching(); }, this.target_speed * 1000);
+    }
+
+    async tokensHoldersCaching(){
+        await this.db.update_tokens_holder_count();
+        setTimeout(async () => {
+            await this.tokensHoldersCaching();
+        }, this.target_speed * 1000);
+    }
+
+    async tokensPriceCaching() {
+        let start = new Date();
+        let tokens = await this.db.get_tokens_price();
+        let price_desimals = 10;
+        try {
+            let cg_data = [];
+            let prices = await this.service.get_cg_tokens_usg(tokens.map(item => {
+                return item.cg_id
+            }));
+            let request_time = new Date();
+            let cg_request_time = request_time - start;
+            console.debug({cg_request_time});
+            tokens.forEach(item => {
+                cg_data.push({tokens_hash: item.tokens_hash, price: Math.round(prices[item.cg_id].usd * Math.pow(10, price_desimals))})
+            });
+
+            let dex_data = await this.db.get_dex_tokens_price(this.config.native_token_hash, cg_data[cg_data.findIndex(item => item.tokens_hash === this.config.native_token_hash)].price);
+            for (let i = 0; i < dex_data.length; i++) {
+                if(this.config.dex.DEX_TRUSTED_TOKENS.includes(dex_data[i].tokens_hash)){
+                    let trusted_dex_data = await this.db.get_dex_tokens_price(dex_data[i].tokens_hash, dex_data[i].calc_dex_price);
+                    dex_data = dex_data.concat(trusted_dex_data);
+                }
+            }
+            //let dex_data = await this.db.get_dex_tokens_price();
+            await this.db.update_tokens_price(cg_data, dex_data, price_desimals);
+        } catch (e) {
+            console.error(e);
+        }
+        let end = new Date();
+        let calcTime = end - start;
+        console.debug({calcTime});
+        let timeout = tokens_ptice_timeout - calcTime;
+        setTimeout(async () => {
+            await this.tokensPriceCaching();
+        }, timeout);
     }
 
     async calcRoi(){

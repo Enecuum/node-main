@@ -15,10 +15,10 @@
 const crypto = require('crypto');
 const Utils = require('./Utils');
 const ContractMachine = require('./SmartContracts');
-
 class Pending {
 	constructor(db){
 		this.db = db;
+		this.CFactory = new ContractMachine.ContractFactory(this.db.app_config);
 	}
 
 	async get_txs(count, timeout_s, enable_random){
@@ -50,8 +50,8 @@ class Pending {
 			console.warn('verification failed for transaction: ', JSON.stringify(tx));
 			return {err: 1, message: "Signature verification failed"};
 		}
-		if(ContractMachine.isContract(tx.data)){
-			if(!ContractMachine.validate(tx.data)){
+		if(this.CFactory.isContract(tx.data)){
+			if(!this.CFactory.validate(tx.data)){
 				console.warn('Contract validation failed for transaction: ', JSON.stringify(tx));
 				return {err: 1, message: "Contract validation failed"};
 			}
@@ -69,9 +69,9 @@ let Validator = {
 	txModel : ['amount','data','from','nonce','sign','ticker','to'],
 	enq_regexp : /^(02|03)[0-9a-fA-F]{64}$/i,
 	hash_regexp : /^[0-9a-fA-F]{64}$/i,
-	digit_regexp : /^\d+$/,
+	digit_regexp : /(^0$)|(^[1-9]\d*$)/,
 	hex_regexp : /^[A-Fa-f0-9]+$/,
-	name_regexp : /^[0-9a-zA-Z _]{0,512}$/,
+	name_regexp : /^[0-9a-zA-Z _\-/.]{0,512}$/,
 	tx : function(tx){
 
 		if(Array.isArray(tx))
@@ -98,6 +98,8 @@ let Validator = {
 		let amount;
 		try{
 			if(typeof tx.amount === 'string' && tx.amount.length <= 0)
+				return {err: 1, message: "Amount is not a valid Integer"};
+			if(typeof tx.amount === 'string' && tx.amount.charAt(0) === "0")
 				return {err: 1, message: "Amount is not a valid Integer"};
 			amount = BigInt(tx.amount)
 		}

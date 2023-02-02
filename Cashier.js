@@ -1327,6 +1327,7 @@ class Cashier {
             if(block.n === this.config.FORKS.fork_block_002){
                 let res = await this.db.prefork_002();
             }
+/*
             // Create temp snapshot (state) of current block
             let tmp_snapshot_hash = await this.db.get_tmp_snapshot_hash(cur_hash);
             if (!tmp_snapshot_hash) {
@@ -1338,7 +1339,7 @@ class Cashier {
                 time = process.hrtime(time);
                 console.debug(`cashier_timing: caching state(temp snapshot)`, Utils.format_time(time));
             }
-
+*/
             // Create snapshot of current block if needed
             if ((block.n) % this.config.snapshot_interval === 0) {
                 let snapshot_hash = await this.db.get_snapshot_hash(cur_hash);

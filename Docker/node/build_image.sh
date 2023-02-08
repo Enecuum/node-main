@@ -31,6 +31,7 @@ echo $SNAPSHOT_FILE
 #obfuscation js files
 cp ../../*.js build
 #copy snapshot file and explorer folder
+cp ../../pricelist.json build/pricelist.json
 cp ../../package.json build/package.json
 cp ../../$SNAPSHOT_FILE build/$SNAPSHOT_FILE
 cp -rf ../../explorer/ build/explorer/
